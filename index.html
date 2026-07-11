@@ -563,17 +563,23 @@ function renderMonthlyChart(){
     return {m,inc:inc/rate,exp:exp/rate};});
   const max=Math.max(1,...data.map(d=>Math.max(d.inc,d.exp)));
   const W=100/months.length, gap=months.length>18?0.4:2, bw=(W-gap)/2;
+  const baseY=98, scale=90;
   let bars='';
   data.forEach((d,i)=>{
     const x=i*W+gap/2;
-    const hi=d.inc/max*70, he=d.exp/max*70;
-    bars+=`<rect class="bar" x="${x}%" y="${(78-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
-    bars+=`<rect class="bar" x="${x+bw}%" y="${(78-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
+    const hi=d.inc/max*scale, he=d.exp/max*scale;
+    bars+=`<rect class="bar" x="${x}%" y="${(baseY-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x+bw}%" y="${(baseY-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
   });
   const step=Math.ceil(months.length/12);
-  const labels=data.map((d,i)=> (i%step)?'':`<text x="${i*W+W/2}%" y="97%" text-anchor="middle" font-size="8" fill="var(--muted)">${d.m.slice(2).replace('-','/')}</text>`).join('');
+  const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}</svg>`;
+  const labels=months.map((m,i)=>{
+    const [y,mo]=m.split('-');
+    const show=(i%step)===0;
+    return `<div style="flex:1;text-align:center;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden">${show?mo+'.'+y.slice(2):''}</div>`;
+  }).join('');
   document.getElementById('chartMonthly').innerHTML=
-    `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:170px">${bars}${labels}</svg>`;
+    svg+`<div style="display:flex;margin-top:5px">${labels}</div>`;
 }
 
 function renderCatChart(){
