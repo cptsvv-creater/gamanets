@@ -17,17 +17,17 @@
     --text:#0f1a2e;--muted:#5b6b86;}
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%}
+html,body{margin:0}
 body{background:var(--bg);color:var(--text);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-  -webkit-tap-highlight-color:transparent;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  -webkit-tap-highlight-color:transparent}
 h1,h2,h3{margin:0 0 .4em}
 button{font:inherit;cursor:pointer;color:inherit}
 input,select{font:inherit;color:var(--text);background:var(--surface2);
   border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
 input:focus,select:focus{outline:2px solid var(--brand)}
 label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
-.app{max-width:820px;margin:0 auto;padding:14px 14px 0}
+.app{max-width:820px;margin:0 auto;padding:14px 14px calc(100px + env(safe-area-inset-bottom))}
 header{display:flex;align-items:center;justify-content:space-between;
   gap:10px;margin-bottom:14px}
 header .logo{font-weight:700;font-size:19px;letter-spacing:.2px}
