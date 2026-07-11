@@ -126,6 +126,10 @@ svg .bar{transition:opacity .2s}
   border:1px solid var(--line);color:var(--text);padding:10px 16px;border-radius:12px;
   box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:60;opacity:0;pointer-events:none;transition:opacity .25s;font-size:14px}
 #toast.show{opacity:1}
+.fab.mic{bottom:calc(140px + env(safe-area-inset-bottom));width:48px;height:48px;font-size:22px;
+  background:var(--surface);border:1px solid var(--line);color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.fab.mic.listening{background:var(--red);color:#fff;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 
 /* ===== DESKTOP LAYOUT (широкий екран) ===== */
 .sidebar{display:none}
@@ -181,6 +185,7 @@ svg .bar{transition:opacity .2s}
 
   <!-- ============ DASHBOARD ============ -->
   <section id="view-dash" class="view">
+    <div class="txfilter" id="curSel"></div>
     <div class="grid cols3" style="margin-bottom:14px">
       <div class="stat"><div class="k">Загальний баланс</div><div class="v" id="totalBal">—</div></div>
       <div class="stat"><div class="k">Доходи (міс.)</div><div class="v pos" id="mIncome">—</div></div>
@@ -202,8 +207,15 @@ svg .bar{transition:opacity .2s}
     </div>
 
     <div class="card">
-      <div class="row"><h3>Динаміка за 6 міс.</h3><div class="spacer"></div>
-        <span class="tag">₴ у гривні</span></div>
+      <div class="row"><h3>Динаміка</h3><div class="spacer"></div>
+        <span class="tag" id="dynCur">₴</span></div>
+      <div class="txfilter" id="rangeSel"></div>
+      <div class="row hidden" id="customRange" style="margin-bottom:8px">
+        <input type="month" id="rangeFrom" style="flex:1">
+        <span class="muted">—</span>
+        <input type="month" id="rangeTo" style="flex:1">
+        <button class="btn sm" onclick="applyCustomRange()">OK</button>
+      </div>
       <div id="chartMonthly"></div>
       <div class="legend">
         <span><i class="dot" style="background:var(--green)"></i>Доходи</span>
@@ -275,6 +287,7 @@ svg .bar{transition:opacity .2s}
   </section>
 </div>
 
+<button class="fab mic" id="micFab" onclick="startVoice()" title="Голосовий запис">🎤</button>
 <button class="fab" id="fab" onclick="openTx()">+</button>
 
 <nav class="tabbar">
@@ -412,6 +425,7 @@ const setMeta=(k,v)=>put('meta',{k,v});
 /* ---------- state ---------- */
 let accounts=[], txs=[], cats=[], rates={USD:41,EUR:44,MDL:2.3,UAH:1};
 let catTab='expense', txFilter='all';
+let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories');
@@ -442,6 +456,8 @@ async function seed(){
 
 /* ---------- conversion ---------- */
 const toBase = (v,c)=> Number(v)* (rates[c]||1);
+const dispVal = base => base/(rates[dispCur]||1);
+const fmtDisp = base => fmt(dispVal(base), dispCur);
 
 /* ---------- balances ---------- */
 function accBalance(a){
@@ -475,17 +491,64 @@ function fillCatSelect(sel,type,val){
   sel.innerHTML=html; if(val)sel.value=val;
 }
 
+function renderCurSel(){
+  document.getElementById('curSel').innerHTML=['UAH','USD','EUR','MDL'].map(c=>
+    `<span class="chip ${dispCur===c?'on':''}" onclick="setDispCur('${c}')">${CUR[c].s} ${c}</span>`).join('');
+}
+function setDispCur(c){dispCur=c;renderDash();}
+function renderRangeSel(){
+  const opts=[['6m','6 міс'],['12m','Рік'],['all','Весь час'],['custom','Свій період']];
+  document.getElementById('rangeSel').innerHTML=opts.map(([k,l])=>
+    `<span class="chip ${chartRange===k?'on':''}" onclick="setRange('${k}')">${l}</span>`).join('');
+  document.getElementById('customRange').classList.toggle('hidden',chartRange!=='custom');
+}
+function setRange(k){chartRange=k;renderRangeSel();
+  if(k==='custom'){
+    const now=new Date(), cur=now.toISOString().slice(0,7);
+    if(!document.getElementById('rangeFrom').value){
+      const d=new Date(now.getFullYear(),now.getMonth()-5,1);
+      document.getElementById('rangeFrom').value=d.toISOString().slice(0,7);
+      document.getElementById('rangeTo').value=cur;
+    }
+  }else renderMonthlyChart();
+}
+function applyCustomRange(){
+  customFrom=document.getElementById('rangeFrom').value;
+  customTo=document.getElementById('rangeTo').value;
+  if(!customFrom||!customTo){alert('Обери обидва місяці');return;}
+  chartRange='custom';renderMonthlyChart();
+}
+function monthsBetween(a,b){
+  if(a>b)[a,b]=[b,a];
+  const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);
+  const arr=[]; let y=ay,m=am;
+  while(y<by||(y===by&&m<=bm)){arr.push(`${y}-${String(m).padStart(2,'0')}`);m++;if(m>12){m=1;y++;}}
+  return arr.length?arr:[a];
+}
+function monthsForRange(){
+  const now=new Date(), key=d=>d.toISOString().slice(0,7);
+  if(chartRange==='custom'&&customFrom&&customTo) return monthsBetween(customFrom,customTo);
+  if(chartRange==='all'){
+    if(!txs.length) return [key(now)];
+    const min=txs.reduce((m,t)=>t.date<m?t.date:m,txs[0].date).slice(0,7);
+    return monthsBetween(min,key(now));
+  }
+  const count=chartRange==='12m'?12:6, arr=[];
+  for(let i=count-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push(key(d));}
+  return arr;
+}
 function renderDash(){
-  // totals
+  renderCurSel(); renderRangeSel();
+  document.getElementById('dynCur').textContent=CUR[dispCur].s;
   let total=0; accounts.forEach(a=> total+=toBase(accBalance(a),a.currency));
-  document.getElementById('totalBal').textContent=fmt(total);
+  document.getElementById('totalBal').textContent=fmtDisp(total);
   const mk=monthKey(todayISO());
   let inc=0,exp=0;
   txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
     const acc=accById(t.account); const v=toBase(t.amount,acc?.currency||BASE);
     if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
-  document.getElementById('mIncome').textContent='+'+fmt(inc);
-  document.getElementById('mExpense').textContent='−'+fmt(exp);
+  document.getElementById('mIncome').textContent='+'+fmtDisp(inc);
+  document.getElementById('mExpense').textContent='−'+fmtDisp(exp);
   renderMonthlyChart(); renderCatChart(); renderLimits(); renderQuick();
   document.getElementById('recentTx').innerHTML =
     txs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(txRow).join('')
@@ -493,22 +556,22 @@ function renderDash(){
 }
 
 function renderMonthlyChart(){
-  const months=[]; const now=new Date();
-  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push(d.toISOString().slice(0,7));}
+  const months=monthsForRange(), rate=rates[dispCur]||1;
   const data=months.map(m=>{let inc=0,exp=0;
     txs.forEach(t=>{if(monthKey(t.date)!==m)return;const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||BASE);
       if(t.type==='income')inc+=v;if(t.type==='expense')exp+=v;});
-    return {m,inc,exp};});
+    return {m,inc:inc/rate,exp:exp/rate};});
   const max=Math.max(1,...data.map(d=>Math.max(d.inc,d.exp)));
-  const W=100/months.length, gap=2, bw=(W-gap)/2 - 1;
+  const W=100/months.length, gap=months.length>18?0.4:2, bw=(W-gap)/2;
   let bars='';
   data.forEach((d,i)=>{
-    const x=i*W+1;
+    const x=i*W+gap/2;
     const hi=d.inc/max*70, he=d.exp/max*70;
-    bars+=`<rect class="bar" x="${x}%" y="${(78-hi)}%" width="${bw}%" height="${hi}%" rx="2" fill="var(--green)"><title>${d.m}: +${fmt(d.inc)}</title></rect>`;
-    bars+=`<rect class="bar" x="${x+bw+1}%" y="${(78-he)}%" width="${bw}%" height="${he}%" rx="2" fill="var(--red)"><title>${d.m}: −${fmt(d.exp)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x}%" y="${(78-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x+bw}%" y="${(78-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
   });
-  const labels=data.map((d,i)=>`<text x="${i*W+W/2}%" y="97%" text-anchor="middle" font-size="9" fill="var(--muted)">${d.m.slice(5)}</text>`).join('');
+  const step=Math.ceil(months.length/12);
+  const labels=data.map((d,i)=> (i%step)?'':`<text x="${i*W+W/2}%" y="97%" text-anchor="middle" font-size="8" fill="var(--muted)">${d.m.slice(2).replace('-','/')}</text>`).join('');
   document.getElementById('chartMonthly').innerHTML=
     `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:170px">${bars}${labels}</svg>`;
 }
@@ -664,6 +727,7 @@ function go(tab){
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.getElementById('fab').classList.toggle('hidden', tab==='set');
+  document.getElementById('micFab').classList.toggle('hidden', tab==='set');
   if(tab==='dash')renderDash(); if(tab==='tx')renderTx();
   if(tab==='acc')renderAccounts(); if(tab==='set')renderCats();
   window.scrollTo(0,0);
@@ -869,6 +933,80 @@ function updateNet(){
   ['netStatus','netStatusDesktop'].forEach(id=>{const el=document.getElementById(id);
     if(el){el.textContent=txt;el.style.color=col;}});}
 window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
+
+/* ========================= VOICE INPUT ========================= */
+const UA_ONES={'нуль':0,'один':1,'одна':1,'одне':1,'два':2,'дві':2,'три':3,'чотири':4,"п'ять":5,'шість':6,'сім':7,'вісім':8,"дев'ять":9};
+const UA_TEENS={'десять':10,'одинадцять':11,'дванадцять':12,'тринадцять':13,'чотирнадцять':14,"п'ятнадцять":15,'шістнадцять':16,'сімнадцять':17,'вісімнадцять':18,"дев'ятнадцять":19};
+const UA_TENS={'двадцять':20,'тридцять':30,'сорок':40,"п'ятдесят":50,'шістдесят':60,'сімдесят':70,'вісімдесят':80,"дев'яносто":90};
+const UA_HUNDREDS={'сто':100,'двісті':200,'триста':300,'чотириста':400,"п'ятсот":500,'шістсот':600,'сімсот':700,'вісімсот':800,"дев'ятсот":900};
+function normWord(w){return w.toLowerCase().replace(/[’ʼ`]/g,"'").replace(/[.,!?]/g,'');}
+function wordsToNumber(words){
+  let total=0,cur=0,found=false;
+  for(let w of words){ w=normWord(w);
+    if(w in UA_HUNDREDS){cur+=UA_HUNDREDS[w];found=true;}
+    else if(w in UA_TENS){cur+=UA_TENS[w];found=true;}
+    else if(w in UA_TEENS){cur+=UA_TEENS[w];found=true;}
+    else if(w in UA_ONES){cur+=UA_ONES[w];found=true;}
+    else if(/^тисяч/.test(w)){cur=(cur||1)*1000;total+=cur;cur=0;found=true;}
+  }
+  total+=cur; return found?total:null;
+}
+function parseAmount(text){
+  const m=text.replace(/\s/g,'').match(/(\d+(?:[.,]\d+)?)/);
+  if(m) return parseFloat(m[1].replace(',','.'));
+  return wordsToNumber(text.split(/\s+/));
+}
+const INCOME_HINTS=['дохід','доход','зарплат','отримав','отримала','надійшл','прийшл','дивіденд','оренд','продав','продала','повернул','премі','бонус','аванс','заробив'];
+/* синоніми: сказане слово → фрагмент назви категорії, який воно означає */
+const SYN=[['продукт','їж'],['магазин','їж'],['супермаркет','їж'],['їст','їж'],
+  ['кав','каф'],['кафе','каф'],['ресторан','ресторан'],['обід','каф'],['снідан','каф'],
+  ['бензин','пальн'],['заправк','пальн'],['дизель','пальн'],['солярк','пальн'],
+  ['сигарет','тютюн'],['цигарк','тютюн'],['пив','алкогол'],['вин','алкогол'],['горілк','алкогол'],
+  ['ліки','здоров'],['аптек','здоров'],['лікар','здоров'],['мобіл','телефон'],['поповн','телефон'],
+  ['дитин','діт'],['дитяч','діт'],['подарунок','подарунк'],['презент','подарунк'],
+  ['парковк','авт'],['мийк','авт'],['ремонт','авт'],['штраф','авт']];
+function parseVoice(text){
+  const t=' '+text.toLowerCase().replace(/[’ʼ`]/g,"'")+' ';
+  const type=INCOME_HINTS.some(h=>t.includes(h))?'income':'expense';
+  const amount=parseAmount(text);
+  let catId=null,best=0;
+  cats.filter(c=>c.type===type&&kids(c.id).length===0).forEach(c=>{
+    const nm=c.name.toLowerCase().replace(/[’ʼ`]/g,"'");
+    let score=0;
+    nm.split(/[\s/]+/).forEach(w=>{
+      if(w.length>=4){const stem=w.slice(0,Math.max(4,w.length-2)); if(t.includes(stem))score+=w.length;}});
+    SYN.forEach(([spoken,frag])=>{ if(t.includes(spoken)&&nm.includes(frag)) score+=6; });
+    if(score>best){best=score;catId=c.id;}
+  });
+  let accId=accounts[0]?.id;
+  accounts.forEach(a=>{const w=a.name.toLowerCase().split(/\s+/)[0];
+    if(w.length>=4&&t.includes(w.slice(0,Math.max(4,w.length-1))))accId=a.id;});
+  return {type,amount,catId,accId,text};
+}
+let recognition=null;
+function startVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Голосовий ввід не підтримується цим браузером 😕');return;}
+  if(accounts.length===0){alert('Спершу додай рахунок');go('acc');return;}
+  const mic=document.getElementById('micFab');
+  recognition=new SR();
+  recognition.lang='uk-UA'; recognition.interimResults=false; recognition.maxAlternatives=1;
+  recognition.onstart=()=>{mic.classList.add('listening');toast('🎤 Слухаю… напр. «продукти 450» або «зарплата 20 тисяч»');};
+  recognition.onerror=e=>{mic.classList.remove('listening');
+    toast(e.error==='not-allowed'?'Немає доступу до мікрофона':'Не почув, спробуй ще раз');};
+  recognition.onend=()=>mic.classList.remove('listening');
+  recognition.onresult=e=>{ voiceFill(parseVoice(e.results[0][0].transcript)); };
+  try{recognition.start();}catch(err){toast('Мікрофон зайнятий, спробуй ще раз');}
+}
+function voiceFill(p){
+  openTx();
+  setTxKind(p.type);
+  if(p.amount) document.getElementById('txAmount').value=p.amount;
+  if(p.accId) document.getElementById('txAccFrom').value=p.accId;
+  if(p.catId) document.getElementById('txCat').value=p.catId;
+  document.getElementById('txNote').value=p.text;
+  toast('Розпізнав: '+(p.amount?fmt(p.amount):'сума?')+' · '+(p.catId?catFullName(p.catId):'категорія?')+'. Перевір і збережи.');
+}
 
 /* ========================= BOOT ========================= */
 (async function(){
