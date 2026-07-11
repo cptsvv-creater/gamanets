@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Гаманець — облік фінансів</title>
+<style>
+:root{
+  --bg:#0b1220; --surface:#131c2e; --surface2:#1b2740; --line:#26324e;
+  --text:#e6edf7; --muted:#95a3bd; --brand:#14b8a6; --brand-d:#0f766e;
+  --green:#22c55e; --red:#f43f5e; --amber:#f59e0b; --blue:#3b82f6;
+  --radius:14px;
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f2f5fa;--surface:#ffffff;--surface2:#f6f8fc;--line:#e2e8f2;
+    --text:#0f1a2e;--muted:#5b6b86;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent;padding-bottom:72px}
+h1,h2,h3{margin:0 0 .4em}
+button{font:inherit;cursor:pointer;color:inherit}
+input,select{font:inherit;color:var(--text);background:var(--surface2);
+  border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+input:focus,select:focus{outline:2px solid var(--brand)}
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+.app{max-width:820px;margin:0 auto;padding:14px 14px 0}
+header{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:14px}
+header .logo{font-weight:700;font-size:19px;letter-spacing:.2px}
+header .logo b{color:var(--brand)}
+.pill{background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:6px 12px;font-size:13px;color:var(--muted)}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px}
+.grid{display:grid;gap:12px}
+.grid.cols2{grid-template-columns:1fr 1fr}
+.grid.cols3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:560px){.grid.cols3{grid-template-columns:1fr 1fr}}
+
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.stat .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+.stat .v{font-size:22px;font-weight:700}
+.pos{color:var(--green)} .neg{color:var(--red)}
+
+.btn{background:var(--brand);color:#04211d;border:none;border-radius:10px;
+  padding:10px 14px;font-weight:600}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:500}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn.danger{background:var(--red);color:#fff}
+.row{display:flex;gap:10px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.spacer{flex:1}
+
+/* list */
+.tx{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line)}
+.tx:last-child{border-bottom:none}
+.tx .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  font-size:18px;background:var(--surface2);flex:none}
+.tx .mid{flex:1;min-width:0}
+.tx .mid .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx .mid .s{font-size:12px;color:var(--muted)}
+.tx .amt{font-weight:700;white-space:nowrap}
+.muted{color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+
+/* tabs / bottom nav */
+nav.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);
+  border-top:1px solid var(--line);display:flex;justify-content:space-around;
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20}
+nav.tabbar button{background:none;border:none;flex:1;padding:6px 2px;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px}
+nav.tabbar button.active{color:var(--brand)}
+nav.tabbar .gi{font-size:20px}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
+  align-items:flex-end;justify-content:center;z-index:40}
+.modal.open{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:520px;border-radius:18px 18px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+@media(min-width:560px){.modal{align-items:center}.sheet{border-radius:18px}}
+.seg{display:flex;background:var(--surface2);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:none;background:none;padding:8px;border-radius:8px;color:var(--muted);font-weight:600}
+.seg button.on{background:var(--brand);color:#04211d}
+.fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));
+  width:56px;height:56px;border-radius:50%;background:var(--brand);color:#04211d;
+  border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25}
+
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
+  border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;margin:0 6px 6px 0}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--muted)}
+svg .bar{transition:opacity .2s}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.hidden{display:none!important}
+
+/* ===== DESKTOP LAYOUT (широкий екран) ===== */
+.sidebar{display:none}
+@media(min-width:900px){
+  body{padding-bottom:0}
+  nav.tabbar{display:none}
+  .fab{display:none!important}
+  .sidebar{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;
+    width:220px;background:var(--surface);border-right:1px solid var(--line);padding:18px 12px;gap:4px;z-index:15}
+  .sidebar .brand{font-size:20px;font-weight:700;padding:6px 10px 16px}
+  .sidebar .brand b{color:var(--brand)}
+  .sidebar button.navi{display:flex;align-items:center;gap:12px;background:none;border:none;
+    color:var(--muted);padding:11px 12px;border-radius:10px;font-size:15px;text-align:left;width:100%}
+  .sidebar button.navi:hover{background:var(--surface2)}
+  .sidebar button.navi.active{background:var(--surface2);color:var(--brand);font-weight:600}
+  .sidebar .navi .gi{font-size:18px;width:22px;text-align:center}
+  .sidebar .addbtn{margin-top:14px}
+  .sidebar .net{margin-top:auto;font-size:12px;color:var(--muted);padding:8px 12px}
+  .app{max-width:1180px;margin-left:220px;padding:24px 28px 40px}
+  header{display:none}
+  /* wider dashboard cards side by side */
+  #view-dash{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  #view-dash > .grid.cols3{grid-column:1/-1}
+  #view-dash > .card:last-child{grid-column:1/-1}
+  .view{animation:none}
+  .sheet{max-width:560px}
+}
+@media(min-width:1200px){
+  #view-dash{grid-template-columns:1fr 1fr}
+}
+.txfilter{display:flex;gap:8px;overflow:auto;padding-bottom:4px;margin-bottom:8px}
+.txfilter .chip{white-space:nowrap;cursor:pointer}
+.txfilter .chip.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand"><b>₴</b> Гаманець</div>
+  <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
+  <button class="navi" data-tab="tx" onclick="go('tx')"><span class="gi">📋</span>Операції</button>
+  <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
+  <button class="navi" data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
+  <button class="btn addbtn" onclick="openTx()">＋ Нова операція</button>
+  <div class="net" id="netStatusDesktop">офлайн</div>
+</aside>
+<div class="app">
+  <header>
+    <div class="logo"><b>₴</b> Гаманець</div>
+    <div class="row">
+      <span class="pill" id="netStatus">офлайн</span>
+    </div>
+  </header>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="view-dash" class="view">
+    <div class="grid cols3" style="margin-bottom:14px">
+      <div class="stat"><div class="k">Загальний баланс</div><div class="v" id="totalBal">—</div></div>
+      <div class="stat"><div class="k">Доходи (міс.)</div><div class="v pos" id="mIncome">—</div></div>
+      <div class="stat"><div class="k">Витрати (міс.)</div><div class="v neg" id="mExpense">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>Динаміка за 6 міс.</h3><div class="spacer"></div>
+        <span class="tag">₴ у гривні</span></div>
+      <div id="chartMonthly"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--green)"></i>Доходи</span>
+        <span><i class="dot" style="background:var(--red)"></i>Витрати</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Витрати за категоріями (міс.)</h3>
+      <div id="chartCats"></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>Останні операції</h3><div class="spacer"></div>
+        <button class="btn ghost sm" onclick="go('tx')">Усі →</button></div>
+      <div id="recentTx"></div>
+    </div>
+  </section>
+
+  <!-- ============ TRANSACTIONS ============ -->
+  <section id="view-tx" class="view hidden">
+    <div class="txfilter" id="txFilter"></div>
+    <div class="card"><div id="txList"></div></div>
+  </section>
+
+  <!-- ============ ACCOUNTS ============ -->
+  <section id="view-acc" class="view hidden">
+    <div class="row" style="margin-bottom:12px">
+      <h2 style="margin:0">Рахунки</h2><div class="spacer"></div>
+      <button class="btn sm" onclick="openAccount()">+ Рахунок</button>
+    </div>
+    <div id="accList"></div>
+    <div class="card">
+      <div class="row"><h3>Курси валют → ₴</h3><div class="spacer"></div>
+        <button class="btn ghost sm" onclick="fetchRates()">Оновити з НБУ</button></div>
+      <div id="ratesBox" class="row wrap"></div>
+      <div class="muted" style="font-size:12px;margin-top:8px" id="ratesDate"></div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="view-set" class="view hidden">
+    <h2>Категорії</h2>
+    <div class="card">
+      <div class="seg" style="margin-bottom:12px">
+        <button id="catTabExp" class="on" onclick="switchCatTab('expense')">Витрати</button>
+        <button id="catTabInc" onclick="switchCatTab('income')">Доходи</button>
+      </div>
+      <div id="catList"></div>
+      <div class="row" style="margin-top:12px">
+        <input id="newCatName" placeholder="Нова категорія">
+        <input id="newCatIcon" placeholder="🍔" style="width:64px;text-align:center">
+        <button class="btn sm" onclick="addCategory()">+</button>
+      </div>
+    </div>
+
+    <h2>Дані</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
+      <div class="row wrap">
+        <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
+        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
+        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
+        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<button class="fab" id="fab" onclick="openTx()">+</button>
+
+<nav class="tabbar">
+  <button data-tab="dash" class="active" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
+  <button data-tab="tx" onclick="go('tx')"><span class="gi">📋</span>Операції</button>
+  <button data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
+  <button data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
+</nav>
+
+<!-- Transaction modal -->
+<div class="modal" id="txModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 id="txModalTitle" style="margin:0">Нова операція</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('txModal')">✕</button></div>
+    <div class="seg" style="margin-bottom:14px">
+      <button data-k="expense" class="on" onclick="setTxKind('expense')">Витрата</button>
+      <button data-k="income" onclick="setTxKind('income')">Дохід</button>
+      <button data-k="transfer" onclick="setTxKind('transfer')">Переказ</button>
+    </div>
+    <div class="grid cols2">
+      <div><label>Сума</label><input id="txAmount" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
+      <div><label>Дата</label><input id="txDate" type="date"></div>
+    </div>
+    <div style="margin-top:10px"><label id="lblAccFrom">Рахунок</label>
+      <select id="txAccFrom"></select></div>
+    <div style="margin-top:10px" id="wrapAccTo" class="hidden"><label>Куди</label>
+      <select id="txAccTo"></select></div>
+    <div style="margin-top:10px" id="wrapCat"><label>Категорія</label>
+      <select id="txCat"></select></div>
+    <div style="margin-top:10px"><label>Нотатка</label><input id="txNote" placeholder="необов'язково"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn danger sm hidden" id="txDelBtn" onclick="deleteTx()">Видалити</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveTx()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Account modal -->
+<div class="modal" id="accModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="accModalTitle">Рахунок</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('accModal')">✕</button></div>
+    <div><label>Назва</label><input id="accName" placeholder="Готівка / Monobank ..."></div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Валюта</label><select id="accCurrency">
+        <option value="UAH">₴ UAH — гривня</option>
+        <option value="USD">$ USD — долар</option>
+        <option value="EUR">€ EUR — євро</option>
+        <option value="MDL">L MDL — молд. лей</option>
+      </select></div>
+      <div><label>Стартовий баланс</label><input id="accBalance" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div style="margin-top:10px"><label>Іконка</label>
+      <input id="accIcon" placeholder="💵" style="width:72px;text-align:center"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn danger sm hidden" id="accDelBtn" onclick="deleteAccount()">Видалити</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveAccount()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   Гаманець — Етап 1. Local-first, IndexedDB, повністю офлайн.
+   ========================================================================= */
+const CUR = {UAH:{s:'₴',n:'гривня'}, USD:{s:'$',n:'долар'}, EUR:{s:'€',n:'євро'}, MDL:{s:'L',n:'лей'}};
+const BASE = 'UAH';
+const fmt = (v,c=BASE)=> (CUR[c]?.s||'')+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+const monthKey = d => d.slice(0,7);
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+/* ---------- IndexedDB ---------- */
+const DB_NAME='gamanets', DB_VER=1;
+let db;
+function openDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NAME,DB_VER);
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('accounts')) d.createObjectStore('accounts',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('tx')) d.createObjectStore('tx',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('categories')) d.createObjectStore('categories',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'});
+    };
+    r.onsuccess=e=>{db=e.target.result;res();};
+    r.onerror=e=>rej(e);
+  });
+}
+const tx=(store,mode='readonly')=>db.transaction(store,mode).objectStore(store);
+const all=store=>new Promise((res)=>{const out=[];tx(store).openCursor().onsuccess=e=>{const c=e.target.result;if(c){out.push(c.value);c.continue();}else res(out);};});
+const put=(store,val)=>new Promise(res=>{tx(store,'readwrite').put(val).onsuccess=res;});
+const del=(store,id)=>new Promise(res=>{tx(store,'readwrite').delete(id).onsuccess=res;});
+const getMeta=k=>new Promise(res=>{tx('meta').get(k).onsuccess=e=>res(e.target.result?.v);});
+const setMeta=(k,v)=>put('meta',{k,v});
+
+/* ---------- state ---------- */
+let accounts=[], txs=[], cats=[], rates={USD:41,EUR:44,MDL:2.3,UAH:1};
+let catTab='expense', txFilter='all';
+
+async function loadAll(){
+  accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories');
+  const r=await getMeta('rates'); if(r) rates={...rates,...r};
+}
+
+/* ---------- seed defaults on first run ---------- */
+async function seed(){
+  if((await all('categories')).length) return;
+  const exp=[['Продукти','🛒'],['Кафе/ресторани','🍽️'],['Транспорт','🚗'],['Житло','🏠'],
+    ['Комуналка','💡'],['Здоров\'я','💊'],['Одяг','👕'],['Розваги','🎬'],['Підписки','📱'],['Інше','📦']];
+  const inc=[['Зарплата','💰'],['Фріланс','💻'],['Відсотки','🏦'],['Подарунок','🎁'],['Інше','➕']];
+  for(const [n,ic] of exp) await put('categories',{id:uid(),name:n,icon:ic,type:'expense'});
+  for(const [n,ic] of inc) await put('categories',{id:uid(),name:n,icon:ic,type:'income'});
+  await put('accounts',{id:uid(),name:'Готівка',currency:'UAH',balance:0,icon:'💵'});
+}
+
+/* ---------- conversion ---------- */
+const toBase = (v,c)=> Number(v)* (rates[c]||1);
+
+/* ---------- balances ---------- */
+function accBalance(a){
+  let b=Number(a.balance||0);
+  for(const t of txs){
+    if(t.type==='income'&&t.account===a.id) b+=t.amount;
+    if(t.type==='expense'&&t.account===a.id) b-=t.amount;
+    if(t.type==='transfer'){ if(t.account===a.id) b-=t.amount; if(t.to===a.id) b+=(t.amountTo??t.amount); }
+  }
+  return b;
+}
+
+/* ========================= RENDER ========================= */
+function catById(id){return cats.find(c=>c.id===id);}
+function accById(id){return accounts.find(a=>a.id===id);}
+
+function renderDash(){
+  // totals
+  let total=0; accounts.forEach(a=> total+=toBase(accBalance(a),a.currency));
+  document.getElementById('totalBal').textContent=fmt(total);
+  const mk=monthKey(todayISO());
+  let inc=0,exp=0;
+  txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
+    const acc=accById(t.account); const v=toBase(t.amount,acc?.currency||BASE);
+    if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
+  document.getElementById('mIncome').textContent='+'+fmt(inc);
+  document.getElementById('mExpense').textContent='−'+fmt(exp);
+  renderMonthlyChart(); renderCatChart();
+  document.getElementById('recentTx').innerHTML =
+    txs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(txRow).join('')
+    || '<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';
+}
+
+function renderMonthlyChart(){
+  const months=[]; const now=new Date();
+  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push(d.toISOString().slice(0,7));}
+  const data=months.map(m=>{let inc=0,exp=0;
+    txs.forEach(t=>{if(monthKey(t.date)!==m)return;const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||BASE);
+      if(t.type==='income')inc+=v;if(t.type==='expense')exp+=v;});
+    return {m,inc,exp};});
+  const max=Math.max(1,...data.map(d=>Math.max(d.inc,d.exp)));
+  const W=100/months.length, gap=2, bw=(W-gap)/2 - 1;
+  let bars='';
+  data.forEach((d,i)=>{
+    const x=i*W+1;
+    const hi=d.inc/max*70, he=d.exp/max*70;
+    bars+=`<rect class="bar" x="${x}%" y="${(78-hi)}%" width="${bw}%" height="${hi}%" rx="2" fill="var(--green)"><title>${d.m}: +${fmt(d.inc)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x+bw+1}%" y="${(78-he)}%" width="${bw}%" height="${he}%" rx="2" fill="var(--red)"><title>${d.m}: −${fmt(d.exp)}</title></rect>`;
+  });
+  const labels=data.map((d,i)=>`<text x="${i*W+W/2}%" y="97%" text-anchor="middle" font-size="9" fill="var(--muted)">${d.m.slice(5)}</text>`).join('');
+  document.getElementById('chartMonthly').innerHTML=
+    `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:170px">${bars}${labels}</svg>`;
+}
+
+function renderCatChart(){
+  const mk=monthKey(todayISO());
+  const map={};
+  txs.forEach(t=>{if(t.type!=='expense'||monthKey(t.date)!==mk)return;
+    const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||BASE);
+    map[t.category]=(map[t.category]||0)+v;});
+  const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length){document.getElementById('chartCats').innerHTML='<div class="empty">Немає витрат цього місяця.</div>';return;}
+  const total=rows.reduce((s,r)=>s+r[1],0);
+  const palette=['#f43f5e','#f59e0b','#3b82f6','#14b8a6','#a855f7','#84cc16','#ec4899','#06b6d4','#eab308','#64748b'];
+  document.getElementById('chartCats').innerHTML=rows.map(([cid,v],i)=>{
+    const c=catById(cid); const pct=(v/total*100);
+    return `<div style="margin:8px 0">
+      <div class="row" style="font-size:13px"><span>${c?.icon||'📦'} ${c?.name||'—'}</span><div class="spacer"></div>
+        <b>${fmt(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
+      <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${palette[i%palette.length]}"></div></div></div>`;
+  }).join('');
+}
+
+function txRow(t){
+  const acc=accById(t.account);
+  let ic,title,sub,amtHtml;
+  if(t.type==='transfer'){
+    const to=accById(t.to);
+    ic='🔄'; title='Переказ'; sub=`${acc?.name||'?'} → ${to?.name||'?'}`;
+    amtHtml=`<span class="amt">${fmt(t.amount,acc?.currency)}</span>`;
+  }else{
+    const c=catById(t.category);
+    ic=c?.icon||(t.type==='income'?'💰':'📦');
+    title=c?.name||(t.type==='income'?'Дохід':'Витрата');
+    sub=`${acc?.name||'?'}${t.note?' · '+t.note:''}`;
+    const sign=t.type==='income'?'+':'−';
+    amtHtml=`<span class="amt ${t.type==='income'?'pos':'neg'}">${sign}${fmt(t.amount,acc?.currency)}</span>`;
+  }
+  return `<div class="tx" onclick="openTx('${t.id}')">
+    <div class="ic">${ic}</div>
+    <div class="mid"><div class="t">${title}</div><div class="s">${t.date} · ${sub}</div></div>
+    ${amtHtml}</div>`;
+}
+
+function renderTx(){
+  const fb=document.getElementById('txFilter');
+  const filters=[['all','Усі'],['expense','Витрати'],['income','Доходи'],['transfer','Перекази']];
+  fb.innerHTML=filters.map(([k,l])=>`<span class="chip ${txFilter===k?'on':''}" onclick="setTxFilter('${k}')">${l}</span>`).join('');
+  let list=txs.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(txFilter!=='all') list=list.filter(t=>t.type===txFilter);
+  document.getElementById('txList').innerHTML=list.map(txRow).join('')||'<div class="empty">Порожньо.</div>';
+}
+function setTxFilter(k){txFilter=k;renderTx();}
+
+function renderAccounts(){
+  const box=document.getElementById('accList');
+  box.innerHTML = accounts.map(a=>{
+    const bal=accBalance(a);
+    return `<div class="card" onclick="openAccount('${a.id}')" style="cursor:pointer">
+      <div class="row"><div class="ic tx" style="width:auto">${a.icon||'💳'}</div>
+        <div><div style="font-weight:600">${a.name}</div>
+          <div class="muted" style="font-size:12px">${a.currency} · ${CUR[a.currency].n}</div></div>
+        <div class="spacer"></div>
+        <div style="text-align:right"><div style="font-weight:700;font-size:18px">${fmt(bal,a.currency)}</div>
+          ${a.currency!==BASE?`<div class="muted" style="font-size:12px">≈ ${fmt(toBase(bal,a.currency))}</div>`:''}</div>
+      </div></div>`;
+  }).join('')||'<div class="empty">Додай перший рахунок.</div>';
+  // rates
+  document.getElementById('ratesBox').innerHTML=['USD','EUR','MDL'].map(c=>
+    `<span class="chip">${CUR[c].s} 1 ${c} = <b>&nbsp;${(rates[c]||0).toFixed(2)} ₴</b></span>`).join('');
+}
+
+function renderCats(){
+  document.getElementById('catList').innerHTML=cats.filter(c=>c.type===catTab).map(c=>
+    `<div class="tx"><div class="ic">${c.icon}</div><div class="mid"><div class="t">${c.name}</div></div>
+      <button class="btn ghost sm" onclick="removeCat('${c.id}')">✕</button></div>`).join('')
+    ||'<div class="empty">Немає категорій.</div>';
+}
+
+/* ========================= NAV ========================= */
+function go(tab){
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  document.getElementById('view-'+tab).classList.remove('hidden');
+  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.getElementById('fab').classList.toggle('hidden', tab==='set');
+  if(tab==='dash')renderDash(); if(tab==='tx')renderTx();
+  if(tab==='acc')renderAccounts(); if(tab==='set')renderCats();
+  window.scrollTo(0,0);
+}
+
+/* ========================= TX MODAL ========================= */
+let txKind='expense', editingTx=null;
+function fillSelect(sel,items,val){sel.innerHTML=items.map(i=>`<option value="${i.id}">${i.label}</option>`).join('');if(val)sel.value=val;}
+function accOpts(){return accounts.map(a=>({id:a.id,label:`${a.icon||''} ${a.name} (${a.currency})`}));}
+function catOpts(type){return cats.filter(c=>c.type===type).map(c=>({id:c.id,label:`${c.icon} ${c.name}`}));}
+
+function setTxKind(k){
+  txKind=k;
+  document.querySelectorAll('#txModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+  document.getElementById('wrapCat').classList.toggle('hidden',k==='transfer');
+  document.getElementById('wrapAccTo').classList.toggle('hidden',k!=='transfer');
+  document.getElementById('lblAccFrom').textContent = k==='transfer'?'Звідки':'Рахунок';
+  if(k!=='transfer') fillSelect(document.getElementById('txCat'),catOpts(k));
+}
+function openTx(id){
+  if(accounts.length===0){alert('Спершу додай хоча б один рахунок.');go('acc');return;}
+  editingTx = id? txs.find(t=>t.id===id):null;
+  fillSelect(document.getElementById('txAccFrom'),accOpts());
+  fillSelect(document.getElementById('txAccTo'),accOpts());
+  document.getElementById('txModalTitle').textContent = id?'Редагувати':'Нова операція';
+  document.getElementById('txDelBtn').classList.toggle('hidden',!id);
+  if(editingTx){
+    setTxKind(editingTx.type);
+    document.getElementById('txAmount').value=editingTx.amount;
+    document.getElementById('txDate').value=editingTx.date;
+    document.getElementById('txAccFrom').value=editingTx.account;
+    if(editingTx.type==='transfer')document.getElementById('txAccTo').value=editingTx.to;
+    else document.getElementById('txCat').value=editingTx.category;
+    document.getElementById('txNote').value=editingTx.note||'';
+  }else{
+    setTxKind('expense');
+    document.getElementById('txAmount').value='';
+    document.getElementById('txDate').value=todayISO();
+    document.getElementById('txNote').value='';
+  }
+  openModal('txModal');
+}
+async function saveTx(){
+  const amount=parseFloat(document.getElementById('txAmount').value);
+  if(!amount||amount<=0){alert('Введи суму');return;}
+  const date=document.getElementById('txDate').value||todayISO();
+  const account=document.getElementById('txAccFrom').value;
+  const rec={id:editingTx?.id||uid(),type:txKind,amount,date,account,note:document.getElementById('txNote').value.trim()};
+  if(txKind==='transfer'){
+    rec.to=document.getElementById('txAccTo').value;
+    if(rec.to===account){alert('Обери різні рахунки');return;}
+    const from=accById(account),to=accById(rec.to);
+    if(from.currency!==to.currency) rec.amountTo=+(toBase(amount,from.currency)/rates[to.currency]).toFixed(2);
+  }else{
+    rec.category=document.getElementById('txCat').value;
+  }
+  await put('tx',rec); await loadAll(); closeModal('txModal'); go('dash');
+}
+async function deleteTx(){ if(editingTx&&confirm('Видалити операцію?')){await del('tx',editingTx.id);await loadAll();closeModal('txModal');go('dash');}}
+
+/* ========================= ACCOUNT MODAL ========================= */
+let editingAcc=null;
+function openAccount(id){
+  editingAcc=id?accById(id):null;
+  document.getElementById('accModalTitle').textContent=id?'Редагувати рахунок':'Новий рахунок';
+  document.getElementById('accDelBtn').classList.toggle('hidden',!id);
+  document.getElementById('accName').value=editingAcc?.name||'';
+  document.getElementById('accCurrency').value=editingAcc?.currency||'UAH';
+  document.getElementById('accBalance').value=editingAcc?editingAcc.balance:'';
+  document.getElementById('accIcon').value=editingAcc?.icon||'💳';
+  if(editingAcc) document.getElementById('accBalance').disabled=false;
+  openModal('accModal');
+}
+async function saveAccount(){
+  const name=document.getElementById('accName').value.trim();
+  if(!name){alert('Введи назву');return;}
+  const rec={id:editingAcc?.id||uid(),name,currency:document.getElementById('accCurrency').value,
+    balance:parseFloat(document.getElementById('accBalance').value)||0,icon:document.getElementById('accIcon').value.trim()||'💳'};
+  await put('accounts',rec);await loadAll();closeModal('accModal');renderAccounts();
+}
+async function deleteAccount(){
+  if(!editingAcc)return;
+  const used=txs.some(t=>t.account===editingAcc.id||t.to===editingAcc.id);
+  if(used){alert('Не можна видалити — є операції на цьому рахунку.');return;}
+  if(confirm('Видалити рахунок?')){await del('accounts',editingAcc.id);await loadAll();closeModal('accModal');renderAccounts();}
+}
+
+/* ========================= CATEGORIES ========================= */
+function switchCatTab(t){catTab=t;
+  document.getElementById('catTabExp').classList.toggle('on',t==='expense');
+  document.getElementById('catTabInc').classList.toggle('on',t==='income');renderCats();}
+async function addCategory(){
+  const name=document.getElementById('newCatName').value.trim();
+  if(!name)return;
+  await put('categories',{id:uid(),name,icon:document.getElementById('newCatIcon').value.trim()||'📦',type:catTab});
+  document.getElementById('newCatName').value='';document.getElementById('newCatIcon').value='';
+  await loadAll();renderCats();
+}
+async function removeCat(id){
+  if(txs.some(t=>t.category===id)){alert('Є операції з цією категорією.');return;}
+  await del('categories',id);await loadAll();renderCats();
+}
+
+/* ========================= RATES (НБУ) ========================= */
+async function fetchRates(){
+  if(!navigator.onLine){alert('Немає інтернету — курси лишаються ручними.');return;}
+  try{
+    const r=await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
+    const data=await r.json();
+    ['USD','EUR','MDL'].forEach(c=>{const row=data.find(x=>x.cc===c);if(row)rates[c]=row.rate;});
+    rates.UAH=1;
+    await setMeta('rates',rates);
+    document.getElementById('ratesDate').textContent='Оновлено: '+new Date().toLocaleString('uk-UA');
+    renderAccounts();
+  }catch(e){alert('Не вдалося завантажити курси НБУ.');}
+}
+
+/* ========================= EXPORT / IMPORT ========================= */
+async function exportData(){
+  const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
+    accounts,tx:txs,categories:cats,rates};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='gamanets-'+todayISO()+'.json';a.click();
+}
+async function importData(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const data=JSON.parse(await file.text());
+  if(data.app!=='gamanets'){alert('Це не файл Гаманця.');return;}
+  if(!confirm('Замінити всі поточні дані даними з файлу?'))return;
+  for(const s of ['accounts','tx','categories']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
+  for(const a of data.accounts||[])await put('accounts',a);
+  for(const t of data.tx||[])await put('tx',t);
+  for(const c of data.categories||[])await put('categories',c);
+  if(data.rates)await setMeta('rates',data.rates);
+  await loadAll();go('dash');alert('Готово! Дані імпортовано.');
+}
+async function wipeData(){
+  if(!confirm('Стерти ВСІ дані без відновлення?'))return;
+  if(!confirm('Точно? Це незворотньо.'))return;
+  for(const s of ['accounts','tx','categories','meta']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
+  await seed();await loadAll();go('dash');
+}
+
+/* ========================= MODAL HELPERS ========================= */
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+
+/* ========================= NET STATUS ========================= */
+function updateNet(){
+  const txt=navigator.onLine?'онлайн':'офлайн', col=navigator.onLine?'var(--green)':'var(--muted)';
+  ['netStatus','netStatusDesktop'].forEach(id=>{const el=document.getElementById(id);
+    if(el){el.textContent=txt;el.style.color=col;}});}
+window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
+
+/* ========================= BOOT ========================= */
+(async function(){
+  await openDB(); await seed(); await loadAll();
+  updateNet(); go('dash');
+})();
+</script>
+</body>
+</html>
