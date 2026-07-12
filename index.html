@@ -476,8 +476,8 @@ function openDB(){
 }
 const tx=(store,mode='readonly')=>db.transaction(store,mode).objectStore(store);
 const all=store=>new Promise((res)=>{const out=[];tx(store).openCursor().onsuccess=e=>{const c=e.target.result;if(c){out.push(c.value);c.continue();}else res(out);};});
-const put=(store,val)=>new Promise(res=>{tx(store,'readwrite').put(val).onsuccess=res;});
-const del=(store,id)=>new Promise(res=>{tx(store,'readwrite').delete(id).onsuccess=res;});
+const put=(store,val)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).put(val);r.onsuccess=()=>res(r.result);t.onerror=()=>rej(t.error||r.error);t.onabort=()=>rej(t.error||new Error('запис перервано (можливо, немає місця у сховищі)'));});
+const del=(store,id)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).delete(id);r.onsuccess=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error('видалення перервано'));});
 const getMeta=k=>new Promise(res=>{tx('meta').get(k).onsuccess=e=>res(e.target.result?.v);});
 const setMeta=(k,v)=>put('meta',{k,v});
 
@@ -804,6 +804,7 @@ function renderQuick(){
     ||'<span class="muted">Додай категорії у розділі «Ще».</span>';
 }
 async function saveQuick(cid){
+ try{
   const amount=parseFloat(document.getElementById('qAmount').value);
   if(!amount||amount<=0){alert('Спершу введи суму');document.getElementById('qAmount').focus();return;}
   const account=document.getElementById('qAccount').value;
@@ -812,6 +813,7 @@ async function saveQuick(cid){
   document.getElementById('qAmount').value='';
   await loadAll(); renderDash();
   toast(`✓ ${qKind==='expense'?'Витрата':'Дохід'}: ${fmt(amount,accById(account).currency)} — ${catFullName(cid)}`);
+ }catch(e){ alert('Не вдалося зберегти:\n'+(e&&e.message||e)); }
 }
 function toast(msg){let t=document.getElementById('toast');
   if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}
@@ -887,10 +889,12 @@ function openTx(id){
   openModal('txModal');
 }
 async function saveTx(){
+ try{
   const amount=parseFloat(document.getElementById('txAmount').value);
   if(!amount||amount<=0){alert('Введи суму');return;}
   const date=document.getElementById('txDate').value||todayISO();
   const account=document.getElementById('txAccFrom').value;
+  if(!account){alert('Спершу додай рахунок');return;}
   const rec={id:editingTx?.id||uid(),type:txKind,amount,date,account,note:document.getElementById('txNote').value.trim()};
   if(txKind==='transfer'){
     rec.to=document.getElementById('txAccTo').value;
@@ -910,6 +914,7 @@ async function saveTx(){
       category:document.getElementById('txFeeCat').value,note:'Комісія за переказ',linkedTransfer:rec.id});
   }
   await loadAll(); closeModal('txModal'); go('dash');
+ }catch(e){ alert('Не вдалося зберегти операцію:\n'+(e&&e.message||e)); }
 }
 async function deleteTx(){ if(editingTx&&confirm('Видалити операцію?')){
   for(const l of txs.filter(t=>t.linkedTransfer===editingTx.id)) await del('tx',l.id);
@@ -1084,6 +1089,14 @@ function updateNet(){
   ['netStatus','netStatusDesktop'].forEach(id=>{const el=document.getElementById(id);
     if(el){el.textContent=txt;el.style.color=col;}});}
 window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
+
+/* Глобальний ловець прихованих помилок (щоб не «зависало мовчки») */
+window.addEventListener('unhandledrejection',e=>{
+  try{toast('⚠️ '+(e.reason&&e.reason.message||e.reason));}catch(_){}
+});
+window.addEventListener('error',e=>{
+  try{toast('⚠️ '+(e.message||'помилка'));}catch(_){}
+});
 
 /* ========================= VOICE INPUT ========================= */
 const UA_ONES={'нуль':0,'один':1,'одна':1,'одне':1,'два':2,'дві':2,'три':3,'чотири':4,"п'ять":5,'шість':6,'сім':7,'вісім':8,"дев'ять":9};
