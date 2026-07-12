@@ -3,7 +3,7 @@
    - онлайн  → завжди свіжа версія з сервера (оновлення приходять одразу);
    - офлайн  → остання збережена копія (працює без інтернету).
    Версію CACHE піднімати при кожному релізі, щоб старі кеші прибирались. */
-const CACHE = 'gamanets-v1';
+const CACHE = 'gamanets-v2';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -24,8 +24,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   e.respondWith((async () => {
     try {
-      // мережа передусім
-      const fresh = await fetch(req);
+      // мережа передусім, В ОБХІД HTTP-кешу браузера (щоб завжди свіже)
+      const fresh = await fetch(req, { cache: 'no-store' });
       const cache = await caches.open(CACHE);
       cache.put(req, fresh.clone());
       return fresh;
