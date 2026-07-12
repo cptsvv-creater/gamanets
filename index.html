@@ -88,6 +88,12 @@ nav.tabbar .gi{font-size:20px}
 .seg{display:flex;background:var(--surface2);border-radius:10px;padding:3px;gap:3px}
 .seg button{flex:1;border:none;background:none;padding:8px;border-radius:8px;color:var(--muted);font-weight:600}
 .seg button.on{background:var(--brand);color:#04211d}
+.seg button.on[data-k="expense"]{background:var(--red);color:#fff}
+.seg button.on[data-k="income"]{background:var(--green);color:#04211d}
+.seg button.on[data-k="transfer"]{background:var(--text);color:var(--bg)}
+.grid.cols2>div{min-width:0}
+input[type=date],input[type=month]{-webkit-appearance:none;appearance:none}
+input[type=checkbox]{width:auto;accent-color:var(--brand);transform:scale(1.2)}
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));
   width:56px;height:56px;border-radius:50%;background:var(--brand);color:#04211d;
   border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25}
@@ -107,8 +113,8 @@ svg .bar{transition:opacity .2s}
 .iconpicker button{background:none;border:none;font-size:22px;padding:6px;border-radius:8px;line-height:1}
 .iconpicker button.on{background:var(--brand)}
 .colorrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.swatch{width:30px;height:30px;border-radius:8px;border:2px solid transparent}
-.swatch.on{border-color:var(--text)}
+.swatch{width:30px;height:30px;border-radius:8px;border:2px solid var(--line)}
+.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--brand)}
 .catrow{display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
 .catrow:last-child{border-bottom:none}
 .catrow.child{padding-left:24px}
@@ -163,14 +169,17 @@ svg .bar{transition:opacity .2s}
 .txfilter{display:flex;gap:8px;overflow:auto;padding-bottom:4px;margin-bottom:8px}
 .txfilter .chip{white-space:nowrap;cursor:pointer}
 .txfilter .chip.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
+.chipsel{flex:none;background:var(--surface2);border:1px solid var(--line);border-radius:999px;
+  padding:5px 11px;font-size:13px;color:var(--text);-webkit-appearance:none;appearance:none;max-width:150px}
+.chipsel.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
 </style>
 </head>
 <body>
 <aside class="sidebar">
   <div class="brand"><b>₴</b> Гаманець</div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
-  <button class="navi" data-tab="tx" onclick="go('tx')"><span class="gi">📋</span>Операції</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
+  <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
   <button class="navi" data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
   <button class="btn addbtn" onclick="openTx()">＋ Нова операція</button>
   <div class="net" id="netStatusDesktop">офлайн</div>
@@ -229,21 +238,20 @@ svg .bar{transition:opacity .2s}
     </div>
 
     <div class="card">
-      <h3>Витрати за категоріями (міс.)</h3>
+      <div class="row" style="margin-bottom:8px">
+        <h3 style="margin:0">Витрати за категоріями</h3><div class="spacer"></div>
+        <button class="btn ghost sm" onclick="catMonthShift(-1)">‹</button>
+        <span id="catMonthLbl" style="font-size:13px;min-width:104px;text-align:center;text-transform:capitalize"></span>
+        <button class="btn ghost sm" onclick="catMonthShift(1)">›</button>
+      </div>
       <div id="chartCats"></div>
     </div>
 
     <div class="card">
-      <div class="row"><h3>Останні операції</h3><div class="spacer"></div>
-        <button class="btn ghost sm" onclick="go('tx')">Усі →</button></div>
+      <h3 style="margin-bottom:8px">Останні операції</h3>
+      <div class="txfilter" id="dashTxFilter"></div>
       <div id="recentTx"></div>
     </div>
-  </section>
-
-  <!-- ============ TRANSACTIONS ============ -->
-  <section id="view-tx" class="view hidden">
-    <div class="txfilter" id="txFilter"></div>
-    <div class="card"><div id="txList"></div></div>
   </section>
 
   <!-- ============ ACCOUNTS ============ -->
@@ -258,6 +266,14 @@ svg .bar{transition:opacity .2s}
         <button class="btn ghost sm" onclick="fetchRates()">Оновити з НБУ</button></div>
       <div id="ratesBox" class="row wrap"></div>
       <div class="muted" style="font-size:12px;margin-top:8px" id="ratesDate"></div>
+    </div>
+  </section>
+
+  <!-- ============ INVESTMENTS ============ -->
+  <section id="view-invest" class="view hidden">
+    <div class="card">
+      <h2 style="margin:0 0 6px">📈 Інвестиції</h2>
+      <p class="muted" style="margin:0">Тут буде портфель: майданчики (Freedom, Універ, InZhur, Snapinvest, Дія, КІНТО…), позиції, прибуток/збиток і календар виплат ОВДП. Наповнюю наступним кроком.</p>
     </div>
   </section>
 
@@ -292,8 +308,8 @@ svg .bar{transition:opacity .2s}
 
 <nav class="tabbar">
   <button data-tab="dash" class="active" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
-  <button data-tab="tx" onclick="go('tx')"><span class="gi">📋</span>Операції</button>
   <button data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
+  <button data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
   <button data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
 </nav>
 
@@ -315,6 +331,16 @@ svg .bar{transition:opacity .2s}
       <select id="txAccFrom"></select></div>
     <div style="margin-top:10px" id="wrapAccTo" class="hidden"><label>Куди</label>
       <select id="txAccTo"></select></div>
+    <div style="margin-top:10px" id="wrapFee" class="hidden">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text)">
+        <input type="checkbox" id="txFeeOn" onchange="toggleFee()"> Комісія за переказ</label>
+      <div id="feeFields" class="hidden" style="margin-top:8px">
+        <div class="grid cols2">
+          <div><input id="txFee" type="number" step="0.01" inputmode="decimal" placeholder="сума комісії"></div>
+          <div><select id="txFeeCat"></select></div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Комісія запишеться окремою витратою в обраній категорії.</div>
+      </div></div>
     <div style="margin-top:10px" id="wrapCat"><label>Категорія</label>
       <select id="txCat"></select></div>
     <div style="margin-top:10px"><label>Нотатка</label><input id="txNote" placeholder="необов'язково"></div>
@@ -342,6 +368,14 @@ svg .bar{transition:opacity .2s}
       <div><label>Стартовий баланс</label><input id="accBalance" type="number" step="0.01" placeholder="0.00"></div>
     </div>
     <div class="muted" style="font-size:11px;margin-top:4px">Для кредитки в мінусі впиши суму боргу зі знаком «−» (напр. −8500).</div>
+    <div id="adjustWrap" class="hidden" style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:10px">
+      <label style="margin-bottom:2px">⚖️ Коригувати баланс</label>
+      <div class="muted" style="font-size:11px;margin-bottom:8px" id="adjHint"></div>
+      <div class="row">
+        <input id="adjTarget" type="number" step="0.01" inputmode="decimal" placeholder="фактичний баланс">
+        <button class="btn sm" onclick="applyAdjust()">Вирівняти</button>
+      </div>
+    </div>
     <div class="grid cols2" style="margin-top:10px">
       <div><label>Тип рахунку</label>
         <select id="accType" onchange="toggleCreditWrap()">
@@ -353,7 +387,8 @@ svg .bar{transition:opacity .2s}
     </div>
     <div style="margin-top:10px"><label>Колір картки</label><div class="colorrow" id="accColorRow"></div></div>
     <div style="margin-top:10px"><label>Іконка</label>
-      <input id="accIcon" placeholder="💵" style="width:72px;text-align:center"></div>
+      <input id="accIconPreview" readonly style="width:64px;text-align:center;font-size:20px" value="💳">
+      <div class="iconpicker" id="accIconGrid"></div></div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="accDelBtn" onclick="deleteAccount()">Видалити</button>
       <div class="spacer"></div>
@@ -391,12 +426,36 @@ svg .bar{transition:opacity .2s}
    ========================================================================= */
 const CUR = {UAH:{s:'₴',n:'гривня'}, USD:{s:'$',n:'долар'}, EUR:{s:'€',n:'євро'}, MDL:{s:'L',n:'лей'}};
 const BASE = 'UAH';
-const fmt = (v,c=BASE)=> (CUR[c]?.s||'')+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const todayISO = ()=> new Date().toISOString().slice(0,10);
+const fmt = (v,c=BASE)=> (CUR[c]?.s||c)+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pad2 = n => String(n).padStart(2,'0');
+const ymKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+const todayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;};
 const monthKey = d => d.slice(0,7);
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const CAT_COLORS=['#f43f5e','#f59e0b','#eab308','#84cc16','#22c55e','#14b8a6','#06b6d4','#3b82f6','#a855f7','#ec4899','#f97316','#64748b'];
-const EMOJI=['🛒','🍽️','☕','🍔','🍺','🍷','🚗','🏍️','⛽','🔧','🛠️','🧼','🅿️','🚕','🚌','✈️','🚆','🏠','💡','🔥','💧','📶','📱','💊','🏥','🦷','💪','👕','👟','💄','✂️','🎬','🎮','🎵','🎸','📚','🎨','🎣','⚽','🏋️','🏖️','🐶','🐱','🎁','👶','🧸','🎓','💰','💳','🏦','📈','💻','🧾','🌸','🚬','📦','➕'];
+const CAT_COLORS=['#f43f5e','#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#14b8a6','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f472b6','#a16207','#78716c','#64748b','#334155','#000000','#ffffff'];
+const EMOJI=[
+  // гроші / рахунки
+  '💳','💵','💰','🏦','🪙','💴','💶','💷','🧾','📈','📉','💱',
+  // їжа / напої
+  '🛒','🍽️','☕','🍔','🍕','🍜','🍣','🥗','🍰','🍫','🍺','🍷','🥃','🥤','🧃',
+  // транспорт / авто / мото
+  '🚗','🏍️','🛵','⛽','🔧','🛠️','🧼','🅿️','🚕','🚌','🚆','✈️','🚢','🚲','🛴',
+  // дім / комуналка
+  '🏠','🏡','🛋️','🛏️','💡','🔥','💧','🚿','🧹','🧺','🔌','🧰',
+  // техніка / електроніка / ігри
+  '💻','🖥️','⌨️','🖱️','🖨️','📱','☎️','📷','🎧','🔋','📡','🛜','🕹️','🎮','💾','💿','🤖','⌚','📺','🪫',
+  // здоров'я
+  '💊','🏥','🦷','💉','🩺','🧴','🩹',
+  // одяг / краса
+  '👕','👔','👗','👟','👠','🧥','🧦','💄','💅','🕶️','👜','🎒',
+  // розваги / хобі / спорт
+  '🎬','🎲','🎯','🎸','🎹','🎤','🎨','📚','📖','🎳','🎿','🏂','🎣','🏋️','⚽','🏀','🎾','🏓','🎱','🎟️','🎪',
+  // діти / сім'я / подарунки
+  '👶','🧸','🍼','🎈','🎁','🎀','❤️','🤝','💐','🌸',
+  // тварини / подорожі
+  '🐶','🐱','🐟','🐾','🏖️','🏝️','⛺','🗺️','🧳','🏨',
+  // робота / навчання / інше
+  '💼','🎓','✏️','🗂️','🖊️','🚬','🔑','⭐','🔒','📦','➕'];
 
 /* ---------- IndexedDB ---------- */
 const DB_NAME='gamanets', DB_VER=1;
@@ -424,12 +483,14 @@ const setMeta=(k,v)=>put('meta',{k,v});
 
 /* ---------- state ---------- */
 let accounts=[], txs=[], cats=[], rates={USD:41,EUR:44,MDL:2.3,UAH:1};
-let catTab='expense', txFilter='all';
+let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
+let curNames={}, catMonth=monthKey(todayISO());
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories');
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
+  const cn=await getMeta('curNames'); if(cn) curNames=cn;
 }
 
 /* ---------- seed defaults on first run ---------- */
@@ -466,6 +527,7 @@ function accBalance(a){
     if(t.type==='income'&&t.account===a.id) b+=t.amount;
     if(t.type==='expense'&&t.account===a.id) b-=t.amount;
     if(t.type==='transfer'){ if(t.account===a.id) b-=t.amount; if(t.to===a.id) b+=(t.amountTo??t.amount); }
+    if(t.type==='adjust'&&t.account===a.id) b+=t.amount;
   }
   return b;
 }
@@ -491,11 +553,25 @@ function fillCatSelect(sel,type,val){
   sel.innerHTML=html; if(val)sel.value=val;
 }
 
+function curLabel(c){return c+(curNames[c]?' — '+curNames[c]:'');}
 function renderCurSel(){
-  document.getElementById('curSel').innerHTML=['UAH','USD','EUR','MDL'].map(c=>
+  const main=['UAH','USD','EUR','MDL'];
+  let html=main.map(c=>
     `<span class="chip ${dispCur===c?'on':''}" onclick="setDispCur('${c}')">${CUR[c].s} ${c}</span>`).join('');
+  const others=Object.keys(rates).filter(c=>!main.includes(c)&&c!=='UAH').sort();
+  const isCustom=!main.includes(dispCur);
+  let opts=`<option value="">🌍 інша…</option>`+
+    others.map(c=>`<option value="${c}" ${dispCur===c?'selected':''}>${curLabel(c)}</option>`).join('')+
+    `<option value="__fetch">↻ Завантажити валюти (НБУ)</option>`;
+  html+=`<select id="curMore" class="chipsel ${isCustom?'on':''}" onchange="setDispCur(this.value)">${opts}</select>`;
+  document.getElementById('curSel').innerHTML=html;
 }
-function setDispCur(c){dispCur=c;renderDash();}
+function setDispCur(c){
+  if(!c) return;
+  if(c==='__fetch'){ fetchRatesAndRefresh(); return; }
+  dispCur=c; renderDash();
+}
+async function fetchRatesAndRefresh(){ await fetchRates(); renderDash(); }
 function renderRangeSel(){
   const opts=[['6m','6 міс'],['12m','Рік'],['all','Весь час'],['custom','Свій період']];
   document.getElementById('rangeSel').innerHTML=opts.map(([k,l])=>
@@ -504,11 +580,10 @@ function renderRangeSel(){
 }
 function setRange(k){chartRange=k;renderRangeSel();
   if(k==='custom'){
-    const now=new Date(), cur=now.toISOString().slice(0,7);
+    const now=new Date();
     if(!document.getElementById('rangeFrom').value){
-      const d=new Date(now.getFullYear(),now.getMonth()-5,1);
-      document.getElementById('rangeFrom').value=d.toISOString().slice(0,7);
-      document.getElementById('rangeTo').value=cur;
+      document.getElementById('rangeFrom').value=ymKey(new Date(now.getFullYear(),now.getMonth()-5,1));
+      document.getElementById('rangeTo').value=ymKey(now);
     }
   }else renderMonthlyChart();
 }
@@ -526,20 +601,20 @@ function monthsBetween(a,b){
   return arr.length?arr:[a];
 }
 function monthsForRange(){
-  const now=new Date(), key=d=>d.toISOString().slice(0,7);
+  const now=new Date();
   if(chartRange==='custom'&&customFrom&&customTo) return monthsBetween(customFrom,customTo);
   if(chartRange==='all'){
-    if(!txs.length) return [key(now)];
+    if(!txs.length) return [ymKey(now)];
     const min=txs.reduce((m,t)=>t.date<m?t.date:m,txs[0].date).slice(0,7);
-    return monthsBetween(min,key(now));
+    return monthsBetween(min,ymKey(now));
   }
   const count=chartRange==='12m'?12:6, arr=[];
-  for(let i=count-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push(key(d));}
+  for(let i=count-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push(ymKey(d));}
   return arr;
 }
 function renderDash(){
   renderCurSel(); renderRangeSel();
-  document.getElementById('dynCur').textContent=CUR[dispCur].s;
+  document.getElementById('dynCur').textContent=CUR[dispCur]?.s||dispCur;
   let total=0; accounts.forEach(a=> total+=toBase(accBalance(a),a.currency));
   document.getElementById('totalBal').textContent=fmtDisp(total);
   const mk=monthKey(todayISO());
@@ -549,10 +624,19 @@ function renderDash(){
     if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
   document.getElementById('mIncome').textContent='+'+fmtDisp(inc);
   document.getElementById('mExpense').textContent='−'+fmtDisp(exp);
-  renderMonthlyChart(); renderCatChart(); renderLimits(); renderQuick();
-  document.getElementById('recentTx').innerHTML =
-    txs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(txRow).join('')
-    || '<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';
+  renderMonthlyChart(); renderCatChart(); renderLimits(); renderQuick(); renderDashOps();
+}
+function renderDashOps(){
+  const fb=document.getElementById('dashTxFilter');
+  const filters=[['all','Усі'],['expense','Витрати'],['income','Доходи'],['transfer','Перекази']];
+  fb.innerHTML=filters.map(([k,l])=>`<span class="chip ${txFilter===k?'on':''}" onclick="setTxFilter('${k}')">${l}</span>`).join('');
+  let list=txs.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(txFilter!=='all') list=list.filter(t=>t.type===txFilter);
+  if(!list.length){document.getElementById('recentTx').innerHTML='<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';return;}
+  const cap=txShowAll?list.length:15;
+  let html=list.slice(0,cap).map(txRow).join('');
+  if(list.length>cap) html+=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=true;renderDashOps()">Показати всі (${list.length})</button>`;
+  document.getElementById('recentTx').innerHTML=html;
 }
 
 function renderMonthlyChart(){
@@ -582,8 +666,17 @@ function renderMonthlyChart(){
     svg+`<div style="display:flex;margin-top:5px">${labels}</div>`;
 }
 
+function monthLabel(mk){const [y,m]=mk.split('-').map(Number);
+  return new Date(y,m-1,1).toLocaleDateString('uk-UA',{month:'long',year:'numeric'});}
+function catMonthShift(d){
+  const [y,m]=catMonth.split('-').map(Number);
+  const nk=ymKey(new Date(y,m-1+d,1));
+  if(nk>ymKey(new Date())) return;   // не далі поточного місяця
+  catMonth=nk; renderCatChart();
+}
 function renderCatChart(){
-  const mk=monthKey(todayISO());
+  const mk=catMonth;
+  document.getElementById('catMonthLbl').textContent=monthLabel(mk);
   const map={};
   txs.forEach(t=>{if(t.type!=='expense'||monthKey(t.date)!==mk)return;
     const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||BASE);
@@ -596,7 +689,7 @@ function renderCatChart(){
     const c=catById(cid); const pct=(v/total*100); const color=c?.color||palette[i%palette.length];
     return `<div style="margin:8px 0">
       <div class="row" style="font-size:13px"><span>${c?.icon||'📦'} ${catFullName(cid)}</span><div class="spacer"></div>
-        <b>${fmt(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
+        <b>${fmtDisp(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
       <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden">
         <div style="width:${pct}%;height:100%;background:${color}"></div></div></div>`;
   }).join('');
@@ -609,6 +702,10 @@ function txRow(t){
     const to=accById(t.to);
     ic='🔄'; title='Переказ'; sub=`${acc?.name||'?'} → ${to?.name||'?'}`;
     amtHtml=`<span class="amt">${fmt(t.amount,acc?.currency)}</span>`;
+  }else if(t.type==='adjust'){
+    const pos=t.amount>=0;
+    ic='⚖️'; title='Коригування балансу'; sub=acc?.name||'?';
+    amtHtml=`<span class="amt ${pos?'pos':'neg'}">${pos?'+':'−'}${fmt(Math.abs(t.amount),acc?.currency)}</span>`;
   }else{
     const c=catById(t.category);
     ic=c?.icon||(t.type==='income'?'💰':'📦');
@@ -623,15 +720,8 @@ function txRow(t){
     ${amtHtml}</div>`;
 }
 
-function renderTx(){
-  const fb=document.getElementById('txFilter');
-  const filters=[['all','Усі'],['expense','Витрати'],['income','Доходи'],['transfer','Перекази']];
-  fb.innerHTML=filters.map(([k,l])=>`<span class="chip ${txFilter===k?'on':''}" onclick="setTxFilter('${k}')">${l}</span>`).join('');
-  let list=txs.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  if(txFilter!=='all') list=list.filter(t=>t.type===txFilter);
-  document.getElementById('txList').innerHTML=list.map(txRow).join('')||'<div class="empty">Порожньо.</div>';
-}
-function setTxFilter(k){txFilter=k;renderTx();}
+function setTxFilter(k){txFilter=k;txShowAll=false;renderDashOps();}
+function renderInvest(){/* портфель — наступний слайс */}
 
 function renderAccounts(){
   const box=document.getElementById('accList');
@@ -732,10 +822,12 @@ function go(tab){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  document.getElementById('fab').classList.toggle('hidden', tab==='set');
-  document.getElementById('micFab').classList.toggle('hidden', tab==='set');
-  if(tab==='dash')renderDash(); if(tab==='tx')renderTx();
+  const hideFab = tab==='set'||tab==='invest';
+  document.getElementById('fab').classList.toggle('hidden', hideFab);
+  document.getElementById('micFab').classList.toggle('hidden', hideFab);
+  if(tab==='dash')renderDash();
   if(tab==='acc')renderAccounts(); if(tab==='set')renderCats();
+  if(tab==='invest')renderInvest();
   window.scrollTo(0,0);
 }
 
@@ -749,8 +841,19 @@ function setTxKind(k){
   document.querySelectorAll('#txModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
   document.getElementById('wrapCat').classList.toggle('hidden',k==='transfer');
   document.getElementById('wrapAccTo').classList.toggle('hidden',k!=='transfer');
+  document.getElementById('wrapFee').classList.toggle('hidden',k!=='transfer');
   document.getElementById('lblAccFrom').textContent = k==='transfer'?'Звідки':'Рахунок';
   if(k!=='transfer') fillCatSelect(document.getElementById('txCat'),k);
+}
+function toggleFee(){
+  const on=document.getElementById('txFeeOn').checked;
+  document.getElementById('feeFields').classList.toggle('hidden',!on);
+  if(on){
+    fillCatSelect(document.getElementById('txFeeCat'),'expense');
+    const bank=cats.find(c=>c.type==='expense'&&kids(c.id).length===0&&/банк/i.test(c.name))
+             ||cats.find(c=>c.type==='expense'&&/банк/i.test(c.name));
+    if(bank)document.getElementById('txFeeCat').value=bank.id;
+  }
 }
 function openTx(id){
   if(accounts.length===0){alert('Спершу додай хоча б один рахунок.');go('acc');return;}
@@ -764,14 +867,22 @@ function openTx(id){
     document.getElementById('txAmount').value=editingTx.amount;
     document.getElementById('txDate').value=editingTx.date;
     document.getElementById('txAccFrom').value=editingTx.account;
-    if(editingTx.type==='transfer')document.getElementById('txAccTo').value=editingTx.to;
-    else document.getElementById('txCat').value=editingTx.category;
+    if(editingTx.type==='transfer'){
+      document.getElementById('txAccTo').value=editingTx.to;
+      const feeTx=txs.find(t=>t.linkedTransfer===editingTx.id);
+      document.getElementById('txFeeOn').checked=!!feeTx;
+      toggleFee();
+      if(feeTx){document.getElementById('txFee').value=feeTx.amount;
+        document.getElementById('txFeeCat').value=feeTx.category;}
+    }else document.getElementById('txCat').value=editingTx.category;
     document.getElementById('txNote').value=editingTx.note||'';
   }else{
     setTxKind('expense');
     document.getElementById('txAmount').value='';
     document.getElementById('txDate').value=todayISO();
     document.getElementById('txNote').value='';
+    document.getElementById('txFeeOn').checked=false;
+    document.getElementById('txFee').value=''; toggleFee();
   }
   openModal('txModal');
 }
@@ -789,12 +900,28 @@ async function saveTx(){
   }else{
     rec.category=document.getElementById('txCat').value;
   }
-  await put('tx',rec); await loadAll(); closeModal('txModal'); go('dash');
+  await put('tx',rec);
+  // пов'язана витрата-комісія для переказів
+  const prevFee=txs.find(t=>t.linkedTransfer===rec.id);
+  if(prevFee) await del('tx',prevFee.id);
+  if(txKind==='transfer' && document.getElementById('txFeeOn').checked){
+    const fee=parseFloat(document.getElementById('txFee').value);
+    if(fee>0) await put('tx',{id:uid(),type:'expense',amount:fee,date,account,
+      category:document.getElementById('txFeeCat').value,note:'Комісія за переказ',linkedTransfer:rec.id});
+  }
+  await loadAll(); closeModal('txModal'); go('dash');
 }
-async function deleteTx(){ if(editingTx&&confirm('Видалити операцію?')){await del('tx',editingTx.id);await loadAll();closeModal('txModal');go('dash');}}
+async function deleteTx(){ if(editingTx&&confirm('Видалити операцію?')){
+  for(const l of txs.filter(t=>t.linkedTransfer===editingTx.id)) await del('tx',l.id);
+  await del('tx',editingTx.id);await loadAll();closeModal('txModal');go('dash');}}
 
 /* ========================= ACCOUNT MODAL ========================= */
-let editingAcc=null, pickedAccColor=CAT_COLORS[7];
+let editingAcc=null, pickedAccColor=CAT_COLORS[7], pickedAccIcon='💳';
+function renderAccIconPicker(){
+  document.getElementById('accIconGrid').innerHTML=EMOJI.map(e=>
+    `<button type="button" class="${e===pickedAccIcon?'on':''}" onclick="pickAccIcon('${e}')">${e}</button>`).join('');
+}
+function pickAccIcon(e){pickedAccIcon=e;document.getElementById('accIconPreview').value=e;renderAccIconPicker();}
 function toggleCreditWrap(){
   document.getElementById('accCreditWrap').style.display=
     document.getElementById('accType').value==='credit'?'':'none';
@@ -811,13 +938,31 @@ function openAccount(id){
   document.getElementById('accName').value=editingAcc?.name||'';
   document.getElementById('accCurrency').value=editingAcc?.currency||'UAH';
   document.getElementById('accBalance').value=editingAcc?editingAcc.balance:'';
-  document.getElementById('accIcon').value=editingAcc?.icon||'💳';
   document.getElementById('accType').value=editingAcc?.type||'regular';
   document.getElementById('accCreditLimit').value=editingAcc?.creditLimit||'';
   pickedAccColor=editingAcc?.color||CAT_COLORS[7];
-  toggleCreditWrap(); renderAccColorRow();
-  if(editingAcc) document.getElementById('accBalance').disabled=false;
+  pickedAccIcon=editingAcc?.icon||'💳';
+  document.getElementById('accIconPreview').value=pickedAccIcon;
+  toggleCreditWrap(); renderAccColorRow(); renderAccIconPicker();
+  const aw=document.getElementById('adjustWrap');
+  if(editingAcc){
+    aw.classList.remove('hidden');
+    document.getElementById('accBalance').disabled=false;
+    document.getElementById('adjTarget').value='';
+    document.getElementById('adjHint').textContent=
+      'Зараз за розрахунком: '+fmt(accBalance(editingAcc),editingAcc.currency)+'. Впиши фактичний — створю запис на різницю.';
+  }else aw.classList.add('hidden');
   openModal('accModal');
+}
+async function applyAdjust(){
+  if(!editingAcc)return;
+  const target=parseFloat(document.getElementById('adjTarget').value);
+  if(isNaN(target)){alert('Впиши фактичний баланс');return;}
+  const delta=+(target-accBalance(editingAcc)).toFixed(2);
+  if(delta===0){alert('Баланс уже збігається — коригування не потрібне');return;}
+  await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:editingAcc.id,note:'Коригування балансу'});
+  await loadAll(); closeModal('accModal'); renderAccounts();
+  toast('Баланс вирівняно: '+(delta>0?'+':'−')+fmt(Math.abs(delta),editingAcc.currency));
 }
 async function saveAccount(){
   const name=document.getElementById('accName').value.trim();
@@ -825,7 +970,7 @@ async function saveAccount(){
   const type=document.getElementById('accType').value;
   const rec={id:editingAcc?.id||uid(),name,currency:document.getElementById('accCurrency').value,
     balance:parseFloat(document.getElementById('accBalance').value)||0,
-    icon:document.getElementById('accIcon').value.trim()||'💳',type,color:pickedAccColor};
+    icon:pickedAccIcon,type,color:pickedAccColor};
   if(type==='credit'){const cl=parseFloat(document.getElementById('accCreditLimit').value);if(cl>0)rec.creditLimit=cl;}
   await put('accounts',rec);await loadAll();closeModal('accModal');renderAccounts();
 }
@@ -893,9 +1038,9 @@ async function fetchRates(){
   try{
     const r=await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
     const data=await r.json();
-    ['USD','EUR','MDL'].forEach(c=>{const row=data.find(x=>x.cc===c);if(row)rates[c]=row.rate;});
+    data.forEach(row=>{ if(row.cc&&row.rate){ rates[row.cc]=row.rate; if(row.txt) curNames[row.cc]=row.txt; }});
     rates.UAH=1;
-    await setMeta('rates',rates);
+    await setMeta('rates',rates); await setMeta('curNames',curNames);
     document.getElementById('ratesDate').textContent='Оновлено: '+new Date().toLocaleString('uk-UA');
     renderAccounts();
   }catch(e){alert('Не вдалося завантажити курси НБУ.');}
