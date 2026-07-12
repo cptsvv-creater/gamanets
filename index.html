@@ -199,6 +199,9 @@ svg .bar{transition:opacity .2s}
       <div class="stat"><div class="k">Загальний баланс</div><div class="v" id="totalBal">—</div></div>
       <div class="stat"><div class="k">Доходи (міс.)</div><div class="v pos" id="mIncome">—</div></div>
       <div class="stat"><div class="k">Витрати (міс.)</div><div class="v neg" id="mExpense">—</div></div>
+      <div class="stat hidden" id="investTile" onclick="go('invest')" style="cursor:pointer">
+        <div class="k">Інвестиції</div><div class="v" id="invValue">—</div>
+        <div id="invSub" style="font-size:12px;margin-top:3px"></div></div>
     </div>
 
     <div class="card" id="quickCard">
@@ -439,14 +442,18 @@ svg .bar{transition:opacity .2s}
       </select></div>
     </div>
     <div class="grid cols2" style="margin-top:10px">
-      <div><label>Кількість (необов'язково)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="шт / паї"></div>
+      <div><label>Кількість (шт / паї / облігації)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="напр. 5" oninput="recalcHolding()"></div>
       <div></div>
     </div>
     <div class="grid cols2" style="margin-top:10px">
-      <div><label>Вкладено (собівартість)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
-      <div><label>Поточна вартість</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+      <div><label>Ціна купівлі (за од.)</label><input id="hBuyPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
+      <div><label>Поточна ціна (за од.)</label><input id="hCurPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
     </div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Прибуток = поточна вартість − вкладено. Оновлюй поточну вартість вручну (авто-курси додамо пізніше).</div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Вкладено (усього)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+      <div><label>Поточна вартість (усього)</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Для нерухомості/альтернативного можна вписати підсумки вручну. Прибуток = вартість − вкладено.</div>
     <div style="margin-top:10px"><label>Нотатка</label><input id="hNote" placeholder="необов'язково"></div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="holdDelBtn" onclick="deleteHolding()">Видалити</button>
@@ -490,8 +497,20 @@ const EMOJI=[
   '👶','🧸','🍼','🎈','🎁','🎀','❤️','🤝','💐','🌸',
   // тварини / подорожі
   '🐶','🐱','🐟','🐾','🏖️','🏝️','⛺','🗺️','🧳','🏨',
-  // робота / навчання / інше
-  '💼','🎓','✏️','🗂️','🖊️','🚬','🔑','⭐','🔒','📦','➕'];
+  // робота / навчання
+  '💼','🎓','✏️','🗂️','🖊️','📊','📌','📅','🗓️',
+  // інвестиції / документи
+  '📜','🏛️','⚖️','🪙','💎','🧾','🖋️','📑','🔖',
+  // їжа/побут додатково
+  '🍎','🍌','🥑','🥩','🧀','🥚','🍞','🧈','🍯','🧂','🥦','🍇','🍓','🫐','🥜','🍪','🎂','🧁','🍩','🍟',
+  // побут / інструменти
+  '🧽','🧴','🧷','🪣','🪥','🧯','🔦','🪜','🔨','🪚','⚙️','🧲','🔩','💊',
+  // природа / погода / тварини
+  '🌳','🌲','🌵','🌊','🔥','❄️','☀️','🌙','⚡','🐟','🐕','🐈','🐎','🦴','🌻',
+  // подорожі / місця
+  '🗽','⛩️','🏔️','🏕️','🚁','⛵','🛳️','🚤','🎡','🎢',
+  // символи / інше
+  '🔑','⭐','🔒','❤️','🔔','🎯','🧩','🏆','🥇','🎗️','♻️','⚓','🧭','🕯️','📦','➕'];
 
 /* ---------- IndexedDB ---------- */
 const DB_NAME='gamanets', DB_VER=2;
@@ -572,6 +591,17 @@ function accBalance(a){
 /* ========================= RENDER ========================= */
 function catById(id){return cats.find(c=>c.id===id);}
 function accById(id){return accounts.find(a=>a.id===id);}
+const sortedAccts=pred=>accounts.filter(pred).slice().sort((a,b)=>(a.order??1e9)-(b.order??1e9));
+async function moveAccount(id,dir){
+  const a=accById(id);
+  const group=sortedAccts(x=>(x.type==='invest')===(a.type==='invest'));
+  const i=group.findIndex(x=>x.id===id), j=i+dir;
+  if(j<0||j>=group.length) return;
+  group.forEach((x,idx)=>{ if(x.order===undefined) x.order=idx; });
+  const tmp=group[i].order; group[i].order=group[j].order; group[j].order=tmp;
+  await put('accounts',group[i]); await put('accounts',group[j]); await loadAll();
+  a.type==='invest'?renderInvest():renderAccounts();
+}
 const kids=pid=>cats.filter(c=>c.parent===pid);
 const topCats=type=>cats.filter(c=>c.type===type&&!c.parent);
 function catFullName(id){const c=catById(id);if(!c)return '—';const p=c.parent&&catById(c.parent);return p?`${p.name} · ${c.name}`:c.name;}
@@ -661,6 +691,12 @@ function renderDash(){
     if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
   document.getElementById('mIncome').textContent='+'+fmtDisp(inc);
   document.getElementById('mExpense').textContent='−'+fmtDisp(exp);
+  const P=portfolioTotals(), tile=document.getElementById('investTile');
+  if(P.venues.length){ tile.classList.remove('hidden');
+    document.getElementById('invValue').textContent=fmtDisp(P.value);
+    const gc=P.gain>=0?'var(--green)':'var(--red)';
+    document.getElementById('invSub').innerHTML=`<span class="muted">вкл. ${fmtDisp(P.inv)}</span><br><span style="color:${gc}">${P.gain>=0?'+':'−'}${fmtDisp(Math.abs(P.gain))} · ${P.gainPct.toFixed(1)}%</span>`;
+  }else tile.classList.add('hidden');
   renderMonthlyChart(); renderCatChart(); renderLimits(); renderQuick(); renderDashOps();
 }
 function renderDashOps(){
@@ -762,12 +798,15 @@ function setTxFilter(k){txFilter=k;txShowAll=false;renderDashOps();}
 const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨'};
 const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне'};
 const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
-function renderInvest(){
+function portfolioTotals(){
   const venues=accounts.filter(a=>a.type==='invest');
   let cash=0,posVal=0,inv=0;
   venues.forEach(v=>{ cash+=toBase(accBalance(v),v.currency);
     venueHoldings(v.id).forEach(h=>{posVal+=toBase(h.curValue||0,h.currency);inv+=toBase(h.invested||0,h.currency);}); });
-  const portfolio=cash+posVal, gain=posVal-inv, gainPct=inv?gain/inv*100:0;
+  return {venues,cash,posVal,inv,value:cash+posVal,gain:posVal-inv,gainPct:inv?(posVal-inv)/inv*100:0};
+}
+function renderInvest(){
+  const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
   const gcol=gain>=0?'var(--green)':'var(--red)';
   let html=`<div class="card">
     <div class="muted" style="font-size:12px">Вартість портфеля</div>
@@ -782,7 +821,7 @@ function renderInvest(){
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
   if(!venues.length){
     html+=`<div class="card"><div class="empty">Ще немає майданчиків. Додай Freedom, Універ, InZhur, Snapinvest, Дію…</div></div>`;
-  }else venues.forEach(v=>{
+  }else sortedAccts(a=>a.type==='invest').forEach(v=>{
     const hs=venueHoldings(v.id), vCash=accBalance(v);
     let vPos=0,vInv=0; hs.forEach(h=>{vPos+=toBase(h.curValue||0,h.currency);vInv+=toBase(h.invested||0,h.currency);});
     const vTotal=toBase(vCash,v.currency)+vPos, vGain=vPos-vInv;
@@ -795,6 +834,9 @@ function renderInvest(){
         <div class="spacer"></div>
         <div style="text-align:right"><div style="font-weight:700">${fmtDisp(vTotal)}</div>
           ${vInv?`<div style="font-size:12px;color:${vGain>=0?'var(--green)':'var(--red)'}">${vGain>=0?'+':'−'}${fmtDisp(Math.abs(vGain))}</div>`:''}</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-left:6px">
+          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${v.id}',-1)">↑</button>
+          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${v.id}',1)">↓</button></div>
       </div>`;
     hs.forEach(h=>{
       const hv=h.curValue||0,hi=h.invested||0,g=hv-hi,gp=hi?g/hi*100:0;
@@ -811,6 +853,13 @@ function renderInvest(){
   document.getElementById('investBody').innerHTML=html;
 }
 let editingHold=null, holdVenue=null;
+function recalcHolding(){
+  const q=parseFloat(document.getElementById('hQty').value)||0;
+  const bp=parseFloat(document.getElementById('hBuyPrice').value);
+  const cp=parseFloat(document.getElementById('hCurPrice').value);
+  if(q&&!isNaN(bp)) document.getElementById('hInvested').value=+(q*bp).toFixed(2);
+  if(q&&!isNaN(cp)) document.getElementById('hCurValue').value=+(q*cp).toFixed(2);
+}
 function openHolding(vid,hid){
   holdVenue=vid; editingHold=hid?holdings.find(h=>h.id===hid):null;
   const v=accById(vid);
@@ -821,6 +870,8 @@ function openHolding(vid,hid){
   document.getElementById('hTicker').value=editingHold?.ticker||'';
   document.getElementById('hCur').value=editingHold?.currency||v?.currency||'UAH';
   document.getElementById('hQty').value=editingHold?.qty||'';
+  document.getElementById('hBuyPrice').value=editingHold?.buyPrice??'';
+  document.getElementById('hCurPrice').value=editingHold?.curPrice??'';
   document.getElementById('hInvested').value=editingHold?.invested??'';
   document.getElementById('hCurValue').value=editingHold?.curValue??'';
   document.getElementById('hNote').value=editingHold?.note||'';
@@ -830,9 +881,11 @@ async function saveHolding(){
  try{
   const name=document.getElementById('hName').value.trim();
   if(!name){alert('Введи назву');return;}
+  const gv=id=>{const x=parseFloat(document.getElementById(id).value);return isNaN(x)?undefined:x;};
   const rec={id:editingHold?.id||uid(),venue:holdVenue,kind:document.getElementById('hKind').value,name,
     ticker:document.getElementById('hTicker').value.trim(),currency:document.getElementById('hCur').value,
     qty:parseFloat(document.getElementById('hQty').value)||0,
+    buyPrice:gv('hBuyPrice'), curPrice:gv('hCurPrice'),
     invested:parseFloat(document.getElementById('hInvested').value)||0,
     curValue:parseFloat(document.getElementById('hCurValue').value)||0,
     note:document.getElementById('hNote').value.trim()};
@@ -845,7 +898,7 @@ async function deleteHolding(){
 
 function renderAccounts(){
   const box=document.getElementById('accList');
-  box.innerHTML = accounts.filter(a=>a.type!=='invest').map(a=>{
+  box.innerHTML = sortedAccts(a=>a.type!=='invest').map(a=>{
     const bal=accBalance(a);
     const col=a.color||'var(--brand)';
     const balCol=bal<0?'var(--red)':'var(--text)';
@@ -863,6 +916,9 @@ function renderAccounts(){
         <div style="text-align:right"><div style="font-weight:700;font-size:18px;color:${balCol}">${fmt(bal,a.currency)}</div>
           ${a.currency!==BASE?`<div class="muted" style="font-size:12px">≈ ${fmt(toBase(bal,a.currency))}</div>`:''}
           ${sub}</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-left:6px">
+          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${a.id}',-1)">↑</button>
+          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${a.id}',1)">↓</button></div>
       </div></div>`;
   }).join('')||'<div class="empty">Додай перший рахунок.</div>';
   // rates
@@ -1043,7 +1099,7 @@ async function deleteTx(){ if(editingTx&&confirm('Видалити операц�
 /* ========================= ACCOUNT MODAL ========================= */
 let editingAcc=null, pickedAccColor=CAT_COLORS[7], pickedAccIcon='💳';
 function renderAccIconPicker(){
-  document.getElementById('accIconGrid').innerHTML=EMOJI.map(e=>
+  document.getElementById('accIconGrid').innerHTML=[...new Set(EMOJI)].map(e=>
     `<button type="button" class="${e===pickedAccIcon?'on':''}" onclick="pickAccIcon('${e}')">${e}</button>`).join('');
 }
 function pickAccIcon(e){pickedAccIcon=e;document.getElementById('accIconPreview').value=e;renderAccIconPicker();}
@@ -1101,7 +1157,8 @@ async function saveAccount(){
   const type=document.getElementById('accType').value;
   const rec={id:editingAcc?.id||uid(),name,currency:document.getElementById('accCurrency').value,
     balance:parseFloat(document.getElementById('accBalance').value)||0,
-    icon:pickedAccIcon,type,color:pickedAccColor};
+    icon:pickedAccIcon,type,color:pickedAccColor,
+    order: editingAcc? editingAcc.order : (accounts.reduce((m,a)=>Math.max(m,a.order??-1),-1)+1)};
   if(type==='credit'){const cl=parseFloat(document.getElementById('accCreditLimit').value);if(cl>0)rec.creditLimit=cl;}
   await put('accounts',rec);await loadAll();closeModal('accModal');renderAccounts();
 }
@@ -1118,7 +1175,7 @@ function switchCatTab(t){catTab=t;
   document.getElementById('catTabInc').classList.toggle('on',t==='income');renderCats();}
 let editingCat=null, pickedIcon='📦', pickedColor=CAT_COLORS[0];
 function renderIconPicker(){
-  document.getElementById('iconGrid').innerHTML=EMOJI.map(e=>
+  document.getElementById('iconGrid').innerHTML=[...new Set(EMOJI)].map(e=>
     `<button type="button" class="${e===pickedIcon?'on':''}" onclick="pickIcon('${e}')">${e}</button>`).join('');
 }
 function pickIcon(e){pickedIcon=e;document.getElementById('catIconPreview').value=e;renderIconPicker();}
