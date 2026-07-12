@@ -53,6 +53,7 @@ header .logo b{color:var(--brand)}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:500}
 .btn.sm{padding:6px 10px;font-size:13px}
 .btn.danger{background:var(--red);color:#fff}
+.btn.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
 .row{display:flex;gap:10px;align-items:center}
 .row.wrap{flex-wrap:wrap}
 .spacer{flex:1}
@@ -261,6 +262,7 @@ svg .bar{transition:opacity .2s}
   <section id="view-acc" class="view hidden">
     <div class="row" style="margin-bottom:12px">
       <h2 style="margin:0">Рахунки</h2><div class="spacer"></div>
+      <button class="btn ghost sm" id="reorderBtnAcc" onclick="toggleReorder()">↕ Порядок</button>
       <button class="btn sm" onclick="openAccount()">+ Рахунок</button>
     </div>
     <div id="accList"></div>
@@ -427,7 +429,7 @@ svg .bar{transition:opacity .2s}
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="holdModalTitle">Позиція</h3>
       <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('holdModal')">✕</button></div>
     <div><label>Тип активу</label>
-      <select id="hKind">
+      <select id="hKind" onchange="toggleBondFields()">
         <option value="stock">📈 Акція</option>
         <option value="fund">🏦 Фонд / сертифікат</option>
         <option value="bond">📜 ОВДП / облігація</option>
@@ -454,6 +456,27 @@ svg .bar{transition:opacity .2s}
       <div><label>Поточна вартість (усього)</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
     </div>
     <div class="muted" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Для нерухомості/альтернативного можна вписати підсумки вручну. Прибуток = вартість − вкладено.</div>
+    <div id="bondFields" class="hidden" style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px">
+      <div class="muted" style="font-size:11px;margin-bottom:8px">📜 Параметри облігації — для календаря виплат</div>
+      <div class="row" style="margin-bottom:8px">
+        <input id="hIsin" placeholder="ISIN, напр. UA4000236624" style="flex:1">
+        <button class="btn sm" type="button" onclick="ovdpAutofill()">↻ З НБУ</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-bottom:8px">Впиши ISIN і тисни «З НБУ» — номінал, купон, дати й точний графік підтягнуться самі.</div>
+      <div class="grid cols2">
+        <div><label>Номінал (за од.)</label><input id="hNominal" type="number" step="any" inputmode="decimal" placeholder="1000"></div>
+        <div><label>Купон, % річних</label><input id="hCoupon" type="number" step="any" inputmode="decimal" placeholder="напр. 18"></div>
+      </div>
+      <div class="grid cols2" style="margin-top:8px">
+        <div><label>Виплат на рік</label><select id="hFreq">
+          <option value="1">1 — раз на рік</option>
+          <option value="2" selected>2 — раз на пів року</option>
+          <option value="4">4 — щокварталу</option>
+          <option value="12">12 — щомісяця</option></select></div>
+        <div><label>Дата погашення</label><input id="hMaturity" type="date"></div>
+      </div>
+      <div style="margin-top:8px"><label>Дата купівлі (необов'язково)</label><input id="hBuyDate" type="date"></div>
+    </div>
     <div style="margin-top:10px"><label>Нотатка</label><input id="hNote" placeholder="необов'язково"></div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="holdDelBtn" onclick="deleteHolding()">Видалити</button>
@@ -591,17 +614,27 @@ function accBalance(a){
 /* ========================= RENDER ========================= */
 function catById(id){return cats.find(c=>c.id===id);}
 function accById(id){return accounts.find(a=>a.id===id);}
+let reorderMode=false;
 const sortedAccts=pred=>accounts.filter(pred).slice().sort((a,b)=>(a.order??1e9)-(b.order??1e9));
+async function normalizeOrder(){
+  let changed=false;
+  for(const grp of [true,false]){
+    const list=accounts.filter(a=>(a.type==='invest')===grp).sort((a,b)=>(a.order??1e9)-(b.order??1e9));
+    list.forEach((a,i)=>{ if(a.order!==i){ a.order=i; changed=true; } });
+  }
+  if(changed){ for(const a of accounts) await put('accounts',a); }
+}
 async function moveAccount(id,dir){
   const a=accById(id);
-  const group=sortedAccts(x=>(x.type==='invest')===(a.type==='invest'));
+  const group=accounts.filter(x=>(x.type==='invest')===(a.type==='invest')).sort((x,y)=>(x.order??1e9)-(y.order??1e9));
   const i=group.findIndex(x=>x.id===id), j=i+dir;
   if(j<0||j>=group.length) return;
-  group.forEach((x,idx)=>{ if(x.order===undefined) x.order=idx; });
-  const tmp=group[i].order; group[i].order=group[j].order; group[j].order=tmp;
-  await put('accounts',group[i]); await put('accounts',group[j]); await loadAll();
+  group.splice(j,0,group.splice(i,1)[0]);        // перемістити елемент
+  for(let k=0;k<group.length;k++){ group[k].order=k; await put('accounts',group[k]); }
+  await loadAll();
   a.type==='invest'?renderInvest():renderAccounts();
 }
+function toggleReorder(){ reorderMode=!reorderMode; renderAccounts(); renderInvest(); }
 const kids=pid=>cats.filter(c=>c.parent===pid);
 const topCats=type=>cats.filter(c=>c.type===type&&!c.parent);
 function catFullName(id){const c=catById(id);if(!c)return '—';const p=c.parent&&catById(c.parent);return p?`${p.name} · ${c.name}`:c.name;}
@@ -703,7 +736,7 @@ function renderDashOps(){
   const fb=document.getElementById('dashTxFilter');
   const filters=[['all','Усі'],['expense','Витрати'],['income','Доходи'],['transfer','Перекази']];
   fb.innerHTML=filters.map(([k,l])=>`<span class="chip ${txFilter===k?'on':''}" onclick="setTxFilter('${k}')">${l}</span>`).join('');
-  let list=txs.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  let list=txs.slice().sort((a,b)=> b.date.localeCompare(a.date) || (b.createdAt||0)-(a.createdAt||0) || (a.id<b.id?1:-1));
   if(txFilter!=='all') list=list.filter(t=>t.type===txFilter);
   if(!list.length){document.getElementById('recentTx').innerHTML='<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';return;}
   const cap=txShowAll?list.length:15;
@@ -805,6 +838,69 @@ function portfolioTotals(){
     venueHoldings(v.id).forEach(h=>{posVal+=toBase(h.curValue||0,h.currency);inv+=toBase(h.invested||0,h.currency);}); });
   return {venues,cash,posVal,inv,value:cash+posVal,gain:posVal-inv,gainPct:inv?(posVal-inv)/inv*100:0};
 }
+/* ---- ОВДП: календар виплат ---- */
+const ymd=d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+function couponDates(maturity,freq,buyDate){
+  const step=Math.max(1,Math.round(12/freq));
+  const [y,m,dd]=maturity.split('-').map(Number);
+  let d=new Date(y,m-1,dd);
+  const start=buyDate?new Date(buyDate):new Date(2000,0,1);
+  const arr=[];
+  while(d>=start && arr.length<600){ arr.push(new Date(d)); d=new Date(d.getFullYear(),d.getMonth()-step,d.getDate()); }
+  return arr.reverse();
+}
+function bondPayments(){
+  const todayStr=todayISO();
+  const out=[];
+  holdings.filter(h=>h.kind==='bond').forEach(h=>{
+    const qty=h.qty||0; if(qty<=0) return;
+    if(Array.isArray(h.payments)&&h.payments.length){          // точний графік з НБУ
+      h.payments.forEach(p=>{ if(p.pay_date>=todayStr)
+        out.push({date:p.pay_date,kind:p.pay_type==='2'?'redeem':'coupon',amount:(p.pay_val||0)*qty,currency:h.currency,name:h.name}); });
+    } else if(h.maturityDate&&h.couponRate&&h.couponFreq){     // ручний розрахунок
+      const nominal=h.nominal||1000, perCoupon=qty*nominal*(h.couponRate/100)/h.couponFreq;
+      couponDates(h.maturityDate,h.couponFreq,h.buyDate).forEach(d=>{
+        if(ymd(d)>=todayStr && perCoupon>0) out.push({date:ymd(d),kind:'coupon',amount:perCoupon,currency:h.currency,name:h.name}); });
+      if(h.maturityDate>=todayStr) out.push({date:h.maturityDate,kind:'redeem',amount:qty*nominal,currency:h.currency,name:h.name});
+    }
+  });
+  return out.sort((a,b)=>a.date.localeCompare(b.date)||(a.kind<b.kind?1:-1));
+}
+function renderBondCalendar(){
+  const pays=bondPayments();
+  if(!pays.length) return '';
+  const base=p=>p.amount*(rates[p.currency]||1);
+  const total=pays.reduce((s,p)=>s+base(p),0);
+  const now=new Date(), in12=new Date(now.getFullYear()+1,now.getMonth(),now.getDate());
+  const sum12=pays.filter(p=>new Date(p.date)<in12).reduce((s,p)=>s+base(p),0);
+  const next=pays[0];
+  // стовпчики по місяцях (12 міс уперед)
+  const months=[]; for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);months.push(ymKey(d));}
+  const mData=months.map(mk=>({mk,val:pays.filter(p=>p.date.slice(0,7)===mk).reduce((s,p)=>s+base(p),0)}));
+  const max=Math.max(1,...mData.map(d=>d.val)), W=100/12;
+  let bars=''; mData.forEach((d,i)=>{const h=d.val/max*88;
+    bars+=`<rect x="${i*W+W*0.15}%" y="${(94-h)}%" width="${W*0.7}%" height="${h}%" rx="1" fill="var(--green)"><title>${monthLabel(d.mk)}: ${fmtDisp(d.val)}</title></rect>`;});
+  const chart=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:90px;display:block;margin-top:8px">${bars}</svg>
+    <div style="display:flex;margin-top:3px">${mData.map((d,i)=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--muted)">${i%2?'':d.mk.slice(5)}</div>`).join('')}</div>`;
+  // список по місяцях
+  const byMonth={}; pays.forEach(p=>{(byMonth[p.date.slice(0,7)]=byMonth[p.date.slice(0,7)]||[]).push(p);});
+  let list=''; Object.keys(byMonth).sort().slice(0,18).forEach(mk=>{
+    const mTot=byMonth[mk].reduce((s,p)=>s+base(p),0);
+    list+=`<div class="row" style="margin-top:12px;font-size:13px"><b style="text-transform:capitalize">${monthLabel(mk)}</b><div class="spacer"></div><span class="muted">${fmtDisp(mTot)}</span></div>`;
+    byMonth[mk].forEach(p=>{
+      list+=`<div class="tx"><div class="ic">${p.kind==='redeem'?'💰':'🎟️'}</div>
+        <div class="mid"><div class="t">${p.name}</div><div class="s">${p.date} · ${p.kind==='redeem'?'погашення тіла':'купон'}</div></div>
+        <span class="amt pos">+${fmt(p.amount,p.currency)}</span></div>`;
+    });
+  });
+  return `<div class="card">
+    <h3>📅 Календар виплат ОВДП</h3>
+    <div class="row" style="font-size:13px"><span class="muted">Найближча виплата (${next.date})</span><div class="spacer"></div><b class="pos">+${fmt(next.amount,next.currency)}</b></div>
+    <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">За 12 місяців</span><div class="spacer"></div><b>${fmtDisp(sum12)}</b></div>
+    <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">Усього попереду (купони+тіло)</span><div class="spacer"></div><b>${fmtDisp(total)}</b></div>
+    ${chart}${list}
+  </div>`;
+}
 function renderInvest(){
   const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
   const gcol=gain>=0?'var(--green)':'var(--red)';
@@ -816,8 +912,9 @@ function renderInvest(){
       ${inv?`<span style="color:${gcol};font-weight:600">${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))} (${gainPct.toFixed(1)}%)</span>`:''}
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
-  </div>
+  </div>`+renderBondCalendar()+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
+    ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
   if(!venues.length){
     html+=`<div class="card"><div class="empty">Ще немає майданчиків. Додай Freedom, Універ, InZhur, Snapinvest, Дію…</div></div>`;
@@ -827,16 +924,16 @@ function renderInvest(){
     const vTotal=toBase(vCash,v.currency)+vPos, vGain=vPos-vInv;
     const col=v.color||'var(--brand)';
     html+=`<div class="card" style="border-left:4px solid ${col}">
-      <div class="row" onclick="openAccount('${v.id}')" style="cursor:pointer">
+      <div class="row" ${reorderMode?'':`onclick="openAccount('${v.id}')"`} style="${reorderMode?'':'cursor:pointer'}">
         <div class="ic tx" style="width:auto;background:${v.color?v.color+'22':'var(--surface2)'}">${v.icon||'📈'}</div>
         <div><div style="font-weight:600">${v.name}</div>
           <div class="muted" style="font-size:12px">Вільний кеш: ${fmt(vCash,v.currency)}</div></div>
         <div class="spacer"></div>
         <div style="text-align:right"><div style="font-weight:700">${fmtDisp(vTotal)}</div>
           ${vInv?`<div style="font-size:12px;color:${vGain>=0?'var(--green)':'var(--red)'}">${vGain>=0?'+':'−'}${fmtDisp(Math.abs(vGain))}</div>`:''}</div>
-        <div style="display:flex;flex-direction:column;gap:3px;margin-left:6px">
-          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${v.id}',-1)">↑</button>
-          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${v.id}',1)">↓</button></div>
+        ${reorderMode?`<div style="display:flex;flex-direction:column;gap:8px;margin-left:10px">
+          <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${v.id}',-1)">↑</button>
+          <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${v.id}',1)">↓</button></div>`:''}
       </div>`;
     hs.forEach(h=>{
       const hv=h.curValue||0,hi=h.invested||0,g=hv-hi,gp=hi?g/hi*100:0;
@@ -860,6 +957,33 @@ function recalcHolding(){
   if(q&&!isNaN(bp)) document.getElementById('hInvested').value=+(q*bp).toFixed(2);
   if(q&&!isNaN(cp)) document.getElementById('hCurValue').value=+(q*cp).toFixed(2);
 }
+function toggleBondFields(){
+  document.getElementById('bondFields').classList.toggle('hidden',document.getElementById('hKind').value!=='bond');
+}
+let ovdpCache=null;
+async function fetchOvdpList(){
+  if(ovdpCache) return ovdpCache;
+  const r=await fetch('https://bank.gov.ua/depo_securities?json');
+  ovdpCache=await r.json(); return ovdpCache;
+}
+async function ovdpAutofill(){
+  const isin=(document.getElementById('hIsin').value||'').trim().toUpperCase();
+  if(!isin){alert('Впиши ISIN (напр. UA4000236624)');return;}
+  if(!navigator.onLine){alert('Потрібен інтернет, щоб підтягнути з НБУ');return;}
+  try{
+    const b=(await fetchOvdpList()).find(x=>(x.cpcode||'').toUpperCase()===isin);
+    if(!b){alert('ОВДП '+isin+' не знайдено у реєстрі НБУ (можливо, старий випуск)');return;}
+    document.getElementById('hNominal').value=b.nominal||1000;
+    document.getElementById('hCoupon').value=b.auk_proc||0;
+    const freq=b.pay_period?Math.max(1,Math.round(365/b.pay_period)):2;
+    document.getElementById('hFreq').value=[1,2,4,12].includes(freq)?freq:2;
+    document.getElementById('hMaturity').value=b.pgs_date||'';
+    document.getElementById('hCur').value=b.val_code||'UAH';
+    if(!document.getElementById('hName').value.trim()) document.getElementById('hName').value='ОВДП '+isin;
+    window._ovdpPayments=b.payments||null;   // точний графік з НБУ
+    toast('✓ '+isin+': купон '+b.auk_proc+'% · погашення '+b.pgs_date);
+  }catch(e){ alert('Не вдалося підтягнути з НБУ:\n'+(e&&e.message||e)); }
+}
 function openHolding(vid,hid){
   holdVenue=vid; editingHold=hid?holdings.find(h=>h.id===hid):null;
   const v=accById(vid);
@@ -874,7 +998,15 @@ function openHolding(vid,hid){
   document.getElementById('hCurPrice').value=editingHold?.curPrice??'';
   document.getElementById('hInvested').value=editingHold?.invested??'';
   document.getElementById('hCurValue').value=editingHold?.curValue??'';
+  document.getElementById('hNominal').value=editingHold?.nominal??'';
+  document.getElementById('hCoupon').value=editingHold?.couponRate??'';
+  document.getElementById('hFreq').value=editingHold?.couponFreq||2;
+  document.getElementById('hMaturity').value=editingHold?.maturityDate||'';
+  document.getElementById('hBuyDate').value=editingHold?.buyDate||'';
+  document.getElementById('hIsin').value=editingHold?.isin||'';
+  window._ovdpPayments=undefined;
   document.getElementById('hNote').value=editingHold?.note||'';
+  toggleBondFields();
   openModal('holdModal');
 }
 async function saveHolding(){
@@ -889,6 +1021,15 @@ async function saveHolding(){
     invested:parseFloat(document.getElementById('hInvested').value)||0,
     curValue:parseFloat(document.getElementById('hCurValue').value)||0,
     note:document.getElementById('hNote').value.trim()};
+  if(rec.kind==='bond'){
+    rec.nominal=parseFloat(document.getElementById('hNominal').value)||1000;
+    rec.couponRate=parseFloat(document.getElementById('hCoupon').value)||0;
+    rec.couponFreq=parseInt(document.getElementById('hFreq').value)||2;
+    rec.maturityDate=document.getElementById('hMaturity').value||'';
+    rec.buyDate=document.getElementById('hBuyDate').value||'';
+    rec.isin=document.getElementById('hIsin').value.trim();
+    rec.payments = (window._ovdpPayments!==undefined) ? window._ovdpPayments : (editingHold?.payments||null);
+  }
   await put('holdings',rec); await loadAll(); closeModal('holdModal'); renderInvest();
  }catch(e){ alert('Не вдалося зберегти позицію:\n'+(e&&e.message||e)); }
 }
@@ -898,6 +1039,7 @@ async function deleteHolding(){
 
 function renderAccounts(){
   const box=document.getElementById('accList');
+  const rb=document.getElementById('reorderBtnAcc'); if(rb){rb.textContent=reorderMode?'✓ Готово':'↕ Порядок';rb.classList.toggle('on',reorderMode);}
   box.innerHTML = sortedAccts(a=>a.type!=='invest').map(a=>{
     const bal=accBalance(a);
     const col=a.color||'var(--brand)';
@@ -908,7 +1050,7 @@ function renderAccounts(){
         sub=`<div style="font-size:12px;color:var(--red)">У кредиті: ${fmt(used,a.currency)}${a.creditLimit?` · доступно ${fmt(Math.max(0,avail),a.currency)}`:''}</div>`;
       }else sub=`<div style="font-size:12px;color:var(--green)">Власні кошти</div>`;
     }
-    return `<div class="card" onclick="openAccount('${a.id}')" style="cursor:pointer;border-left:4px solid ${col}">
+    return `<div class="card" ${reorderMode?'':`onclick="openAccount('${a.id}')"`} style="${reorderMode?'':'cursor:pointer;'}border-left:4px solid ${col}">
       <div class="row"><div class="ic tx" style="width:auto;background:${a.color?a.color+'22':'var(--surface2)'}">${a.icon||'💳'}</div>
         <div><div style="font-weight:600">${a.name}${a.type==='credit'?' <span class="tag">кредитна</span>':''}</div>
           <div class="muted" style="font-size:12px">${a.currency} · ${CUR[a.currency].n}</div></div>
@@ -916,9 +1058,9 @@ function renderAccounts(){
         <div style="text-align:right"><div style="font-weight:700;font-size:18px;color:${balCol}">${fmt(bal,a.currency)}</div>
           ${a.currency!==BASE?`<div class="muted" style="font-size:12px">≈ ${fmt(toBase(bal,a.currency))}</div>`:''}
           ${sub}</div>
-        <div style="display:flex;flex-direction:column;gap:3px;margin-left:6px">
-          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${a.id}',-1)">↑</button>
-          <button class="btn ghost sm" style="padding:1px 7px" onclick="event.stopPropagation();moveAccount('${a.id}',1)">↓</button></div>
+        ${reorderMode?`<div style="display:flex;flex-direction:column;gap:8px;margin-left:10px">
+          <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${a.id}',-1)">↑</button>
+          <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${a.id}',1)">↓</button></div>`:''}
       </div></div>`;
   }).join('')||'<div class="empty">Додай перший рахунок.</div>';
   // rates
@@ -985,7 +1127,7 @@ async function saveQuick(cid){
   if(!amount||amount<=0){alert('Спершу введи суму');document.getElementById('qAmount').focus();return;}
   const account=document.getElementById('qAccount').value;
   if(!account){alert('Спершу додай рахунок');return;}
-  await put('tx',{id:uid(),type:qKind,amount,date:todayISO(),account,category:cid,note:''});
+  await put('tx',{id:uid(),type:qKind,amount,date:todayISO(),account,category:cid,note:'',createdAt:Date.now()});
   document.getElementById('qAmount').value='';
   await loadAll(); renderDash();
   toast(`✓ ${qKind==='expense'?'Витрата':'Дохід'}: ${fmt(amount,accById(account).currency)} — ${catFullName(cid)}`);
@@ -1071,7 +1213,7 @@ async function saveTx(){
   const date=document.getElementById('txDate').value||todayISO();
   const account=document.getElementById('txAccFrom').value;
   if(!account){alert('Спершу додай рахунок');return;}
-  const rec={id:editingTx?.id||uid(),type:txKind,amount,date,account,note:document.getElementById('txNote').value.trim()};
+  const rec={id:editingTx?.id||uid(),type:txKind,amount,date,account,note:document.getElementById('txNote').value.trim(),createdAt:editingTx?.createdAt||Date.now()};
   if(txKind==='transfer'){
     rec.to=document.getElementById('txAccTo').value;
     if(rec.to===account){alert('Обери різні рахунки');return;}
@@ -1087,7 +1229,7 @@ async function saveTx(){
   if(txKind==='transfer' && document.getElementById('txFeeOn').checked){
     const fee=parseFloat(document.getElementById('txFee').value);
     if(fee>0) await put('tx',{id:uid(),type:'expense',amount:fee,date,account,
-      category:document.getElementById('txFeeCat').value,note:'Комісія за переказ',linkedTransfer:rec.id});
+      category:document.getElementById('txFeeCat').value,note:'Комісія за переказ',linkedTransfer:rec.id,createdAt:Date.now()});
   }
   await loadAll(); closeModal('txModal'); go('dash');
  }catch(e){ alert('Не вдалося зберегти операцію:\n'+(e&&e.message||e)); }
@@ -1253,7 +1395,7 @@ async function importData(ev){
   for(const c of data.categories||[])await put('categories',c);
   for(const h of data.holdings||[])await put('holdings',h);
   if(data.rates)await setMeta('rates',data.rates);
-  await loadAll();go('dash');alert('Готово! Дані імпортовано.');
+  await loadAll();await normalizeOrder();go('dash');alert('Готово! Дані імпортовано.');
 }
 async function wipeData(){
   if(!confirm('Стерти ВСІ дані без відновлення?'))return;
@@ -1358,7 +1500,7 @@ function voiceFill(p){
 
 /* ========================= BOOT ========================= */
 (async function(){
-  await openDB(); await seed(); await loadAll();
+  await openDB(); await seed(); await loadAll(); await normalizeOrder();
   updateNet(); go('dash');
 })();
 
