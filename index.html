@@ -271,10 +271,7 @@ svg .bar{transition:opacity .2s}
 
   <!-- ============ INVESTMENTS ============ -->
   <section id="view-invest" class="view hidden">
-    <div class="card">
-      <h2 style="margin:0 0 6px">📈 Інвестиції</h2>
-      <p class="muted" style="margin:0">Тут буде портфель: майданчики (Freedom, Універ, InZhur, Snapinvest, Дія, КІНТО…), позиції, прибуток/збиток і календар виплат ОВДП. Наповнюю наступним кроком.</p>
-    </div>
+    <div id="investBody"></div>
   </section>
 
   <!-- ============ SETTINGS ============ -->
@@ -381,6 +378,7 @@ svg .bar{transition:opacity .2s}
         <select id="accType" onchange="toggleCreditWrap()">
           <option value="regular">Звичайний</option>
           <option value="credit">Кредитна картка</option>
+          <option value="invest">Інвестиційний майданчик</option>
         </select></div>
       <div id="accCreditWrap" style="display:none"><label>Кредитний ліміт</label>
         <input id="accCreditLimit" type="number" step="0.01" placeholder="напр. 20000"></div>
@@ -416,6 +414,44 @@ svg .bar{transition:opacity .2s}
       <button class="btn danger sm hidden" id="catDelBtn" onclick="deleteCat()">Видалити</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveCat()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Holding (position) modal -->
+<div class="modal" id="holdModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="holdModalTitle">Позиція</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('holdModal')">✕</button></div>
+    <div><label>Тип активу</label>
+      <select id="hKind">
+        <option value="stock">📈 Акція</option>
+        <option value="fund">🏦 Фонд / сертифікат</option>
+        <option value="bond">📜 ОВДП / облігація</option>
+        <option value="alt">🏨 Альтернативне (нерухомість тощо)</option>
+      </select></div>
+    <div style="margin-top:10px"><label>Назва</label><input id="hName" placeholder="Напр. Apple, InZhur Нерухомість, ОВДП 2027"></div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Тикер (необов'язково)</label><input id="hTicker" placeholder="AAPL"></div>
+      <div><label>Валюта</label><select id="hCur">
+        <option value="UAH">₴ UAH</option><option value="USD">$ USD</option>
+        <option value="EUR">€ EUR</option><option value="MDL">L MDL</option>
+      </select></div>
+    </div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Кількість (необов'язково)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="шт / паї"></div>
+      <div></div>
+    </div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Вкладено (собівартість)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+      <div><label>Поточна вартість</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:4px">Прибуток = поточна вартість − вкладено. Оновлюй поточну вартість вручну (авто-курси додамо пізніше).</div>
+    <div style="margin-top:10px"><label>Нотатка</label><input id="hNote" placeholder="необов'язково"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn danger sm hidden" id="holdDelBtn" onclick="deleteHolding()">Видалити</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveHolding()">Зберегти</button>
     </div>
   </div>
 </div>
@@ -458,7 +494,7 @@ const EMOJI=[
   '💼','🎓','✏️','🗂️','🖊️','🚬','🔑','⭐','🔒','📦','➕'];
 
 /* ---------- IndexedDB ---------- */
-const DB_NAME='gamanets', DB_VER=1;
+const DB_NAME='gamanets', DB_VER=2;
 let db;
 function openDB(){
   return new Promise((res,rej)=>{
@@ -469,6 +505,7 @@ function openDB(){
       if(!d.objectStoreNames.contains('tx')) d.createObjectStore('tx',{keyPath:'id'});
       if(!d.objectStoreNames.contains('categories')) d.createObjectStore('categories',{keyPath:'id'});
       if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'});
+      if(!d.objectStoreNames.contains('holdings')) d.createObjectStore('holdings',{keyPath:'id'});
     };
     r.onsuccess=e=>{db=e.target.result;res();};
     r.onerror=e=>rej(e);
@@ -482,13 +519,13 @@ const getMeta=k=>new Promise(res=>{tx('meta').get(k).onsuccess=e=>res(e.target.r
 const setMeta=(k,v)=>put('meta',{k,v});
 
 /* ---------- state ---------- */
-let accounts=[], txs=[], cats=[], rates={USD:41,EUR:44,MDL:2.3,UAH:1};
+let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:1};
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 
 async function loadAll(){
-  accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories');
+  accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
   const cn=await getMeta('curNames'); if(cn) curNames=cn;
 }
@@ -615,7 +652,7 @@ function monthsForRange(){
 function renderDash(){
   renderCurSel(); renderRangeSel();
   document.getElementById('dynCur').textContent=CUR[dispCur]?.s||dispCur;
-  let total=0; accounts.forEach(a=> total+=toBase(accBalance(a),a.currency));
+  let total=0; accounts.filter(a=>a.type!=='invest').forEach(a=> total+=toBase(accBalance(a),a.currency));
   document.getElementById('totalBal').textContent=fmtDisp(total);
   const mk=monthKey(todayISO());
   let inc=0,exp=0;
@@ -721,11 +758,94 @@ function txRow(t){
 }
 
 function setTxFilter(k){txFilter=k;txShowAll=false;renderDashOps();}
-function renderInvest(){/* портфель — наступний слайс */}
+/* ========================= INVESTMENTS ========================= */
+const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨'};
+const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне'};
+const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
+function renderInvest(){
+  const venues=accounts.filter(a=>a.type==='invest');
+  let cash=0,posVal=0,inv=0;
+  venues.forEach(v=>{ cash+=toBase(accBalance(v),v.currency);
+    venueHoldings(v.id).forEach(h=>{posVal+=toBase(h.curValue||0,h.currency);inv+=toBase(h.invested||0,h.currency);}); });
+  const portfolio=cash+posVal, gain=posVal-inv, gainPct=inv?gain/inv*100:0;
+  const gcol=gain>=0?'var(--green)':'var(--red)';
+  let html=`<div class="card">
+    <div class="muted" style="font-size:12px">Вартість портфеля</div>
+    <div style="font-size:26px;font-weight:700">${fmtDisp(portfolio)}</div>
+    <div class="row" style="margin-top:8px;font-size:13px">
+      <span class="muted">Вкладено: ${fmtDisp(inv)}</span><div class="spacer"></div>
+      ${inv?`<span style="color:${gcol};font-weight:600">${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))} (${gainPct.toFixed(1)}%)</span>`:''}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
+  </div>
+  <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
+    <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
+  if(!venues.length){
+    html+=`<div class="card"><div class="empty">Ще немає майданчиків. Додай Freedom, Універ, InZhur, Snapinvest, Дію…</div></div>`;
+  }else venues.forEach(v=>{
+    const hs=venueHoldings(v.id), vCash=accBalance(v);
+    let vPos=0,vInv=0; hs.forEach(h=>{vPos+=toBase(h.curValue||0,h.currency);vInv+=toBase(h.invested||0,h.currency);});
+    const vTotal=toBase(vCash,v.currency)+vPos, vGain=vPos-vInv;
+    const col=v.color||'var(--brand)';
+    html+=`<div class="card" style="border-left:4px solid ${col}">
+      <div class="row" onclick="openAccount('${v.id}')" style="cursor:pointer">
+        <div class="ic tx" style="width:auto;background:${v.color?v.color+'22':'var(--surface2)'}">${v.icon||'📈'}</div>
+        <div><div style="font-weight:600">${v.name}</div>
+          <div class="muted" style="font-size:12px">Вільний кеш: ${fmt(vCash,v.currency)}</div></div>
+        <div class="spacer"></div>
+        <div style="text-align:right"><div style="font-weight:700">${fmtDisp(vTotal)}</div>
+          ${vInv?`<div style="font-size:12px;color:${vGain>=0?'var(--green)':'var(--red)'}">${vGain>=0?'+':'−'}${fmtDisp(Math.abs(vGain))}</div>`:''}</div>
+      </div>`;
+    hs.forEach(h=>{
+      const hv=h.curValue||0,hi=h.invested||0,g=hv-hi,gp=hi?g/hi*100:0;
+      html+=`<div class="tx" onclick="openHolding('${v.id}','${h.id}')" style="cursor:pointer">
+        <div class="ic">${KIND_ICON[h.kind]||'📊'}</div>
+        <div class="mid"><div class="t">${h.name}${h.ticker?` · ${h.ticker}`:''}</div>
+          <div class="s">${KIND_NAME[h.kind]||''}${h.qty?` · ${h.qty} шт`:''}</div></div>
+        <div style="text-align:right"><div class="amt">${fmt(hv,h.currency)}</div>
+          ${hi?`<div style="font-size:12px;color:${g>=0?'var(--green)':'var(--red)'}">${g>=0?'+':'−'}${Math.abs(gp).toFixed(1)}%</div>`:''}</div>
+      </div>`;
+    });
+    html+=`<button class="btn ghost sm" style="margin-top:10px" onclick="openHolding('${v.id}')">+ Позиція</button></div>`;
+  });
+  document.getElementById('investBody').innerHTML=html;
+}
+let editingHold=null, holdVenue=null;
+function openHolding(vid,hid){
+  holdVenue=vid; editingHold=hid?holdings.find(h=>h.id===hid):null;
+  const v=accById(vid);
+  document.getElementById('holdModalTitle').textContent=hid?'Редагувати позицію':'Нова позиція';
+  document.getElementById('holdDelBtn').classList.toggle('hidden',!hid);
+  document.getElementById('hKind').value=editingHold?.kind||'stock';
+  document.getElementById('hName').value=editingHold?.name||'';
+  document.getElementById('hTicker').value=editingHold?.ticker||'';
+  document.getElementById('hCur').value=editingHold?.currency||v?.currency||'UAH';
+  document.getElementById('hQty').value=editingHold?.qty||'';
+  document.getElementById('hInvested').value=editingHold?.invested??'';
+  document.getElementById('hCurValue').value=editingHold?.curValue??'';
+  document.getElementById('hNote').value=editingHold?.note||'';
+  openModal('holdModal');
+}
+async function saveHolding(){
+ try{
+  const name=document.getElementById('hName').value.trim();
+  if(!name){alert('Введи назву');return;}
+  const rec={id:editingHold?.id||uid(),venue:holdVenue,kind:document.getElementById('hKind').value,name,
+    ticker:document.getElementById('hTicker').value.trim(),currency:document.getElementById('hCur').value,
+    qty:parseFloat(document.getElementById('hQty').value)||0,
+    invested:parseFloat(document.getElementById('hInvested').value)||0,
+    curValue:parseFloat(document.getElementById('hCurValue').value)||0,
+    note:document.getElementById('hNote').value.trim()};
+  await put('holdings',rec); await loadAll(); closeModal('holdModal'); renderInvest();
+ }catch(e){ alert('Не вдалося зберегти позицію:\n'+(e&&e.message||e)); }
+}
+async function deleteHolding(){
+  if(editingHold&&confirm('Видалити позицію?')){await del('holdings',editingHold.id);await loadAll();closeModal('holdModal');renderInvest();}
+}
 
 function renderAccounts(){
   const box=document.getElementById('accList');
-  box.innerHTML = accounts.map(a=>{
+  box.innerHTML = accounts.filter(a=>a.type!=='invest').map(a=>{
     const bal=accBalance(a);
     const col=a.color||'var(--brand)';
     const balCol=bal<0?'var(--red)':'var(--text)';
@@ -959,6 +1079,12 @@ function openAccount(id){
   }else aw.classList.add('hidden');
   openModal('accModal');
 }
+function openVenue(){
+  openAccount();
+  document.getElementById('accModalTitle').textContent='Новий майданчик';
+  document.getElementById('accType').value='invest'; toggleCreditWrap();
+  document.getElementById('accName').focus();
+}
 async function applyAdjust(){
   if(!editingAcc)return;
   const target=parseFloat(document.getElementById('adjTarget').value);
@@ -1054,7 +1180,7 @@ async function fetchRates(){
 /* ========================= EXPORT / IMPORT ========================= */
 async function exportData(){
   const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
-    accounts,tx:txs,categories:cats,rates};
+    accounts,tx:txs,categories:cats,holdings,rates};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='gamanets-'+todayISO()+'.json';a.click();
@@ -1064,17 +1190,18 @@ async function importData(ev){
   const data=JSON.parse(await file.text());
   if(data.app!=='gamanets'){alert('Це не файл Гаманця.');return;}
   if(!confirm('Замінити всі поточні дані даними з файлу?'))return;
-  for(const s of ['accounts','tx','categories']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
+  for(const s of ['accounts','tx','categories','holdings']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   for(const a of data.accounts||[])await put('accounts',a);
   for(const t of data.tx||[])await put('tx',t);
   for(const c of data.categories||[])await put('categories',c);
+  for(const h of data.holdings||[])await put('holdings',h);
   if(data.rates)await setMeta('rates',data.rates);
   await loadAll();go('dash');alert('Готово! Дані імпортовано.');
 }
 async function wipeData(){
   if(!confirm('Стерти ВСІ дані без відновлення?'))return;
   if(!confirm('Точно? Це незворотньо.'))return;
-  for(const s of ['accounts','tx','categories','meta']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
+  for(const s of ['accounts','tx','categories','holdings','meta']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   await seed();await loadAll();go('dash');
 }
 
