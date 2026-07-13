@@ -205,18 +205,16 @@ svg .bar{transition:opacity .2s}
         <div id="invSub" style="font-size:12px;margin-top:3px"></div></div>
     </div>
 
-    <div class="card" id="quickCard">
-      <div class="row" style="margin-bottom:10px"><h3 style="margin:0">Швидкий запис</h3><div class="spacer"></div>
-        <div class="seg" id="quickSeg" style="width:auto">
-          <button data-k="expense" class="on" onclick="setQKind('expense')">Витрата</button>
-          <button data-k="income" onclick="setQKind('income')">Дохід</button>
-        </div></div>
-      <div class="row" style="margin-bottom:10px">
-        <input id="qAmount" type="number" inputmode="decimal" step="0.01" placeholder="Сума" style="flex:1">
-        <select id="qAccount" class="compact" style="max-width:44%"></select>
-      </div>
-      <div class="txfilter" id="qCats"></div>
-      <div class="muted" style="font-size:12px">Введи суму й тицьни категорію — запис додається одразу.</div>
+    <div class="card">
+      <div class="row"><h3 style="margin:0">Курси та конвертер</h3><div class="spacer"></div>
+        <button class="btn ghost sm" onclick="fetchRates()">Оновити з НБУ</button></div>
+      <div id="ratesBox" class="row wrap" style="margin-top:8px"></div>
+      <div class="muted" id="ratesDate" style="font-size:12px;margin-bottom:10px"></div>
+      <div class="row"><select id="convFrom" onchange="convert()" style="flex:1"></select>
+        <input id="convAmount" type="number" inputmode="decimal" placeholder="Сума" oninput="convert()" style="flex:1"></div>
+      <div style="text-align:center;margin:8px 0"><button class="btn ghost sm" onclick="swapConv()" title="Змінити напрямок" style="font-size:18px;padding:2px 14px">⇅</button></div>
+      <div class="row"><select id="convTo" onchange="convert()" style="flex:1"></select>
+        <input id="convResult" readonly placeholder="Результат" style="flex:1;font-weight:700"></div>
     </div>
 
     <div class="card">
@@ -267,12 +265,6 @@ svg .bar{transition:opacity .2s}
     </div>
     <div id="accList"></div>
     <div id="closedAccWrap"></div>
-    <div class="card">
-      <div class="row"><h3>Курси валют → ₴</h3><div class="spacer"></div>
-        <button class="btn ghost sm" onclick="fetchRates()">Оновити з НБУ</button></div>
-      <div id="ratesBox" class="row wrap"></div>
-      <div class="muted" style="font-size:12px;margin-top:8px" id="ratesDate"></div>
-    </div>
   </section>
 
   <!-- ============ INVESTMENTS ============ -->
@@ -364,7 +356,7 @@ svg .bar{transition:opacity .2s}
       <select id="txAccTo"></select></div>
     <div style="margin-top:10px" id="wrapFee" class="hidden">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text)">
-        <input type="checkbox" id="txFeeOn" onchange="toggleFee()"> Комісія за переказ</label>
+        <input type="checkbox" id="txFeeOn" onchange="toggleFee()"> Комісія (окремим записом)</label>
       <div id="feeFields" class="hidden" style="margin-top:8px">
         <div class="grid cols2">
           <div><input id="txFee" type="number" step="0.01" inputmode="decimal" placeholder="сума комісії"></div>
@@ -448,6 +440,22 @@ svg .bar{transition:opacity .2s}
   </div>
 </div>
 
+<!-- Reassign & delete category modal -->
+<div class="modal" id="reassignModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Перенести й видалити</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('reassignModal')">✕</button></div>
+    <p class="muted" id="reassignInfo" style="margin-top:0"></p>
+    <label>Перенести операції в категорію</label>
+    <select id="reassignTarget"></select>
+    <div class="row" style="margin-top:16px">
+      <button class="btn ghost sm" onclick="closeModal('reassignModal')">Скасувати</button>
+      <div class="spacer"></div>
+      <button class="btn danger" onclick="confirmReassign()">Перенести й видалити</button>
+    </div>
+  </div>
+</div>
+
 <!-- Holding (position) modal -->
 <div class="modal" id="holdModal">
   <div class="sheet">
@@ -522,6 +530,7 @@ const todayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${pad2(d.get
 const monthKey = d => d.slice(0,7);
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const CAT_COLORS=['#f43f5e','#ef4444','#f97316','#f59e0b','#eab308','#84cc16','#22c55e','#10b981','#14b8a6','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f472b6','#a16207','#78716c','#64748b','#334155','#000000','#ffffff'];
+const CRYPTO_IDS={BTC:'bitcoin',ETH:'ethereum',USDT:'tether',USDC:'usd-coin',BNB:'binancecoin',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',TON:'the-open-network',TRX:'tron',DOT:'polkadot',LTC:'litecoin',DAI:'dai',AVAX:'avalanche-2',LINK:'chainlink'};
 const EMOJI=[
   // гроші / рахунки
   '💳','💵','💰','🏦','🪙','💴','💶','💷','🧾','📈','📉','💱',
@@ -668,8 +677,8 @@ function catFullName(id){const c=catById(id);if(!c)return '—';const p=c.parent
 function descendantIds(id){let out=[id];kids(id).forEach(k=>out=out.concat(descendantIds(k.id)));return out;}
 function fillCatSelect(sel,type,val){
   let html='';
-  topCats(type).forEach(top=>{
-    const ch=kids(top.id);
+  topCats(type).slice().sort((a,b)=>a.name.localeCompare(b.name,'uk')).forEach(top=>{
+    const ch=kids(top.id).slice().sort((a,b)=>a.name.localeCompare(b.name,'uk'));
     if(ch.length){
       html+=`<optgroup label="${top.icon} ${top.name}">`;
       html+=`<option value="${top.id}">${top.icon} ${top.name} (загальне)</option>`;
@@ -759,7 +768,7 @@ function renderDash(){
     const gc=P.gain>=0?'var(--green)':'var(--red)';
     document.getElementById('invSub').innerHTML=`<span class="muted">вкл. ${fmtDisp(P.inv)}</span><br><span style="color:${gc}">${P.gain>=0?'+':'−'}${fmtDisp(Math.abs(P.gain))} · ${P.gainPct.toFixed(1)}%</span>`;
   }else tile.classList.add('hidden');
-  renderMonthlyChart(); renderCatChart(); renderLimits(); renderQuick(); renderDashOps();
+  renderMonthlyChart(); renderCatChart(); renderLimits(); renderRatesCard(); renderDashOps();
 }
 function renderDashOps(){
   const fb=document.getElementById('dashTxFilter');
@@ -1081,15 +1090,24 @@ async function saveCurrencies(){
   await setMeta('currencies',customs);
 }
 function setBaseCur(c){ baseCur=c; dispCur=c; setMeta('baseCur',c); renderCurrencySettings(); toast('Основна валюта: '+c); }
+async function fetchCryptoRate(code){
+  const id=CRYPTO_IDS[code]; if(!id) return 0;
+  const d=await (await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+id+'&vs_currencies=usd')).json();
+  const usd=d[id]?.usd;
+  return usd>0? usd*(rates.USD||41):0;   // ціна в USD × курс USD→₴
+}
 async function addCurrency(){
   const code=(document.getElementById('newCurCode').value||'').trim().toUpperCase();
-  if(!code){alert('Впиши код валюти (напр. CHF, BTC)');return;}
+  if(!code){alert('Впиши код валюти (напр. CHF, BTC, USDC)');return;}
   CUR[code]={s:(document.getElementById('newCurSym').value||'').trim()||code, n:(document.getElementById('newCurName').value||'').trim()||code};
-  const rate=parseFloat(document.getElementById('newCurRate').value);
+  let rate=parseFloat(document.getElementById('newCurRate').value);
+  if(!(rate>0) && CRYPTO_IDS[code] && navigator.onLine){
+    try{ rate=await fetchCryptoRate(code); }catch(_){}
+  }
   if(rate>0){ rates[code]=rate; await setMeta('rates',rates); }
   await saveCurrencies();
   ['newCurCode','newCurSym','newCurName','newCurRate'].forEach(id=>document.getElementById(id).value='');
-  renderCurrencySettings(); toast('Додано валюту '+code);
+  renderCurrencySettings(); toast('Додано '+code+(rate>0?' · '+rate.toFixed(2)+' ₴':' — впиши курс вручну'));
 }
 async function removeCurrency(code){
   if(accounts.some(a=>a.currency===code)||holdings.some(h=>h.currency===code)){alert('Є рахунки чи позиції в цій валюті — спершу зміни їх.');return;}
@@ -1174,9 +1192,6 @@ function renderAccounts(){
               <div class="spacer"></div><div style="font-weight:700">${fmt(bal,a.currency)}</div></div></div>`;}).join(''):'');
     } else cw.innerHTML='';
   }
-  // rates
-  document.getElementById('ratesBox').innerHTML=['USD','EUR','MDL'].map(c=>
-    `<span class="chip">${CUR[c].s} 1 ${c} = <b>&nbsp;${(rates[c]||0).toFixed(2)} ₴</b></span>`).join('');
 }
 
 function catRowHtml(c,child){
@@ -1216,34 +1231,33 @@ function renderLimits(){
     </div>`;}).join('');
 }
 
-/* dashboard: quick entry */
-let qKind='expense';
-function setQKind(k){qKind=k;
-  document.querySelectorAll('#quickSeg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));renderQuick();}
-function renderQuick(){
-  const asel=document.getElementById('qAccount');
-  const cur=asel.value;
-  asel.innerHTML=accounts.filter(a=>!a.archived).map(a=>`<option value="${a.id}">${a.icon||''} ${a.name} (${a.currency})</option>`).join('');
-  if(cur)asel.value=cur;
-  const leaves=cats.filter(c=>c.type===qKind&&kids(c.id).length===0)
-    .sort((a,b)=>{const pa=catFullName(a.id),pb=catFullName(b.id);return pa.localeCompare(pb);});
-  document.getElementById('qCats').innerHTML=leaves.map(c=>
-    `<span class="qchip" onclick="saveQuick('${c.id}')" style="border-color:${c.color||'var(--line)'}"
-      >${c.icon} ${c.parent?catById(c.parent).name+' · ':''}${c.name}</span>`).join('')
-    ||'<span class="muted">Додай категорії у розділі «Ще».</span>';
+/* dashboard: курси + конвертер */
+let convFrom='', convTo='';
+function renderRatesCard(){
+  document.getElementById('ratesBox').innerHTML=['USD','EUR','MDL'].filter(c=>CUR[c]).map(c=>
+    `<span class="chip">${CUR[c].s} 1 ${c} = <b>&nbsp;${(rates[c]||0).toFixed(2)} ₴</b></span>`).join('');
+  const opts=[...new Set([...Object.keys(CUR),...Object.keys(rates)])].filter(c=>rates[c]>0).sort();
+  if(!convFrom||!opts.includes(convFrom)) convFrom=baseCur;
+  if(!convTo||!opts.includes(convTo)) convTo=(baseCur==='USD'?'EUR':'USD');
+  const oh=opts.map(c=>`<option value="${c}">${CUR[c]?.s||''} ${c}</option>`).join('');
+  const fs=document.getElementById('convFrom'), ts=document.getElementById('convTo');
+  fs.innerHTML=oh; ts.innerHTML=oh; fs.value=convFrom; ts.value=convTo;
+  convert();
 }
-async function saveQuick(cid){
- try{
-  const amount=parseFloat(document.getElementById('qAmount').value);
-  if(!amount||amount<=0){alert('Спершу введи суму');document.getElementById('qAmount').focus();return;}
-  const account=document.getElementById('qAccount').value;
-  if(!account){alert('Спершу додай рахунок');return;}
-  await put('tx',{id:uid(),type:qKind,amount,date:todayISO(),account,category:cid,note:'',createdAt:Date.now()});
-  document.getElementById('qAmount').value='';
-  await loadAll(); renderDash();
-  toast(`✓ ${qKind==='expense'?'Витрата':'Дохід'}: ${fmt(amount,accById(account).currency)} — ${catFullName(cid)}`);
- }catch(e){ alert('Не вдалося зберегти:\n'+(e&&e.message||e)); }
+function convert(){
+  convFrom=document.getElementById('convFrom').value; convTo=document.getElementById('convTo').value;
+  const amt=parseFloat(document.getElementById('convAmount').value)||0;
+  const res=(rates[convFrom]&&rates[convTo])? amt*rates[convFrom]/rates[convTo] : 0;
+  document.getElementById('convResult').value=res? res.toLocaleString('uk-UA',{maximumFractionDigits:4}) : '';
 }
+function swapConv(){
+  const f=document.getElementById('convFrom').value, t=document.getElementById('convTo').value;
+  document.getElementById('convFrom').value=t; document.getElementById('convTo').value=f;
+  convFrom=t; convTo=f; convert();
+}
+function toast(msg){let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}
+  t.textContent=msg;t.className='show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className='',2000);}
 function toast(msg){let t=document.getElementById('toast');
   if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}
   t.textContent=msg;t.className='show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className='',2000);}
@@ -1272,7 +1286,7 @@ function setTxKind(k){
   document.querySelectorAll('#txModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
   document.getElementById('wrapCat').classList.toggle('hidden',k==='transfer');
   document.getElementById('wrapAccTo').classList.toggle('hidden',k!=='transfer');
-  document.getElementById('wrapFee').classList.toggle('hidden',k!=='transfer');
+  document.getElementById('wrapFee').classList.remove('hidden');   // комісія доступна для всіх типів
   document.getElementById('lblAccFrom').textContent = k==='transfer'?'Звідки':'Рахунок';
   if(k!=='transfer') fillCatSelect(document.getElementById('txCat'),k);
 }
@@ -1299,14 +1313,12 @@ function openTx(id){
     document.getElementById('txAmount').value=editingTx.amount;
     document.getElementById('txDate').value=editingTx.date;
     document.getElementById('txAccFrom').value=editingTx.account;
-    if(editingTx.type==='transfer'){
-      document.getElementById('txAccTo').value=editingTx.to;
-      const feeTx=txs.find(t=>t.linkedTransfer===editingTx.id);
-      document.getElementById('txFeeOn').checked=!!feeTx;
-      toggleFee();
-      if(feeTx){document.getElementById('txFee').value=feeTx.amount;
-        document.getElementById('txFeeCat').value=feeTx.category;}
-    }else document.getElementById('txCat').value=editingTx.category;
+    if(editingTx.type==='transfer') document.getElementById('txAccTo').value=editingTx.to;
+    else document.getElementById('txCat').value=editingTx.category;
+    const feeTx=txs.find(t=>t.linkedTransfer===editingTx.id);
+    document.getElementById('txFeeOn').checked=!!feeTx;
+    toggleFee();
+    if(feeTx){document.getElementById('txFee').value=feeTx.amount; document.getElementById('txFeeCat').value=feeTx.category;}
     document.getElementById('txNote').value=editingTx.note||'';
   }else{
     setTxKind('expense');
@@ -1338,10 +1350,10 @@ async function saveTx(){
   // пов'язана витрата-комісія для переказів
   const prevFee=txs.find(t=>t.linkedTransfer===rec.id);
   if(prevFee) await del('tx',prevFee.id);
-  if(txKind==='transfer' && document.getElementById('txFeeOn').checked){
+  if(document.getElementById('txFeeOn').checked){
     const fee=parseFloat(document.getElementById('txFee').value);
     if(fee>0) await put('tx',{id:uid(),type:'expense',amount:fee,date,account,
-      category:document.getElementById('txFeeCat').value,note:'Комісія за переказ',linkedTransfer:rec.id,createdAt:Date.now()});
+      category:document.getElementById('txFeeCat').value,note:'Комісія',linkedTransfer:rec.id,createdAt:Date.now()});
   }
   await loadAll(); closeModal('txModal'); go('dash');
  }catch(e){ alert('Не вдалося зберегти операцію:\n'+(e&&e.message||e)); }
@@ -1480,11 +1492,34 @@ async function saveCat(){
   if(type==='expense'&&lim>0)rec.limit=lim;
   await put('categories',rec);await loadAll();closeModal('catModal');renderCats();
 }
+let reassignCatId=null;
+function catReassignOptions(type,excludeId){
+  return cats.filter(c=>c.type===type&&c.id!==excludeId)
+    .sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'))
+    .map(c=>`<option value="${c.id}">${c.icon} ${catFullName(c.id)}</option>`).join('');
+}
 async function deleteCat(){
   if(!editingCat)return;
-  if(kids(editingCat.id).length){alert('Спершу видали або перенеси підкатегорії.');return;}
-  if(txs.some(t=>t.category===editingCat.id)){alert('Є операції з цією категорією.');return;}
-  if(confirm('Видалити категорію?')){await del('categories',editingCat.id);await loadAll();closeModal('catModal');renderCats();}
+  if(kids(editingCat.id).length){alert('У цієї категорії є підкатегорії — спершу видали або перенеси їх.');return;}
+  const count=txs.filter(t=>t.category===editingCat.id).length;
+  if(count===0){
+    if(confirm('Видалити категорію?')){await del('categories',editingCat.id);await loadAll();closeModal('catModal');renderCats();}
+    return;
+  }
+  const other=cats.filter(c=>c.type===editingCat.type&&c.id!==editingCat.id);
+  if(!other.length){alert('Немає іншої категорії того ж типу, куди перенести записи. Спершу створи її.');return;}
+  reassignCatId=editingCat.id;
+  document.getElementById('reassignInfo').textContent=`У категорії «${editingCat.name}» є записів: ${count}. Обери, куди їх перенести, і категорія видалиться.`;
+  document.getElementById('reassignTarget').innerHTML=catReassignOptions(editingCat.type,editingCat.id);
+  openModal('reassignModal');
+}
+async function confirmReassign(){
+  const target=document.getElementById('reassignTarget').value;
+  if(!target||!reassignCatId)return;
+  for(const t of txs.filter(t=>t.category===reassignCatId)){ t.category=target; await put('tx',t); }
+  await del('categories',reassignCatId); reassignCatId=null;
+  await loadAll(); closeModal('reassignModal'); closeModal('catModal'); renderCats();
+  toast('Операції перенесено, категорію видалено');
 }
 
 /* ========================= RATES (НБУ) ========================= */
@@ -1496,6 +1531,15 @@ async function fetchRates(){
     data.forEach(row=>{ if(row.cc&&row.rate){ rates[row.cc]=row.rate; if(row.txt) curNames[row.cc]=row.txt; }});
     rates.UAH=1;
     await setMeta('rates',rates); await setMeta('curNames',curNames);
+    // крипта через CoinGecko (ціна в USD × курс USD→₴)
+    try{
+      const cryptos=Object.keys(CUR).filter(c=>CRYPTO_IDS[c]);
+      if(cryptos.length){
+        const cd=await (await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+cryptos.map(c=>CRYPTO_IDS[c]).join(',')+'&vs_currencies=usd')).json();
+        cryptos.forEach(c=>{const usd=cd[CRYPTO_IDS[c]]?.usd; if(usd>0) rates[c]=usd*(rates.USD||1);});
+        await setMeta('rates',rates);
+      }
+    }catch(_){}
     document.getElementById('ratesDate').textContent='Оновлено: '+new Date().toLocaleString('uk-UA');
     renderAccounts();
   }catch(e){alert('Не вдалося завантажити курси НБУ.');}
