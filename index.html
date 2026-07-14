@@ -137,6 +137,10 @@ svg .bar{transition:opacity .2s}
   background:var(--surface);border:1px solid var(--line);color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,.3)}
 .fab.mic.listening{background:var(--red);color:#fff;animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.fabmenu{position:fixed;right:16px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:26;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.fabmenu button{background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:11px 16px;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.35);white-space:nowrap}
+.fab.rot{transform:rotate(45deg);transition:transform .2s}
+.fab.listening{background:var(--red)!important;color:#fff;animation:pulse 1s infinite}
 
 /* ===== DESKTOP LAYOUT (широкий екран) ===== */
 .sidebar{display:none}
@@ -329,11 +333,26 @@ svg .bar{transition:opacity .2s}
       </div>
       <div class="muted" id="fhKeyStatus" style="font-size:12px;margin-top:6px"></div>
     </div>
+
+    <h2>AI-помічник (голос і чеки)</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Для розумного голосового вводу та розпізнавання чеків встав API-ключ <b>Anthropic (Claude)</b>. Отримати — на console.anthropic.com. Ключ зберігається лише на цьому пристрої; кожен запит коштує копійки.</p>
+      <div class="row">
+        <input id="aiKeyInput" placeholder="API-ключ Anthropic (sk-ant-...)">
+        <button class="btn sm" onclick="saveAiKey()">Зберегти</button>
+      </div>
+      <div class="muted" id="aiKeyStatus" style="font-size:12px;margin-top:6px"></div>
+    </div>
   </section>
 </div>
 
-<button class="fab mic" id="micFab" onclick="startVoice()" title="Голосовий запис">🎤</button>
-<button class="fab" id="fab" onclick="openTx()">+</button>
+<div id="fabMenu" class="fabmenu hidden">
+  <button onclick="fabAction('receipt')">📷 Чек</button>
+  <button onclick="fabAction('voice')">🎤 Голосом</button>
+  <button onclick="fabAction('manual')">✍️ Вручну</button>
+</div>
+<input type="file" id="receiptInput" accept="image/*" capture="environment" class="hidden" onchange="onReceiptPhoto(event)">
+<button class="fab" id="fab" onclick="toggleFabMenu()">＋</button>
 
 <nav class="tabbar">
   <button data-tab="dash" class="active" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
@@ -523,6 +542,26 @@ svg .bar{transition:opacity .2s}
   </div>
 </div>
 
+<!-- Receipt preview modal -->
+<div class="modal" id="receiptModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">📷 Чек — перевір і збережи</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('receiptModal')">✕</button></div>
+    <div class="muted" id="receiptInfo" style="margin-bottom:8px"></div>
+    <div class="grid cols2">
+      <div><label>Рахунок</label><select id="receiptAcc"></select></div>
+      <div><label>Дата</label><input id="receiptDate" type="date"></div>
+    </div>
+    <div style="margin-top:10px"><label>Позиції по категоріях</label><div id="receiptGroups"></div></div>
+    <div style="margin-top:10px;font-weight:700" id="receiptTotal"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn ghost sm" onclick="closeModal('receiptModal')">Скасувати</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveReceipt()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    Гаманець — Етап 1. Local-first, IndexedDB, повністю офлайн.
@@ -613,13 +652,13 @@ let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
-let fhKey='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false;
+let fhKey='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, aiKey='';
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
   const cn=await getMeta('curNames'); if(cn) curNames=cn;
-  fhKey=await getMeta('fhKey')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0;
+  fhKey=await getMeta('fhKey')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||'';
   const cc=await getMeta('currencies'); if(cc) CUR={...CUR,...cc};
   baseCur=await getMeta('baseCur')||'UAH';
 }
@@ -1120,10 +1159,16 @@ async function deleteHolding(){
 function renderSettings(){
   const el=document.getElementById('fhKeyInput'); if(el) el.value=fhKey;
   const st=document.getElementById('fhKeyStatus'); if(st) st.textContent=fhKey?'Ключ збережено ✓':'Ключ не встановлено — авто-ціни вимкнено.';
+  const ae=document.getElementById('aiKeyInput'); if(ae) ae.value=aiKey;
+  const ast=document.getElementById('aiKeyStatus'); if(ast) ast.textContent=aiKey?'Ключ збережено ✓ — AI-голос і чеки активні':'Ключ не встановлено — AI вимкнено (голос працює простим способом).';
 }
 function saveFhKey(){
   fhKey=document.getElementById('fhKeyInput').value.trim();
   setMeta('fhKey',fhKey); renderSettings(); toast(fhKey?'Ключ збережено':'Ключ очищено');
+}
+function saveAiKey(){
+  aiKey=document.getElementById('aiKeyInput').value.trim();
+  setMeta('aiKey',aiKey); renderSettings(); toast(aiKey?'AI-ключ збережено':'AI-ключ очищено');
 }
 /* ---- валюти ---- */
 async function saveCurrencies(){
@@ -1322,7 +1367,7 @@ function go(tab){
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   const hideFab = tab==='set'||tab==='invest'||tab==='analytics';
   document.getElementById('fab').classList.toggle('hidden', hideFab);
-  document.getElementById('micFab').classList.toggle('hidden', hideFab);
+  closeFabMenu();
   if(tab==='dash')renderDash();
   if(tab==='acc')renderAccounts(); if(tab==='set'){renderSettings();renderCurrencySettings();if(catsExpanded)renderCats();}
   if(tab==='invest')renderInvest();
@@ -1700,16 +1745,112 @@ let recognition=null;
 function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('Голосовий ввід не підтримується цим браузером 😕');return;}
-  if(accounts.length===0){alert('Спершу додай рахунок');go('acc');return;}
-  const mic=document.getElementById('micFab');
+  if(accounts.filter(a=>!a.archived).length===0){alert('Спершу додай рахунок');go('acc');return;}
+  const mic=document.getElementById('fab');
   recognition=new SR();
   recognition.lang='uk-UA'; recognition.interimResults=false; recognition.maxAlternatives=1;
-  recognition.onstart=()=>{mic.classList.add('listening');toast('🎤 Слухаю… напр. «продукти 450» або «зарплата 20 тисяч»');};
+  recognition.onstart=()=>{mic.classList.add('listening');toast(aiKey?'🎤 Слухаю (AI)…':'🎤 Слухаю…');};
   recognition.onerror=e=>{mic.classList.remove('listening');
     toast(e.error==='not-allowed'?'Немає доступу до мікрофона':'Не почув, спробуй ще раз');};
   recognition.onend=()=>mic.classList.remove('listening');
-  recognition.onresult=e=>{ voiceFill(parseVoice(e.results[0][0].transcript)); };
+  recognition.onresult=async e=>{
+    const text=e.results[0][0].transcript;
+    if(aiKey && navigator.onLine){
+      try{ voiceFill(await aiParseVoice(text)); return; }
+      catch(err){ toast('AI: '+(err.message||err)+' — простий розбір'); }
+    }
+    voiceFill(parseVoice(text));
+  };
   try{recognition.start();}catch(err){toast('Мікрофон зайнятий, спробуй ще раз');}
+}
+/* ===== розкладна кнопка ＋ ===== */
+function toggleFabMenu(){
+  const m=document.getElementById('fabMenu'), hidden=m.classList.toggle('hidden');
+  document.getElementById('fab').classList.toggle('rot',!hidden);
+}
+function closeFabMenu(){const m=document.getElementById('fabMenu');if(m){m.classList.add('hidden');document.getElementById('fab').classList.remove('rot');}}
+function fabAction(a){ closeFabMenu();
+  if(a==='manual') openTx();
+  else if(a==='voice') startVoice();
+  else if(a==='receipt') scanReceipt();
+}
+/* ===== Claude API ===== */
+async function aiCall(messages,{maxTokens=1024}={}){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,messages})});
+  if(r.status===401) throw new Error('невірний AI-ключ');
+  const d=await r.json();
+  if(d.error) throw new Error(d.error.message||'AI помилка');
+  return (d.content||[]).map(c=>c.text||'').join('');
+}
+function extractJSON(s){const m=s&&s.match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null;}
+async function aiParseVoice(text){
+  const cs=cats.filter(c=>kids(c.id).length===0).map(c=>({id:c.id,name:catFullName(c.id),type:c.type}));
+  const as=accounts.filter(a=>!a.archived).map(a=>({id:a.id,name:a.name,currency:a.currency}));
+  const prompt=`Витягни фінансову операцію з тексту (будь-яка мова). Поверни ЛИШЕ JSON без пояснень: {"type":"expense"|"income","amount":число,"categoryId":"id","accountId":"id","note":"короткий опис"}. categoryId обери з категорій (враховуй type), accountId — з рахунків (якщо не сказано — перший).\nКатегорії: ${JSON.stringify(cs)}\nРахунки: ${JSON.stringify(as)}\nТекст: "${text}"`;
+  const j=extractJSON(await aiCall([{role:'user',content:prompt}]));
+  if(!j) throw new Error('не розібрав');
+  return {type:j.type||'expense',amount:Number(j.amount)||0,catId:j.categoryId,accId:j.accountId||as[0]?.id,text:j.note||text};
+}
+/* ===== розпізнавання чека ===== */
+function fileToBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+function scanReceipt(){
+  if(!aiKey){alert('Спершу встав AI-ключ (Anthropic) у розділі «Ще»');go('set');return;}
+  if(accounts.filter(a=>!a.archived).length===0){alert('Спершу додай рахунок');go('acc');return;}
+  const inp=document.getElementById('receiptInput'); inp.value=''; inp.click();
+}
+async function onReceiptPhoto(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  if(!navigator.onLine){alert('Потрібен інтернет для розпізнавання чека');return;}
+  toast('Розпізнаю чек…');
+  try{
+    const b64=await fileToBase64(file);
+    const cs=cats.filter(c=>c.type==='expense'&&kids(c.id).length===0).map(c=>({id:c.id,name:catFullName(c.id)}));
+    const prompt=`Прочитай фото чека (будь-яка мова). Розпізнай товари й ЗГРУПУЙ суми ПО КАТЕГОРІЯХ зі списку. Поверни ЛИШЕ JSON: {"merchant":"назва","date":"YYYY-MM-DD","currency":"код","groups":[{"categoryId":"id","amount":число,"items":"товари через кому"}]}. Використовуй лише categoryId зі списку. Якщо дати не видно — ${todayISO()}.\nКатегорії витрат: ${JSON.stringify(cs)}`;
+    const raw=await aiCall([{role:'user',content:[
+      {type:'text',text:prompt},
+      {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}}
+    ]}],{maxTokens:1500});
+    const j=extractJSON(raw);
+    if(!j||!Array.isArray(j.groups)||!j.groups.length) throw new Error('не вдалось розпізнати позиції');
+    openReceiptPreview(j);
+  }catch(e){ alert('Не вдалося розпізнати чек:\n'+(e&&e.message||e)); }
+}
+let receiptData=null;
+function updateReceiptTotal(){
+  const t=(receiptData?.groups||[]).reduce((s,g)=>s+(parseFloat(g.amount)||0),0);
+  document.getElementById('receiptTotal').textContent='Разом: '+t.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function openReceiptPreview(j){
+  receiptData=j;
+  document.getElementById('receiptInfo').textContent=(j.merchant||'Чек')+(j.currency?(' · '+j.currency):'');
+  fillSelect(document.getElementById('receiptAcc'),accOpts());
+  document.getElementById('receiptDate').value=(j.date&&/^\d{4}-\d{2}-\d{2}$/.test(j.date))?j.date:todayISO();
+  document.getElementById('receiptGroups').innerHTML=j.groups.map((g,i)=>{
+    const c=catById(g.categoryId);
+    return `<div class="row" style="margin-top:8px;align-items:flex-start">
+      <div style="flex:1;font-size:14px">${c?c.icon+' '+catFullName(g.categoryId):'❓ '+(g.categoryId||'?')}
+        <div class="muted" style="font-size:11px">${g.items||''}</div></div>
+      <input type="number" step="0.01" inputmode="decimal" value="${g.amount||0}" style="width:110px" oninput="receiptData.groups[${i}].amount=parseFloat(this.value)||0;updateReceiptTotal()"></div>`;
+  }).join('');
+  updateReceiptTotal();
+  openModal('receiptModal');
+}
+async function saveReceipt(){
+ try{
+  const acc=document.getElementById('receiptAcc').value;
+  const date=document.getElementById('receiptDate').value||todayISO();
+  let n=0;
+  for(const g of (receiptData?.groups||[])){
+    const amt=parseFloat(g.amount)||0;
+    if(amt<=0||!g.categoryId||!catById(g.categoryId)) continue;
+    await put('tx',{id:uid(),type:'expense',amount:amt,date,account:acc,category:g.categoryId,note:(receiptData.merchant||'Чек'),createdAt:Date.now()+n});
+    n++;
+  }
+  await loadAll(); closeModal('receiptModal'); go('dash');
+  toast(n?('Додано з чека: '+n+' записів'):'Нічого не додано');
+ }catch(e){ alert('Не вдалося зберегти:\n'+(e&&e.message||e)); }
 }
 function voiceFill(p){
   openTx();
