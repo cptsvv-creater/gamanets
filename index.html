@@ -74,8 +74,8 @@ header .logo b{color:var(--brand)}
 nav.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);
   border-top:1px solid var(--line);display:flex;justify-content:space-around;
   padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20}
-nav.tabbar button{background:none;border:none;flex:1;padding:6px 2px;color:var(--muted);
-  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px}
+nav.tabbar button{background:none;border:none;flex:1;padding:6px 1px;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;white-space:nowrap}
 nav.tabbar button.active{color:var(--brand)}
 nav.tabbar .gi{font-size:20px}
 
@@ -177,17 +177,18 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець</div>
-  <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.9</span></div>
+  <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
+  <button class="navi" data-tab="analytics" onclick="go('analytics')"><span class="gi">📊</span>Аналітика</button>
   <button class="navi" data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
   <button class="btn addbtn" onclick="openTx()">＋ Нова операція</button>
   <div class="net" id="netStatusDesktop">офлайн</div>
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець</div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.9</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -272,10 +273,15 @@ svg .bar{transition:opacity .2s}
     <div id="investBody"></div>
   </section>
 
+  <!-- ============ ANALYTICS ============ -->
+  <section id="view-analytics" class="view hidden">
+    <div id="analyticsBody"></div>
+  </section>
+
   <!-- ============ SETTINGS ============ -->
   <section id="view-set" class="view hidden">
-    <h2>Валюта</h2>
-    <div class="card">
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleCur()">Валюта <span id="curArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="curCard">
       <label>Основна валюта застосунку</label>
       <select id="baseCurSelect" onchange="setBaseCur(this.value)"></select>
       <div class="muted" style="font-size:11px;margin-top:6px">Усі підсумки за замовчуванням показуються в ній.</div>
@@ -292,7 +298,7 @@ svg .bar{transition:opacity .2s}
       <button class="btn sm" style="margin-top:8px" onclick="addCurrency()">+ Додати валюту</button>
     </div>
 
-    <h2 style="cursor:pointer;user-select:none" onclick="toggleCats()">Категорії <span id="catsArrow" style="font-size:14px;color:var(--muted)">▸</span></h2>
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleCats()">Категорії <span id="catsArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="catsCard">
       <div class="seg" style="margin-bottom:12px">
         <button id="catTabExp" class="on" onclick="switchCatTab('expense')">Витрати</button>
@@ -330,9 +336,10 @@ svg .bar{transition:opacity .2s}
 <button class="fab" id="fab" onclick="openTx()">+</button>
 
 <nav class="tabbar">
-  <button data-tab="dash" class="active" onclick="go('dash')"><span class="gi">📊</span>Огляд</button>
+  <button data-tab="dash" class="active" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
-  <button data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
+  <button data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвест.</button>
+  <button data-tab="analytics" onclick="go('analytics')"><span class="gi">📊</span>Аналітика</button>
   <button data-tab="set" onclick="go('set')"><span class="gi">⚙️</span>Ще</button>
 </nav>
 
@@ -565,7 +572,16 @@ const EMOJI=[
   // подорожі / місця
   '🗽','⛩️','🏔️','🏕️','🚁','⛵','🛳️','🚤','🎡','🎢',
   // символи / інше
-  '🔑','⭐','🔒','❤️','🔔','🎯','🧩','🏆','🥇','🎗️','♻️','⚓','🧭','🕯️','📦','➕'];
+  '🔑','⭐','🔒','❤️','🔔','🎯','🧩','🏆','🥇','🎗️','♻️','⚓','🧭','🕯️',
+  // ще їжа/напої
+  '🍉','🍊','🍋','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🥕','🌽','🥔','🍄','🥯','🥐','🧇','🍳','🍗','🥓','🌭','🌮','🌯','🥙','🍝','🍚','🍤','🍦','🍮','🍬','🍭','🥂','🍸','🍹','🧉',
+  // тварини / рослини
+  '🐷','🐮','🐔','🐴','🐝','🦋','🐢','🦜','🌴','🌾','🍀','🌹','🪴','🌊','🏞️',
+  // техніка / об'єкти
+  '🖲️','💽','📟','📠','🔭','🔬','🧪','🧬','💉','🩻','🦽','♿','🛗','🧴','🪒','🧼','🪮','🩱','👓','🥽','🧤','🧣','👒','🎩','💍','⌛','⏰','🔦','🪫','🔩','⚗️',
+  // діяльність / події
+  '🎄','🎃','🎆','🎇','🧨','🎂','🥳','💒','🕌','⛪','🏥','🏫','🏦','🏭','🏗️','🚧','⛽','🏁','🏅','🎖️','🥋','🛹','🏄','🚣','🧗','🚵','🏇','🏊','⛹️','🤸','🧘',
+  '📦','➕'];
 
 /* ---------- IndexedDB ---------- */
 const DB_NAME='gamanets', DB_VER=2;
@@ -597,7 +613,7 @@ let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
-let fhKey='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false;
+let fhKey='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false;
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
@@ -869,11 +885,14 @@ function setTxFilter(k){txFilter=k;txShowAll=false;renderDashOps();}
 const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨'};
 const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне'};
 const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
+const hInv=h=>h.invested||0;
+// вартість позиції: якщо ринкової ціни нема (напр. ОВДП без курсу) — беремо вкладене, щоб не було фальшивого −100%
+function hVal(h){ if(h.curValue>0) return h.curValue; if(h.kind==='bond') return h.invested||0; return h.curValue||0; }
 function portfolioTotals(){
   const venues=accounts.filter(a=>a.type==='invest'&&!a.archived);
   let cash=0,posVal=0,inv=0;
   venues.forEach(v=>{ cash+=toBase(accBalance(v),v.currency);
-    venueHoldings(v.id).forEach(h=>{posVal+=toBase(h.curValue||0,h.currency);inv+=toBase(h.invested||0,h.currency);}); });
+    venueHoldings(v.id).forEach(h=>{posVal+=toBase(hVal(h),h.currency);inv+=toBase(hInv(h),h.currency);}); });
   return {venues,cash,posVal,inv,value:cash+posVal,gain:posVal-inv,gainPct:inv?(posVal-inv)/inv*100:0};
 }
 /* ---- ОВДП: календар виплат ---- */
@@ -939,6 +958,27 @@ function renderBondCalendar(){
     ${chart}${list}
   </div>`;
 }
+function renderAnalytics(){
+  const {venues,cash,posVal,inv,value}=portfolioTotals();
+  let html='';
+  // структура активів за типом
+  const byKind={};
+  if(cash>0) byKind.cash=cash;
+  holdings.forEach(h=>{const v=accById(h.venue); if(v&&v.type==='invest'&&!v.archived) byKind[h.kind]=(byKind[h.kind]||0)+toBase(hVal(h),h.currency);});
+  const kindLabels={cash:'💵 Вільний кеш',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне'};
+  const palette={cash:'#64748b',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#a855f7'};
+  const kt=Object.entries(byKind).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const ktotal=kt.reduce((s,[,v])=>s+v,0)||1;
+  if(kt.length){
+    html+=`<div class="card"><div class="row"><h3 style="margin:0">Структура активів</h3><div class="spacer"></div><b>${fmtDisp(value)}</b></div>`+
+      kt.map(([k,v])=>{const pct=v/ktotal*100;
+        return `<div style="margin:8px 0"><div class="row" style="font-size:13px"><span>${kindLabels[k]||k}</span><div class="spacer"></div><b>${fmtDisp(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
+          <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${palette[k]||'#888'}"></div></div></div>`;}).join('')+`</div>`;
+  }
+  html+=renderBondCalendar();
+  html+=`<div class="card"><div class="muted" style="font-size:12px">🚧 Далі тут з'являться: кешфлоу по рахунках/майданчиках і стан кожного активу окремо.</div></div>`;
+  document.getElementById('analyticsBody').innerHTML=html||'<div class="card"><div class="empty">Немає даних для аналітики.</div></div>';
+}
 function renderInvest(){
   const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
   const gcol=gain>=0?'var(--green)':'var(--red)';
@@ -951,7 +991,7 @@ function renderInvest(){
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
   </div>
-  ${holdings.some(h=>h.kind==='stock'&&h.ticker)?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни акцій${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+renderBondCalendar()+`
+  ${holdings.some(h=>h.kind==='stock'&&h.ticker)?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни акцій${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
@@ -959,7 +999,7 @@ function renderInvest(){
     html+=`<div class="card"><div class="empty">Ще немає майданчиків. Додай Freedom, Універ, InZhur, Snapinvest, Дію…</div></div>`;
   }else sortedAccts(a=>a.type==='invest'&&!a.archived).forEach(v=>{
     const hs=venueHoldings(v.id), vCash=accBalance(v);
-    let vPos=0,vInv=0; hs.forEach(h=>{vPos+=toBase(h.curValue||0,h.currency);vInv+=toBase(h.invested||0,h.currency);});
+    let vPos=0,vInv=0; hs.forEach(h=>{vPos+=toBase(hVal(h),h.currency);vInv+=toBase(hInv(h),h.currency);});
     const vTotal=toBase(vCash,v.currency)+vPos, vGain=vPos-vInv;
     const col=v.color||'var(--brand)';
     html+=`<div class="card" style="border-left:4px solid ${col}">
@@ -975,13 +1015,14 @@ function renderInvest(){
           <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${v.id}',1)">↓</button></div>`:''}
       </div>`;
     hs.forEach(h=>{
-      const hv=h.curValue||0,hi=h.invested||0,g=hv-hi,gp=hi?g/hi*100:0;
+      const hv=hVal(h),hi=hInv(h),g=hv-hi,gp=hi?g/hi*100:0;
+      const priced=h.curValue>0;   // чи є ринкова ціна
       html+=`<div class="tx" onclick="openHolding('${v.id}','${h.id}')" style="cursor:pointer">
         <div class="ic">${KIND_ICON[h.kind]||'📊'}</div>
         <div class="mid"><div class="t">${h.name}${h.ticker?` · ${h.ticker}`:''}</div>
-          <div class="s">${KIND_NAME[h.kind]||''}${h.qty?` · ${h.qty} шт`:''}</div></div>
+          <div class="s">${KIND_NAME[h.kind]||''}${h.qty?` · ${h.qty} шт`:''}${!priced?' · без ціни':''}</div></div>
         <div style="text-align:right"><div class="amt">${fmt(hv,h.currency)}</div>
-          ${hi?`<div style="font-size:12px;color:${g>=0?'var(--green)':'var(--red)'}">${g>=0?'+':'−'}${Math.abs(gp).toFixed(1)}%</div>`:''}</div>
+          ${(hi&&priced)?`<div style="font-size:12px;color:${g>=0?'var(--green)':'var(--red)'}">${g>=0?'+':'−'}${Math.abs(gp).toFixed(1)}%</div>`:''}</div>
       </div>`;
     });
     html+=`<button class="btn ghost sm" style="margin-top:10px" onclick="openHolding('${v.id}')">+ Позиція</button></div>`;
@@ -1131,6 +1172,12 @@ function toggleCats(){
   document.getElementById('catsArrow').textContent=catsExpanded?'▾':'▸';
   if(catsExpanded) renderCats();
 }
+function toggleCur(){
+  curExpanded=!curExpanded;
+  document.getElementById('curCard').classList.toggle('hidden',!curExpanded);
+  document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
+  if(curExpanded) renderCurrencySettings();
+}
 async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
   if(!fhKey){alert('Спершу встав безкоштовний API-ключ Finnhub у розділі «Ще»');go('set');return;}
@@ -1232,11 +1279,17 @@ function renderLimits(){
 }
 
 /* dashboard: курси + конвертер */
-let convFrom='', convTo='';
+let convFrom='', convTo='', ratePickCur='EUR';
+const rateInBase=c=>(rates[c]||0)/(rates[baseCur]||1);
 function renderRatesCard(){
-  document.getElementById('ratesBox').innerHTML=['USD','EUR','MDL'].filter(c=>CUR[c]).map(c=>
-    `<span class="chip">${CUR[c].s} 1 ${c} = <b>&nbsp;${(rates[c]||0).toFixed(2)} ₴</b></span>`).join('');
   const opts=[...new Set([...Object.keys(CUR),...Object.keys(rates)])].filter(c=>rates[c]>0).sort();
+  if(!opts.includes(ratePickCur)) ratePickCur=opts.find(c=>c!==baseCur&&c!=='USD')||opts.find(c=>c!==baseCur)||'USD';
+  const bsym=CUR[baseCur]?.s||baseCur;
+  const fmtR=v=>v.toLocaleString('uk-UA',{maximumFractionDigits:4});
+  const pickOpts=opts.map(c=>`<option value="${c}" ${c===ratePickCur?'selected':''}>${c}</option>`).join('');
+  document.getElementById('ratesBox').innerHTML=
+    `<div style="font-size:14px;margin-bottom:4px">1 USD = <b>${fmtR(rateInBase('USD'))} ${bsym}</b></div>
+     <div style="font-size:14px" class="row">1 <select onchange="ratePickCur=this.value;renderRatesCard()" style="width:auto;padding:4px 8px">${pickOpts}</select> = <b>${fmtR(rateInBase(ratePickCur))} ${bsym}</b></div>`;
   if(!convFrom||!opts.includes(convFrom)) convFrom=baseCur;
   if(!convTo||!opts.includes(convTo)) convTo=(baseCur==='USD'?'EUR':'USD');
   const oh=opts.map(c=>`<option value="${c}">${CUR[c]?.s||''} ${c}</option>`).join('');
@@ -1267,12 +1320,13 @@ function go(tab){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  const hideFab = tab==='set'||tab==='invest';
+  const hideFab = tab==='set'||tab==='invest'||tab==='analytics';
   document.getElementById('fab').classList.toggle('hidden', hideFab);
   document.getElementById('micFab').classList.toggle('hidden', hideFab);
   if(tab==='dash')renderDash();
   if(tab==='acc')renderAccounts(); if(tab==='set'){renderSettings();renderCurrencySettings();if(catsExpanded)renderCats();}
   if(tab==='invest')renderInvest();
+  if(tab==='analytics')renderAnalytics();
   window.scrollTo(0,0);
 }
 
