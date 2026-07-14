@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.13</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.14</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.13</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.14</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1267,14 +1267,16 @@ function toggleCur(){
   document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
   if(curExpanded) renderCurrencySettings();
 }
-// Twelve Data: одна ціна. spec «EMIM» або «EMIM:XAMS» (символ:біржа). null якщо нема.
+// Twelve Data: одна ціна. spec «MHPC», «MHPC:LSE» (біржа) або «MHPC:XLON» (MIC-код).
+// Повертає {p:ціна|null, msg:'причина якщо нема'}.
 async function tdPrice(spec){
   let url='https://api.twelvedata.com/price?apikey='+encodeURIComponent(tdKey);
-  if(spec.includes(':')){const [s,ex]=spec.split(':');url+='&symbol='+encodeURIComponent(s)+'&exchange='+encodeURIComponent(ex);}
-  else url+='&symbol='+encodeURIComponent(spec);
+  const [s,ex]=spec.includes(':')?[spec.slice(0,spec.indexOf(':')),spec.slice(spec.indexOf(':')+1)]:[spec,''];
+  url+='&symbol='+encodeURIComponent(s);
+  if(ex){ if(/^X[A-Z0-9]{3}$/.test(ex)) url+='&mic_code='+encodeURIComponent(ex); else url+='&exchange='+encodeURIComponent(ex); }
   const r=await fetch(url); const d=await r.json();
-  if(d.code && d.code!==200){ if(d.code===429) throw new Error('TD_LIMIT'); return null; }
-  const p=Number(d.price); return p>0?p:null;
+  if(d.code && d.code!==200){ if(d.code===429) throw new Error('TD_LIMIT'); return {p:null,msg:d.message||('код '+d.code)}; }
+  const p=Number(d.price); return {p:p>0?p:null, msg:p>0?'':'порожня відповідь'};
 }
 async function fhPrice(sym){
   const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+encodeURIComponent(fhKey));
@@ -1288,7 +1290,7 @@ async function updatePrices(){
   const stocks=holdings.filter(h=>h.kind==='stock'&&h.ticker&&h.ticker.trim());
   if(!stocks.length){alert('Немає акцій з тикерами для оновлення');return;}
   toast('Оновлюю ціни ('+stocks.length+')…');
-  let updated=0; const failed=[]; const skipped=[];
+  let updated=0; const failed=[]; const skipped=[]; const tdErr=[];
   try{
     for(const h of stocks){
       const raw=h.ticker.trim().toUpperCase();
@@ -1297,19 +1299,20 @@ async function updatePrices(){
       let price=null;
       if(h.quoteSym){                       // явний символ → лише Twelve Data
         if(!tdKey){ skipped.push(raw+' (треба Twelve Data)'); continue; }
-        price=await tdPrice(h.quoteSym);
+        const res=await tdPrice(h.quoteSym); price=res.p; if(!price&&res.msg) tdErr.push(raw+' ['+h.quoteSym+'] → '+res.msg);
       } else if(suf && suf!=='US'){          // європейські/інші біржі
-        if(tdKey) price=await tdPrice(base);
+        if(tdKey){ const res=await tdPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
         else { skipped.push(raw+' (нема Twelve Data)'); continue; }
       } else {                               // US або без суфікса
         if(fhKey) price=await fhPrice(base);
-        else price=await tdPrice(base);
+        else { const res=await tdPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
       }
       if(price>0){ h.curPrice=price; h.curValue=+(price*(h.qty||0)).toFixed(2); await put('holdings',h); updated++; }
       else failed.push(raw);
     }
     await setMeta('pricesUpdated',Date.now()); await loadAll(); renderInvest();
     toast('✓ Оновлено '+updated+' поз.'+(failed.length?' · без ціни: '+failed.join(','):'')+(skipped.length?' · пропущено: '+skipped.join(','):''));
+    if(tdErr.length) alert('Twelve Data не дав ціну для:\n\n'+tdErr.join('\n')+'\n\nЯкщо пише про план/доступ — біржа не входить у безкоштовний тариф. Якщо «symbol not found» — спробуй інший символ:біржу.');
   }catch(e){
     const m=e&&e.message;
     if(m==='FH_KEY') alert('Невірний ключ Finnhub. Перевір у розділі «Ще».');
