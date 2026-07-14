@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.14</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.18</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.14</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.18</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -322,6 +322,11 @@ svg .bar{transition:opacity .2s}
         <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
         <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
       </div>
+      <div class="row wrap" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
+        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
     </div>
 
     <h2>Авто-курси акцій</h2>
@@ -415,9 +420,9 @@ svg .bar{transition:opacity .2s}
     <div><label>Назва</label><input id="accName" placeholder="Готівка / Monobank ..."></div>
     <div class="grid cols2" style="margin-top:10px">
       <div><label>Валюта</label><select id="accCurrency"></select></div>
-      <div><label>Стартовий баланс</label><input id="accBalance" type="number" step="0.01" placeholder="0.00"></div>
+      <div><label id="accBalLabel">Стартовий баланс</label><input id="accBalance" type="number" step="0.01" placeholder="0.00"></div>
     </div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Для кредитки в мінусі впиши суму боргу зі знаком «−» (напр. −8500).</div>
+    <div class="muted" id="accBalHint" style="font-size:11px;margin-top:4px">Для кредитки в мінусі впиши суму боргу зі знаком «−» (напр. −8500).</div>
     <div id="adjustWrap" class="hidden" style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:10px">
       <label style="margin-bottom:2px">⚖️ Коригувати баланс</label>
       <div class="muted" style="font-size:11px;margin-bottom:8px" id="adjHint"></div>
@@ -432,6 +437,7 @@ svg .bar{transition:opacity .2s}
           <option value="regular">Звичайний</option>
           <option value="credit">Кредитна картка</option>
           <option value="invest">Інвестиційний майданчик</option>
+          <option value="asset">🏠 Майно (пасивний актив)</option>
         </select></div>
       <div id="accCreditWrap" style="display:none"><label>Кредитний ліміт</label>
         <input id="accCreditLimit" type="number" step="0.01" placeholder="напр. 20000"></div>
@@ -443,9 +449,45 @@ svg .bar{transition:opacity .2s}
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="accDelBtn" onclick="deleteAccount()">Видалити</button>
       <button class="btn ghost sm hidden" id="accArchiveBtn" onclick="toggleArchiveAccount()">Закрити</button>
+      <button class="btn ghost sm hidden" id="accSellBtn" onclick="openSellAsset()">💵 Продати</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveAccount()">Зберегти</button>
     </div>
+  </div>
+</div>
+
+<!-- Sell asset modal -->
+<div class="modal" id="sellModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Продати майно</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('sellModal')">✕</button></div>
+    <div class="muted" id="sellHint" style="font-size:12px;margin-bottom:10px"></div>
+    <div><label>Куди зарахувати гроші</label><select id="sellDest"></select></div>
+    <div style="margin-top:10px"><label>Отримана сума</label><input id="sellAmount" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+    <div style="margin-top:10px"><label>Нотатка (необов'язково)</label><input id="sellNote" placeholder="напр. продаж авто"></div>
+    <div class="muted" style="font-size:11px;margin-top:6px">Створю дохід на обраний рахунок і приберу майно. Жодного PnL — це просто гроші, що з'явились.</div>
+    <div class="row" style="margin-top:16px"><div class="spacer"></div>
+      <button class="btn" onclick="confirmSellAsset()">Продати</button></div>
+  </div>
+</div>
+
+<!-- Monobank import modal -->
+<div class="modal" id="monoModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Імпорт Монобанк</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('monoModal')">✕</button></div>
+    <div class="muted" id="monoInfo" style="font-size:12px;margin-bottom:10px"></div>
+    <div><label>На який рахунок занести</label><select id="monoAccount"></select></div>
+    <div class="muted" style="font-size:11px;margin-top:4px">Суми у гривні (валюта картки). Обери гривневий рахунок Монобанку.</div>
+    <div style="margin-top:12px"><label>Категорії</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
+        <input type="radio" name="monoCat" value="none" checked> Без категорій (розсортую вручну)</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
+        <input type="radio" name="monoCat" value="ai"> AI розкладе по моїх категоріях (потрібен ключ Anthropic)</label>
+    </div>
+    <div class="muted" id="monoDup" style="font-size:11px;margin-top:8px"></div>
+    <div class="row" style="margin-top:16px"><div class="spacer"></div>
+      <button class="btn" id="monoGoBtn" onclick="runMonoImport()">Імпортувати</button></div>
   </div>
 </div>
 
@@ -518,9 +560,7 @@ svg .bar{transition:opacity .2s}
       <div><label>Вкладено (усього)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
       <div><label>Поточна вартість (усього)</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
     </div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Для нерухомості/альтернативного можна вписати підсумки вручну. Прибуток = вартість − вкладено.</div>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
-      <input type="checkbox" id="hIlliquid"> Неліквідний актив (майно) — рахувати окремо, поза «живими грошима»</label>
+    <div class="muted" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Прибуток = вартість − вкладено. Для машини/квартири краще заведи окремий рахунок типу «Майно».</div>
     <div id="bondFields" class="hidden" style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px">
       <div class="muted" style="font-size:11px;margin-bottom:8px">📜 Параметри облігації — для календаря виплат</div>
       <div class="row" style="margin-bottom:8px">
@@ -577,7 +617,7 @@ svg .bar{transition:opacity .2s}
    Гаманець — Етап 1. Local-first, IndexedDB, повністю офлайн.
    ========================================================================= */
 let CUR = {UAH:{s:'₴',n:'гривня'}, USD:{s:'$',n:'долар'}, EUR:{s:'€',n:'євро'}, MDL:{s:'L',n:'лей'}};
-const DEFAULT_CUR = ['UAH','USD','EUR','MDL'];
+const DEFAULT_CUR = ['UAH','USD','EUR'];  // обов'язкові (не видаляються); MDL тепер необов'язковий
 const PIVOT = 'UAH';  // технічний якір для курсів НБУ
 const fmt = (v,c=PIVOT)=> (CUR[c]?.s||c)+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pad2 = n => String(n).padStart(2,'0');
@@ -669,7 +709,10 @@ async function loadAll(){
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
   const cn=await getMeta('curNames'); if(cn) curNames=cn;
   fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
-  const cc=await getMeta('currencies'); if(cc) CUR={...CUR,...cc};
+  // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
+  // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
+  const cc=await getMeta('currencies'); if(cc){ CUR = cc.UAH ? cc : {...CUR,...cc}; }
+  if(!CUR.UAH) CUR.UAH={s:'₴',n:'гривня'};
   baseCur=await getMeta('baseCur')||'UAH';
 }
 
@@ -818,7 +861,7 @@ function monthsForRange(){
 function renderDash(){
   renderCurSel(); renderRangeSel();
   document.getElementById('dynCur').textContent=CUR[dispCur]?.s||dispCur;
-  let total=0; accounts.filter(a=>a.type!=='invest'&&!a.archived).forEach(a=> total+=toBase(accBalance(a),a.currency));
+  let total=0; accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=> total+=toBase(accBalance(a),a.currency));
   document.getElementById('totalBal').textContent=fmtDisp(total);
   const mk=monthKey(todayISO());
   let inc=0,exp=0;
@@ -939,10 +982,10 @@ const hInv=h=>h.invested||0;
 function hVal(h){ if(h.curValue>0) return h.curValue; if(h.kind==='bond') return h.invested||0; return h.curValue||0; }
 function portfolioTotals(){
   const venues=accounts.filter(a=>a.type==='invest'&&!a.archived);
-  let cash=0,posVal=0,inv=0,illiq=0;
+  let cash=0,posVal=0,inv=0;
   venues.forEach(v=>{ cash+=toBase(accBalance(v),v.currency);
-    venueHoldings(v.id).forEach(h=>{const vb=toBase(hVal(h),h.currency);posVal+=vb;inv+=toBase(hInv(h),h.currency);if(h.illiquid)illiq+=vb;}); });
-  return {venues,cash,posVal,inv,illiq,value:cash+posVal,liquid:cash+posVal-illiq,gain:posVal-inv,gainPct:inv?(posVal-inv)/inv*100:0};
+    venueHoldings(v.id).forEach(h=>{posVal+=toBase(hVal(h),h.currency);inv+=toBase(hInv(h),h.currency);}); });
+  return {venues,cash,posVal,inv,value:cash+posVal,gain:posVal-inv,gainPct:inv?(posVal-inv)/inv*100:0};
 }
 /* ---- ОВДП: календар виплат ---- */
 const ymd=d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
@@ -1010,16 +1053,22 @@ function renderBondCalendar(){
 function renderAnalytics(){
   const {venues,cash,posVal,inv,value}=portfolioTotals();
   let html='';
-  // структура активів за типом
+  // структура активів (чистий капітал): живі гроші + інвестиції + майно
+  let liveMoney=0; accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=>liveMoney+=toBase(accBalance(a),a.currency));
+  let assetsTotal=0; accounts.filter(a=>a.type==='asset'&&!a.archived).forEach(a=>assetsTotal+=toBase(accBalance(a),a.currency));
+  const money=liveMoney+cash;                 // готівка/картки + вільний кеш на майданчиках
+  const netWorth=money+posVal+assetsTotal;
   const byKind={};
-  if(cash>0) byKind.cash=cash;
+  if(money>0) byKind.money=money;
   holdings.forEach(h=>{const v=accById(h.venue); if(v&&v.type==='invest'&&!v.archived) byKind[h.kind]=(byKind[h.kind]||0)+toBase(hVal(h),h.currency);});
-  const kindLabels={cash:'💵 Вільний кеш',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне'};
-  const palette={cash:'#64748b',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#a855f7'};
+  if(assetsTotal>0) byKind.property=assetsTotal;
+  const kindLabels={money:'💵 Гроші',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
+  const palette={money:'#64748b',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
   const kt=Object.entries(byKind).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const ktotal=kt.reduce((s,[,v])=>s+v,0)||1;
   if(kt.length){
-    html+=`<div class="card"><div class="row"><h3 style="margin:0">Структура активів</h3><div class="spacer"></div><b>${fmtDisp(value)}</b></div>`+
+    html+=`<div class="card"><div class="row"><h3 style="margin:0">Чистий капітал</h3><div class="spacer"></div><b>${fmtDisp(netWorth)}</b></div>
+      <div class="muted" style="font-size:11px;margin:2px 0 6px">Живі гроші + інвестиції + майно. Майно не входить у «Загальний баланс» на Огляді.</div>`+
       kt.map(([k,v])=>{const pct=v/ktotal*100;
         return `<div style="margin:8px 0"><div class="row" style="font-size:13px"><span>${kindLabels[k]||k}</span><div class="spacer"></div><b>${fmtDisp(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
           <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${palette[k]||'#888'}"></div></div></div>`;}).join('')+`</div>`;
@@ -1029,20 +1078,18 @@ function renderAnalytics(){
   document.getElementById('analyticsBody').innerHTML=html||'<div class="card"><div class="empty">Немає даних для аналітики.</div></div>';
 }
 function renderInvest(){
-  const {venues,cash,posVal,inv,illiq,liquid,value:portfolio,gain,gainPct}=portfolioTotals();
+  const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
   const gcol=gain>=0?'var(--green)':'var(--red)';
   let html=`<div class="card">
-    <div class="muted" style="font-size:12px">${illiq?'Загальний капітал (з майном)':'Вартість портфеля'}</div>
+    <div class="muted" style="font-size:12px">Вартість портфеля</div>
     <div style="font-size:26px;font-weight:700">${fmtDisp(portfolio)}</div>
     <div class="row" style="margin-top:8px;font-size:13px">
       <span class="muted">Вкладено: ${fmtDisp(inv)}</span><div class="spacer"></div>
       ${inv?`<span style="color:${gcol};font-weight:600">${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))} (${gainPct.toFixed(1)}%)</span>`:''}
     </div>
-    ${illiq?`<div class="row" style="margin-top:6px;font-size:13px"><span class="muted">Ліквідні активи (живі гроші):</span><div class="spacer"></div><b>${fmtDisp(liquid)}</b></div>
-    <div class="row" style="font-size:13px"><span class="muted">З них майно (неліквідне):</span><div class="spacer"></div><span>${fmtDisp(illiq)}</span></div>`:''}
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
   </div>
-  ${holdings.some(h=>h.kind==='stock'&&h.ticker)?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни акцій${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
+  ${holdings.some(h=>h.kind==='stock'&&(h.ticker||h.quoteSym))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни акцій${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
@@ -1121,7 +1168,6 @@ function openHolding(vid,hid){
   document.getElementById('holdModalTitle').textContent=hid?'Редагувати позицію':'Нова позиція';
   document.getElementById('holdDelBtn').classList.toggle('hidden',!hid);
   document.getElementById('hKind').value=editingHold?.kind||'stock';
-  document.getElementById('hIlliquid').checked = editingHold?.illiquid ?? (editingHold?.kind==='alt');
   document.getElementById('holdReinvestBtn').classList.toggle('hidden', !(hid && editingHold?.kind==='fund'));
   document.getElementById('hName').value=editingHold?.name||'';
   document.getElementById('hTicker').value=editingHold?.ticker||'';
@@ -1155,7 +1201,6 @@ async function saveHolding(){
     buyPrice:gv('hBuyPrice'), curPrice:gv('hCurPrice'),
     invested:parseFloat(document.getElementById('hInvested').value)||0,
     curValue:parseFloat(document.getElementById('hCurValue').value)||0,
-    illiquid:document.getElementById('hIlliquid').checked,
     note:document.getElementById('hNote').value.trim()};
   if(rec.kind==='bond'){
     rec.nominal=parseFloat(document.getElementById('hNominal').value)||1000;
@@ -1216,8 +1261,8 @@ function saveAiKey(){
 }
 /* ---- валюти ---- */
 async function saveCurrencies(){
-  const customs={}; Object.keys(CUR).forEach(c=>{ if(!DEFAULT_CUR.includes(c)) customs[c]=CUR[c]; });
-  await setMeta('currencies',customs);
+  // зберігаємо повний набір (включно з UAH) — щоб і додавання, і видалення зберігались
+  await setMeta('currencies', CUR);
 }
 function setBaseCur(c){ baseCur=c; dispCur=c; setMeta('baseCur',c); renderCurrencySettings(); toast('Основна валюта: '+c); }
 async function fetchCryptoRate(code){
@@ -1287,13 +1332,13 @@ async function fhPrice(sym){
 async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
   if(!fhKey && !tdKey){alert('Спершу встав API-ключ (Finnhub або Twelve Data) у розділі «Ще»');go('set');return;}
-  const stocks=holdings.filter(h=>h.kind==='stock'&&h.ticker&&h.ticker.trim());
+  const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
   if(!stocks.length){alert('Немає акцій з тикерами для оновлення');return;}
   toast('Оновлюю ціни ('+stocks.length+')…');
   let updated=0; const failed=[]; const skipped=[]; const tdErr=[];
   try{
     for(const h of stocks){
-      const raw=h.ticker.trim().toUpperCase();
+      const raw=(h.ticker||'').trim().toUpperCase();
       const suf = raw.includes('.') ? raw.split('.').pop() : '';
       const base = raw.split('.')[0];
       let price=null;
@@ -1325,7 +1370,7 @@ async function updatePrices(){
 function renderAccounts(){
   const box=document.getElementById('accList');
   const rb=document.getElementById('reorderBtnAcc'); if(rb){rb.textContent=reorderMode?'✓ Готово':'↕ Порядок';rb.classList.toggle('on',reorderMode);}
-  box.innerHTML = sortedAccts(a=>a.type!=='invest'&&!a.archived).map(a=>{
+  box.innerHTML = sortedAccts(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).map(a=>{
     const bal=accBalance(a);
     const col=a.color||'var(--brand)';
     const balCol=bal<0?'var(--red)':'var(--text)';
@@ -1348,6 +1393,21 @@ function renderAccounts(){
           <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${a.id}',1)">↓</button></div>`:''}
       </div></div>`;
   }).join('')||'<div class="empty">Додай перший рахунок.</div>';
+  // майно (пасивні активи) — окрема секція, не входить у живі гроші
+  const assets=sortedAccts(a=>a.type==='asset'&&!a.archived);
+  if(assets.length){
+    let at=0; assets.forEach(a=>at+=toBase(accBalance(a),a.currency));
+    box.innerHTML += `<div class="row" style="margin:18px 0 8px"><h3 style="margin:0">Майно</h3><div class="spacer"></div><b>${fmtDisp(at)}</b></div>`+
+      assets.map(a=>{const val=accBalance(a);const col=a.color||'#a855f7';
+        return `<div class="card" onclick="openAccount('${a.id}')" style="cursor:pointer;border-left:4px solid ${col}">
+          <div class="row"><div class="ic tx" style="width:auto;background:${a.color?a.color+'22':'var(--surface2)'}">${a.icon||'🏠'}</div>
+            <div><div style="font-weight:600">${a.name}</div><div class="muted" style="font-size:12px">${a.currency} · пасивний актив</div></div>
+            <div class="spacer"></div>
+            <div style="text-align:right"><div style="font-weight:700;font-size:18px">${fmt(val,a.currency)}</div>
+              ${a.currency!==dispCur?`<div class="muted" style="font-size:12px">≈ ${fmtDisp(toBase(val,a.currency))}</div>`:''}</div>
+          </div></div>`;}).join('')+
+      `<div class="muted" style="font-size:11px;margin-top:4px">Майно не входить у «Загальний баланс» живих грошей. Продаж — усередині картки активу.</div>`;
+  }
   // закриті рахунки
   const archived=accounts.filter(a=>a.archived).sort((a,b)=>(a.order??0)-(b.order??0));
   const cw=document.getElementById('closedAccWrap');
@@ -1546,8 +1606,13 @@ function renderAccIconPicker(){
 }
 function pickAccIcon(e){pickedAccIcon=e;document.getElementById('accIconPreview').value=e;renderAccIconPicker();}
 function toggleCreditWrap(){
-  document.getElementById('accCreditWrap').style.display=
-    document.getElementById('accType').value==='credit'?'':'none';
+  const t=document.getElementById('accType').value;
+  document.getElementById('accCreditWrap').style.display= t==='credit'?'':'none';
+  const isAsset=t==='asset';
+  document.getElementById('accBalLabel').textContent= isAsset?'Оцінна вартість':'Стартовий баланс';
+  document.getElementById('accBalHint').textContent= isAsset
+    ? 'Приблизна вартість майна. Міняй коли завгодно — на живі гроші не впливає. Коли продаси — тисни «Продати».'
+    : 'Для кредитки в мінусі впиши суму боргу зі знаком «−» (напр. −8500).';
 }
 function renderAccColorRow(){
   document.getElementById('accColorRow').innerHTML=CAT_COLORS.map(c=>
@@ -1571,8 +1636,10 @@ function openAccount(id){
   pickedAccIcon=editingAcc?.icon||'💳';
   document.getElementById('accIconPreview').value=pickedAccIcon;
   toggleCreditWrap(); renderAccColorRow(); renderAccIconPicker();
+  const isAsset=editingAcc?.type==='asset';
+  document.getElementById('accSellBtn').classList.toggle('hidden', !(editingAcc && isAsset));
   const aw=document.getElementById('adjustWrap');
-  if(editingAcc){
+  if(editingAcc && !isAsset){
     aw.classList.remove('hidden');
     document.getElementById('accBalance').disabled=false;
     document.getElementById('adjTarget').value='';
@@ -1596,6 +1663,37 @@ async function applyAdjust(){
   await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:editingAcc.id,note:'Коригування балансу'});
   await loadAll(); closeModal('accModal'); renderAccounts();
   toast('Баланс вирівняно: '+(delta>0?'+':'−')+fmt(Math.abs(delta),editingAcc.currency));
+}
+let sellingAssetId=null;
+function openSellAsset(){
+  if(!editingAcc) return;
+  sellingAssetId=editingAcc.id;
+  const a=editingAcc;
+  const dests=accounts.filter(x=>x.type!=='asset'&&!x.archived);
+  document.getElementById('sellDest').innerHTML=dests.map(x=>`<option value="${x.id}">${x.name} (${x.currency})</option>`).join('');
+  document.getElementById('sellAmount').value=accBalance(a);
+  document.getElementById('sellNote').value='';
+  document.getElementById('sellHint').textContent='Продаєш «'+a.name+'» (оцінка '+fmt(accBalance(a),a.currency)+'). Суму впиши у валюті обраного рахунку.';
+  closeModal('accModal'); openModal('sellModal');
+}
+async function ensureIncomeCat(name){
+  let c=cats.find(x=>x.type==='income'&&!x.parent&&x.name===name);
+  if(!c){ c={id:uid(),name,type:'income',parent:null,icon:'🏷️',color:'#a855f7'}; await put('categories',c); }
+  return c.id;
+}
+async function confirmSellAsset(){
+ try{
+  const a=accById(sellingAssetId); if(!a){closeModal('sellModal');return;}
+  const dest=document.getElementById('sellDest').value;
+  const amount=parseFloat(document.getElementById('sellAmount').value);
+  if(!(amount>0)){alert('Впиши отриману суму > 0');return;}
+  const cat=await ensureIncomeCat('Продаж майна');
+  const note=document.getElementById('sellNote').value.trim()||('Продаж: '+a.name);
+  await put('tx',{id:uid(),type:'income',amount,date:todayISO(),account:dest,category:cat,note,createdAt:Date.now()});
+  await del('accounts',a.id);
+  await loadAll(); closeModal('sellModal'); renderAccounts();
+  toast('✓ Продано: +'+fmt(amount,accById(dest)?.currency||baseCur));
+ }catch(e){ alert('Не вдалося оформити продаж:\n'+(e&&e.message||e)); }
 }
 async function saveAccount(){
   const name=document.getElementById('accName').value.trim();
@@ -1747,6 +1845,95 @@ async function wipeData(){
   if(!confirm('Точно? Це незворотньо.'))return;
   for(const s of ['accounts','tx','categories','holdings','meta']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   await seed();await loadAll();go('dash');
+}
+
+/* ========================= ІМПОРТ МОНОБАНК (CSV) ========================= */
+function parseCSV(text){
+  const s=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const rows=[]; let row=[], field='', inQ=false;
+  for(let i=0;i<s.length;i++){ const c=s[i];
+    if(inQ){ if(c==='"'){ if(s[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=c; }
+    else { if(c==='"') inQ=true; else if(c===','){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; } else field+=c; }
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.length>1||(r.length===1&&r[0].trim()!==''));
+}
+function extractJSONArray(s){ const m=s&&s.match(/\[[\s\S]*\]/); return m?JSON.parse(m[0]):null; }
+function monoDate(s){
+  const [d,t]=String(s).trim().split(' ');
+  const [dd,mm,yy]=(d||'').split('.').map(Number);
+  const [H,Mi,S]=((t||'0:0:0').split(':')).map(Number);
+  if(!yy||!mm||!dd) return {iso:'',ts:0};
+  return {iso:`${yy}-${pad2(mm)}-${pad2(dd)}`, ts:new Date(yy,mm-1,dd,H||0,Mi||0,S||0).getTime()};
+}
+async function onMonoFile(ev){
+  const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
+  let text; try{ text=await file.text(); }catch(e){ alert('Не вдалося прочитати файл'); return; }
+  const rows=parseCSV(text);
+  if(rows.length<2){ alert('Порожній або нерозпізнаний CSV'); return; }
+  const head=rows[0].map(x=>x.toLowerCase());
+  const dateIdx=head.findIndex(h=>h.includes('дата'));
+  const descIdx=head.findIndex(h=>h.includes('деталі'));
+  const mccIdx=head.findIndex(h=>h.includes('mcc'));
+  const amtIdx=head.findIndex(h=>h.includes('сума в валюті картки'));
+  if(dateIdx<0||amtIdx<0){ alert('Не схоже на виписку Монобанку (немає колонок «Дата» / «Сума в валюті картки»).'); return; }
+  const parsed=[];
+  for(let i=1;i<rows.length;i++){ const r=rows[i]; if(!r[dateIdx]) continue;
+    const val=Number(String(r[amtIdx]).replace(/\s/g,'').replace(',','.'));
+    if(!isFinite(val)||val===0) continue;
+    const {iso,ts}=monoDate(r[dateIdx]); if(!iso) continue;
+    const desc=((r[descIdx]||'').trim())||'Операція';
+    parsed.push({date:iso,createdAt:ts,type:val<0?'expense':'income',amount:Math.abs(val),note:desc,desc,mcc:(r[mccIdx]||'').trim()});
+  }
+  if(!parsed.length){ alert('Не знайшов жодної операції для імпорту.'); return; }
+  window._monoRows=parsed;
+  const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
+  const sel=document.getElementById('monoAccount');
+  sel.innerHTML=accs.map(a=>`<option value="${a.id}">${a.name} (${a.currency})</option>`).join('');
+  const uah=accs.find(a=>a.currency==='UAH'); if(uah) sel.value=uah.id;
+  const dates=parsed.map(p=>p.date).sort();
+  document.getElementById('monoInfo').textContent='Знайдено операцій: '+parsed.length+' (з '+dates[0]+' по '+dates[dates.length-1]+').';
+  document.getElementById('monoDup').textContent='Повторний імпорт того ж періоду безпечний — дублі пропускаються.';
+  openModal('monoModal');
+}
+async function aiCategorizeMono(rows){
+  const cs=cats.filter(c=>kids(c.id).length===0).map(c=>({id:c.id,name:catFullName(c.id),type:c.type}));
+  const idx={}, uniq=[];
+  rows.forEach(r=>{const k=r.type+'|'+r.mcc+'|'+r.desc; if(!(k in idx)){ idx[k]=uniq.length; uniq.push({i:uniq.length,type:r.type,mcc:r.mcc,desc:r.desc}); }});
+  const prompt=`Розклади банківські операції по категоріях користувача. Поверни ЛИШЕ JSON-масив без пояснень: [{"i":номер,"categoryId":"id"}]. Для кожної операції обери найдоречнішу categoryId з ТИМ САМИМ type (expense/income). Спирайся на MCC і опис. Якщо жодна не підходить — постав "".\nКатегорії: ${JSON.stringify(cs)}\nОперації: ${JSON.stringify(uniq)}`;
+  let arr;
+  try{ arr=extractJSONArray(await aiCall([{role:'user',content:prompt}],{maxTokens:3000}))||[]; }
+  catch(e){ alert('AI не спрацював ('+(e.message||e)+'). Занесу без категорій.'); return ()=> ''; }
+  const map={};
+  arr.forEach(o=>{ const u=uniq[o.i]; if(u&&o.categoryId){ const c=catById(o.categoryId); if(c&&c.type===u.type) map[u.type+'|'+u.mcc+'|'+u.desc]=o.categoryId; }});
+  return r=> map[r.type+'|'+r.mcc+'|'+r.desc]||'';
+}
+async function runMonoImport(){
+  const rows=window._monoRows||[];
+  if(!rows.length){ closeModal('monoModal'); return; }
+  const acc=document.getElementById('monoAccount').value;
+  if(!acc){ alert('Обери рахунок'); return; }
+  const mode=([...document.querySelectorAll('input[name=monoCat]')].find(x=>x.checked)||{}).value||'none';
+  const btn=document.getElementById('monoGoBtn'); btn.disabled=true;
+  try{
+    let catOf=()=> '';
+    if(mode==='ai'){
+      if(!aiKey){ alert('Для AI-розкладки встав ключ Anthropic у «Ще». Або обери «без категорій».'); btn.disabled=false; return; }
+      btn.textContent='AI думає…'; catOf=await aiCategorizeMono(rows);
+    }
+    const sig=t=>t.account+'|'+t.date+'|'+t.type+'|'+Number(t.amount).toFixed(2)+'|'+(t.note||'');
+    const existing=new Set(txs.filter(t=>t.account===acc).map(sig));
+    let added=0, dup=0;
+    for(const r of rows){
+      const rec={id:uid(),type:r.type,amount:r.amount,date:r.date,account:acc,category:(mode==='ai'?catOf(r):''),note:r.note,createdAt:r.createdAt};
+      if(existing.has(sig(rec))){ dup++; continue; }
+      existing.add(sig(rec)); await put('tx',rec); added++;
+    }
+    await loadAll(); closeModal('monoModal'); go('dash');
+    alert('Готово! Додано: '+added+(dup?('. Пропущено дублів: '+dup):'.'));
+  }catch(e){ alert('Помилка імпорту:\n'+(e&&e.message||e)); }
+  finally{ btn.disabled=false; btn.textContent='Імпортувати'; }
 }
 
 /* ========================= MODAL HELPERS ========================= */
