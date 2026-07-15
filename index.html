@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.28</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.30</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.28</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.30</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -313,22 +313,6 @@ svg .bar{transition:opacity .2s}
       <p class="muted" style="font-size:12px;margin-bottom:0">Підказка: щоб розділити пальне для авто й мото — створи категорії «Авто» і «Мотоцикл», а всередині додай підкатегорії з батьківською категорією.</p>
     </div>
 
-    <h2>Дані</h2>
-    <div class="card">
-      <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
-      <div class="row wrap">
-        <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
-        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
-        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
-        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
-      </div>
-      <div class="row wrap" style="margin-top:10px">
-        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
-        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
-    </div>
-
     <h2 style="cursor:pointer;user-select:none" onclick="toggleApi()">Авто-курси акцій <span id="apiArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="apiCard">
       <p class="muted" style="margin-top:0">Щоб оновлювати ціни акцій автоматично, встав безкоштовний API-ключ <b>Finnhub</b>. Реєстрація на finnhub.io займає ~хвилину (60 запитів/хв безкоштовно). Ключ зберігається лише на цьому пристрої.</p>
@@ -357,8 +341,8 @@ svg .bar{transition:opacity .2s}
       <div class="muted" id="proxyUrlStatus" style="font-size:12px;margin-top:6px"></div>
     </div>
 
-    <h2>AI-помічник (голос і чеки)</h2>
-    <div class="card">
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleAi()">AI-помічник (голос і чеки) <span id="aiArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="aiCard">
       <p class="muted" style="margin-top:0">Для розумного голосового вводу та розпізнавання чеків встав API-ключ <b>Anthropic (Claude)</b>. Отримати — на console.anthropic.com. Ключ зберігається лише на цьому пристрої; кожен запит коштує копійки.</p>
       <div class="row">
         <input id="aiKeyInput" placeholder="API-ключ Anthropic (sk-ant-...)">
@@ -366,6 +350,55 @@ svg .bar{transition:opacity .2s}
       </div>
       <div class="muted" id="aiKeyStatus" style="font-size:12px;margin-top:6px"></div>
     </div>
+
+    <h2>Дані</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
+      <div class="row wrap">
+        <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
+        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
+        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
+        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
+      </div>
+      <div class="row wrap" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
+        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleBk()">Хмарний бекап <span id="bkArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="bkCard">
+      <p class="muted" style="margin-top:0">Копія даних у хмарі. Шифрується <b>на цьому телефоні</b> — ні Cloudflare, ні автор застосунку не можуть її прочитати. Офлайн усе працює як завжди; копія полетить, щойно з'явиться інтернет.</p>
+      <div id="bkOff">
+        <div><label>Пароль шифрування</label><input id="bkPassInput" type="password" placeholder="вигадай пароль"></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">⚠️ Забудеш пароль — бекап не відновити <b>ніколи</b>. Це плата за те, що його ніхто не прочитає. Запиши в надійне місце.</div>
+        <button class="btn sm" style="margin-top:10px" onclick="bkEnable()">Увімкнути бекап</button>
+      </div>
+      <div id="bkOn" class="hidden">
+        <div class="muted" id="bkStatus" style="font-size:12px"></div>
+        <div style="margin-top:10px"><label>Твій ключ відновлення</label>
+          <input id="bkIdView" readonly style="font-family:monospace;font-size:12px"></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Знадобиться разом з паролем, щоб дістати дані на іншому телефоні. Збережи його.</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="bkAuto" onchange="bkToggleAuto()"> Зберігати автоматично (через 30 сек після змін)</label>
+        <div class="row wrap" style="margin-top:12px">
+          <button class="btn sm" onclick="cloudBackupNow(false)">☁ Зберегти зараз</button>
+          <button class="btn ghost sm" onclick="bkListVersions()">Версії</button>
+          <button class="btn ghost sm" onclick="bkForget()">Вимкнути</button>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <label>Відновити з хмари (на новому телефоні)</label>
+        <input id="bkRestoreId" placeholder="ключ відновлення" style="font-family:monospace;font-size:12px">
+        <input id="bkRestorePass" type="password" placeholder="пароль" style="margin-top:8px">
+        <button class="btn ghost sm" style="margin-top:10px" onclick="bkRestore()">⬇ Відновити</button>
+        <div class="muted" style="font-size:11px;margin-top:4px">Замінить усі дані на цьому пристрої даними з хмари.</div>
+      </div>
+      <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
+    </div>
+
+
   </section>
 </div>
 
@@ -712,8 +745,11 @@ function openDB(){
 }
 const tx=(store,mode='readonly')=>db.transaction(store,mode).objectStore(store);
 const all=store=>new Promise((res)=>{const out=[];tx(store).openCursor().onsuccess=e=>{const c=e.target.result;if(c){out.push(c.value);c.continue();}else res(out);};});
-const put=(store,val)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).put(val);r.onsuccess=()=>res(r.result);t.onerror=()=>rej(t.error||r.error);t.onabort=()=>rej(t.error||new Error('запис перервано (можливо, немає місця у сховищі)'));});
-const del=(store,id)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).delete(id);r.onsuccess=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error('видалення перервано'));});
+// автобекап чіпляємо лише до даних; 'meta' ігноруємо (там ключі/налаштування — інакше зациклиться)
+const DATA_STORES=['accounts','tx','categories','holdings'];
+const touched=store=>{ if(DATA_STORES.includes(store) && typeof scheduleBackup==='function') scheduleBackup(); };
+const put=(store,val)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).put(val);r.onsuccess=()=>{touched(store);res(r.result);};t.onerror=()=>rej(t.error||r.error);t.onabort=()=>rej(t.error||new Error('запис перервано (можливо, немає місця у сховищі)'));});
+const del=(store,id)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).delete(id);r.onsuccess=()=>{touched(store);res();};t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error('видалення перервано'));});
 const getMeta=k=>new Promise(res=>{tx('meta').get(k).onsuccess=e=>res(e.target.result?.v);});
 const setMeta=(k,v)=>put('meta',{k,v});
 
@@ -722,13 +758,16 @@ let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
-let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
   const cn=await getMeta('curNames'); if(cn) curNames=cn;
   fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; fmpKey=await getMeta('fmpKey')||''; proxyUrl=await getMeta('proxyUrl')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
+  backupId=await getMeta('backupId')||''; backupPass=await getMeta('backupPass')||''; backupSalt=await getMeta('backupSalt')||'';
+  lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
   const cc=await getMeta('currencies'); if(cc){ CUR = cc.UAH ? cc : {...CUR,...cc}; }
@@ -1359,6 +1398,7 @@ function renderSettings(){
   const fe=document.getElementById('fmpKeyInput'); if(fe) fe.value=fmpKey;
   const fs=document.getElementById('fmpKeyStatus'); if(fs) fs.textContent=fmpKey?'Ключ FMP збережено ✓':'Не встановлено.';
   const pe=document.getElementById('proxyUrlInput'); if(pe) pe.value=proxyUrl;
+  renderBkSettings();
   const ps=document.getElementById('proxyUrlStatus');
   if(ps) ps.textContent = proxyUrl ? 'Свій проксі збережено ✓ — використовується він (перекриває вбудований)'
     : DEFAULT_PROXY ? 'Порожньо — працює вбудований проксі ✓ (нічого налаштовувати не треба)'
@@ -1443,10 +1483,98 @@ function toggleCur(){
   document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
   if(curExpanded) renderCurrencySettings();
 }
+function toggleBk(){
+  bkExpanded=!bkExpanded;
+  document.getElementById('bkCard').classList.toggle('hidden',!bkExpanded);
+  document.getElementById('bkArrow').textContent=bkExpanded?'▾':'▸';
+  if(bkExpanded) renderBkSettings();
+}
+function renderBkSettings(){
+  const on=!!(backupId&&backupPass);
+  const off=document.getElementById('bkOff'), onb=document.getElementById('bkOn');
+  if(!off||!onb) return;
+  off.classList.toggle('hidden',on); onb.classList.toggle('hidden',!on);
+  if(on){
+    document.getElementById('bkIdView').value=backupId;
+    document.getElementById('bkAuto').checked=autoBackup;
+    const when=lastBackupAt?new Date(lastBackupAt).toLocaleString('uk-UA'):'ще не було';
+    let s='Останній бекап: '+when;
+    if(backupPending) s+=' · ⏳ чекає на інтернет';
+    if(lastBackupErr) s+=' · ⚠️ '+lastBackupErr;
+    document.getElementById('bkStatus').textContent=s;
+  }
+}
+async function bkEnable(){
+  const p=document.getElementById('bkPassInput').value;
+  if(!p||p.length<6){alert('Пароль має бути хоча б 6 символів');return;}
+  if(!activeProxy()){alert('Спершу потрібна адреса воркера («Ще → Авто-курси акцій»)');return;}
+  if(!confirm('Пароль неможливо відновити. Ти його записав у надійне місце?'))return;
+  backupPass=p;
+  if(!backupId) backupId=newBackupId();
+  if(!backupSalt) backupSalt=hex(crypto.getRandomValues(new Uint8Array(16)));
+  await setMeta('backupId',backupId); await setMeta('backupPass',backupPass); await setMeta('backupSalt',backupSalt);
+  document.getElementById('bkPassInput').value='';
+  renderBkSettings();
+  const ok=await cloudBackupNow(false);
+  if(ok) alert('Готово! Бекап у хмарі.\n\nТвій ключ відновлення:\n'+backupId+'\n\nЗбережи його разом із паролем — без них дані не відновити.');
+}
+async function bkToggleAuto(){
+  autoBackup=document.getElementById('bkAuto').checked;
+  await setMeta('autoBackup',autoBackup);
+  toast(autoBackup?'Автобекап увімкнено':'Автобекап вимкнено');
+}
+async function bkForget(){
+  if(!confirm('Вимкнути бекап на цьому пристрої?\n\nДані в хмарі залишаться — їх можна буде відновити за ключем і паролем.'))return;
+  backupPass=''; _bkKeyCache=null;
+  await setMeta('backupPass','');
+  renderBkSettings(); toast('Бекап вимкнено');
+}
+async function bkListVersions(){
+  const box=document.getElementById('bkVersions');
+  if(!backupId){return;}
+  box.classList.remove('hidden'); box.innerHTML='<div class="muted" style="font-size:12px">Завантажую…</div>';
+  try{
+    const r=await fetch(bkUrl('id='+backupId+'&list=1'));
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    if(!d.items||!d.items.length){box.innerHTML='<div class="muted" style="font-size:12px">Версій ще немає.</div>';return;}
+    box.innerHTML='<div class="muted" style="font-size:12px;margin-bottom:6px">Збережені версії (найновіші зверху):</div>'+
+      d.items.map(i=>`<div class="row" style="font-size:12px;margin:6px 0"><span>${new Date(i.at).toLocaleString('uk-UA')}</span>
+        <div class="spacer"></div><span class="muted">${(i.size/1024).toFixed(1)} KB</span>
+        <button class="btn ghost sm" style="margin-left:8px" onclick="bkRestoreVersion('${i.v}')">Відновити</button></div>`).join('');
+  }catch(e){ box.innerHTML='<div class="muted" style="font-size:12px;color:var(--red)">Помилка: '+(e.message||e)+'</div>'; }
+}
+async function bkRestoreVersion(v){
+  if(!confirm('Замінити всі поточні дані цією версією?'))return;
+  try{
+    const data=await cloudFetchBackup(backupId, backupPass, v);
+    await applyBackupData(data); go('dash'); alert('Готово! Дані відновлено з хмари.');
+  }catch(e){ alert('Не вдалось відновити:\n'+(e.message||e)); }
+}
+async function bkRestore(){
+  const id=(document.getElementById('bkRestoreId').value||'').trim().toLowerCase();
+  const p=document.getElementById('bkRestorePass').value;
+  if(!/^[a-f0-9]{32}$/.test(id)){alert('Ключ має бути 32 символи (літери a-f і цифри)');return;}
+  if(!p){alert('Впиши пароль');return;}
+  if(!confirm('Замінити ВСІ дані на цьому пристрої даними з хмари?'))return;
+  try{
+    const data=await cloudFetchBackup(id, p);
+    await applyBackupData(data);
+    backupId=id; backupPass=p; _bkKeyCache=null;
+    await setMeta('backupId',id); await setMeta('backupPass',p);
+    document.getElementById('bkRestoreId').value=''; document.getElementById('bkRestorePass').value='';
+    renderBkSettings(); go('dash'); alert('Готово! Дані відновлено. Бекап на цьому пристрої теж увімкнено.');
+  }catch(e){ alert('Не вдалось відновити:\n'+(e.message||e)); }
+}
 function toggleApi(){
   apiExpanded=!apiExpanded;
   document.getElementById('apiCard').classList.toggle('hidden',!apiExpanded);
   document.getElementById('apiArrow').textContent=apiExpanded?'▾':'▸';
+}
+function toggleAi(){
+  aiExpanded=!aiExpanded;
+  document.getElementById('aiCard').classList.toggle('hidden',!aiExpanded);
+  document.getElementById('aiArrow').textContent=aiExpanded?'▾':'▸';
 }
 // Twelve Data: одна ціна. spec «MHPC», «MHPC:LSE» (біржа) або «MHPC:XLON» (MIC-код).
 // Повертає {p:ціна|null, msg:'причина якщо нема'}.
@@ -2025,6 +2153,104 @@ async function wipeData(){
   await seed();await loadAll();go('dash');
 }
 
+/* ========================= ХМАРНИЙ БЕКАП =========================
+   Дані шифруються ТУТ, на пристрої. У хмару летить нечитабельний шматок —
+   ні Cloudflare, ні власник воркера не бачать чужих фінансів.
+   Формат: 'GMNT'(4) + версія(1) + прапорці(1: біт0=gzip) + сіль(16) + iv(12) + шифротекст.
+   Сіль зберігаємо ВСЕРЕДИНІ бекапу — щоб на новому телефоні вистачило ключа + пароля. */
+const hex = buf => [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+const unhex = s => new Uint8Array(String(s).match(/../g).map(h=>parseInt(h,16)));
+const newBackupId = () => hex(crypto.getRandomValues(new Uint8Array(16)));   // 32 hex-символи
+let _bkKeyCache=null, _bkKeyTag='';
+async function deriveKey(pass, saltU8){
+  const tag=pass+'|'+hex(saltU8);
+  if(_bkKeyCache && _bkKeyTag===tag) return _bkKeyCache;   // PBKDF2 повільний — кешуємо
+  const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  _bkKeyCache=await crypto.subtle.deriveKey({name:'PBKDF2',salt:saltU8,iterations:200000,hash:'SHA-256'},
+    base, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
+  _bkKeyTag=tag; return _bkKeyCache;
+}
+async function gzipMaybe(u8){
+  if(typeof CompressionStream!=='function') return {data:u8, gz:false};
+  try{
+    const s=new Blob([u8]).stream().pipeThrough(new CompressionStream('gzip'));
+    return {data:new Uint8Array(await new Response(s).arrayBuffer()), gz:true};
+  }catch(_){ return {data:u8, gz:false}; }
+}
+async function gunzip(u8){
+  const s=new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function bkEncrypt(jsonStr, pass, saltHex){
+  const {data,gz}=await gzipMaybe(new TextEncoder().encode(jsonStr));
+  const salt=unhex(saltHex), iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveKey(pass, salt);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, data));
+  const out=new Uint8Array(34+ct.length);
+  out.set([71,77,78,84],0); out[4]=1; out[5]=gz?1:0;
+  out.set(salt,6); out.set(iv,22); out.set(ct,34);
+  return out;
+}
+async function bkDecrypt(u8, pass){
+  if(u8.length<35 || u8[0]!==71||u8[1]!==77||u8[2]!==78||u8[3]!==84) throw new Error('це не бекап Гаманця');
+  const gz=u8[5]===1, salt=u8.slice(6,22), iv=u8.slice(22,34), ct=u8.slice(34);
+  const key=await deriveKey(pass, salt);
+  let plain;
+  try{ plain=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv}, key, ct)); }
+  catch(_){ throw new Error('невірний пароль'); }
+  if(gz) plain=await gunzip(plain);
+  return new TextDecoder().decode(plain);
+}
+const bkUrl = (q) => activeProxy().replace(/\/+$/,'')+'/backup?'+q;
+function bkPayload(){
+  return JSON.stringify({app:'gamanets',version:1,exportedAt:new Date().toISOString(),
+    accounts,tx:txs,categories:cats,holdings,rates});
+}
+async function cloudBackupNow(silent){
+  if(!backupId||!backupPass){ if(!silent){alert('Спершу увімкни хмарний бекап у «Ще»');go('set');} return false; }
+  if(!activeProxy()){ if(!silent) alert('Немає адреси воркера — вкажи її в «Ще → Авто-курси акцій»'); return false; }
+  if(!navigator.onLine){ backupPending=true; if(!silent) toast('Немає інтернету — збережу, щойно з\'явиться'); return false; }
+  try{
+    const blob=await bkEncrypt(bkPayload(), backupPass, backupSalt);
+    const r=await fetch(bkUrl('id='+backupId),{method:'PUT',body:blob});
+    let d={}; try{ d=await r.json(); }catch(_){}
+    if(!r.ok||d.error) throw new Error(d.error||('HTTP '+r.status));
+    lastBackupAt=Date.now(); await setMeta('lastBackupAt',lastBackupAt);
+    backupPending=false; lastBackupErr='';
+    if(!silent) toast('✓ Збережено в хмару · '+(blob.length/1024).toFixed(1)+' KB');
+    renderSettings(); return true;
+  }catch(e){
+    backupPending=true; lastBackupErr=e&&e.message||String(e);
+    if(!silent) alert('Не вдалось зберегти в хмару:\n'+lastBackupErr);
+    renderSettings(); return false;
+  }
+}
+let _bkTimer=null;
+function scheduleBackup(){            // автобекап: чекаємо 30с тиші після останньої зміни
+  if(!autoBackup||!backupId||!backupPass) return;
+  clearTimeout(_bkTimer);
+  _bkTimer=setTimeout(()=>cloudBackupNow(true), 30000);
+}
+async function cloudFetchBackup(id, pass, version){
+  if(!activeProxy()) throw new Error('немає адреси воркера');
+  const r=await fetch(bkUrl('id='+encodeURIComponent(id)+(version?('&v='+encodeURIComponent(version)):'')));
+  if(r.status===404) throw new Error('бекапу з таким ключем немає');
+  if(!r.ok){ let d={}; try{d=await r.json();}catch(_){} throw new Error(d.error||('HTTP '+r.status)); }
+  const u8=new Uint8Array(await r.arrayBuffer());
+  const data=JSON.parse(await bkDecrypt(u8, pass));
+  if(data.app!=='gamanets') throw new Error('це не бекап Гаманця');
+  return data;
+}
+async function applyBackupData(data){
+  for(const s of ['accounts','tx','categories','holdings']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
+  for(const a of data.accounts||[])await put('accounts',a);
+  for(const t of data.tx||[])await put('tx',t);
+  for(const c of data.categories||[])await put('categories',c);
+  for(const h of data.holdings||[])await put('holdings',h);
+  if(data.rates)await setMeta('rates',data.rates);
+  await loadAll(); await normalizeOrder();
+}
+
 /* ========================= ІМПОРТ МОНОБАНК (CSV) ========================= */
 function parseCSV(text){
   const s=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
@@ -2125,6 +2351,8 @@ function updateNet(){
   ['netStatus','netStatusDesktop'].forEach(id=>{const el=document.getElementById(id);
     if(el){el.textContent=txt;el.style.color=col;}});}
 window.addEventListener('online',updateNet);window.addEventListener('offline',updateNet);
+// з'явився інтернет → досилаємо бекап, що чекав
+window.addEventListener('online',()=>{ if(backupPending && backupId && backupPass) cloudBackupNow(true); });
 
 /* Глобальний ловець прихованих помилок (щоб не «зависало мовчки») */
 window.addEventListener('unhandledrejection',e=>{
