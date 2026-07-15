@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.20</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.22</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.20</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.22</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -438,12 +438,12 @@ svg .bar{transition:opacity .2s}
       </div>
     </div>
     <div class="grid cols2" style="margin-top:10px">
-      <div><label>Тип рахунку</label>
+      <div id="accTypeWrap"><label>Тип рахунку</label>
         <select id="accType" onchange="toggleCreditWrap()">
           <option value="regular">Звичайний</option>
           <option value="credit">Кредитна картка</option>
           <option value="invest">Інвестиційний майданчик</option>
-          <option value="asset">🏠 Майно (пасивний актив)</option>
+          <option value="asset">Майно (пасивний актив)</option>
         </select></div>
       <div id="accCreditWrap" style="display:none"><label>Кредитний ліміт</label>
         <input id="accCreditLimit" type="number" step="0.01" placeholder="напр. 20000"></div>
@@ -1336,11 +1336,15 @@ async function tdPrice(spec){
   const p=Number(d.price); return {p:p>0?p:null, msg:p>0?'':'порожня відповідь'};
 }
 // FMP: символи в стилі Yahoo — MHPC.L, EMIM.AS, SAP.DE, AAPL. Повертає {p,msg}.
+// Використовуємо НОВИЙ ендпоінт /stable/quote (старий /api/v3/* закритий для нових акаунтів).
 async function fmpPrice(sym){
-  const url='https://financialmodelingprep.com/api/v3/quote-short/'+encodeURIComponent(sym)+'?apikey='+encodeURIComponent(fmpKey);
-  const r=await fetch(url); const d=await r.json();
-  if(d && d['Error Message']) return {p:null,msg:String(d['Error Message']).slice(0,140)};
-  if(Array.isArray(d) && d.length && Number(d[0].price)>0) return {p:Number(d[0].price),msg:''};
+  const url='https://financialmodelingprep.com/stable/quote?symbol='+encodeURIComponent(sym)+'&apikey='+encodeURIComponent(fmpKey);
+  const r=await fetch(url);
+  let d; try{ d=await r.json(); }catch(_){ return {p:null,msg:'некоректна відповідь FMP'}; }
+  if(d && d['Error Message']) return {p:null,msg:String(d['Error Message']).slice(0,160)};
+  const row = Array.isArray(d) ? d[0] : d;
+  const p = Number(row && row.price);
+  if(p>0) return {p,msg:''};
   return {p:null,msg:'символ не знайдено або недоступний на цьому тарифі'};
 }
 async function fhPrice(sym){
@@ -1659,6 +1663,7 @@ function openAccount(id){
   pickedAccColor=editingAcc?.color||CAT_COLORS[7];
   pickedAccIcon=editingAcc?.icon||'💳';
   document.getElementById('accIconPreview').value=pickedAccIcon;
+  document.getElementById('accTypeWrap').classList.remove('hidden');   // за замовчуванням тип видно
   toggleCreditWrap(); renderAccColorRow(); renderAccIconPicker();
   const isAsset=editingAcc?.type==='asset';
   document.getElementById('accSellBtn').classList.toggle('hidden', !(editingAcc && isAsset));
@@ -1676,6 +1681,7 @@ function openVenue(){
   openAccount();
   document.getElementById('accModalTitle').textContent='Новий майданчик';
   document.getElementById('accType').value='invest'; toggleCreditWrap();
+  document.getElementById('accTypeWrap').classList.add('hidden');   // тип уже відомий — не питаємо
   document.getElementById('accName').focus();
 }
 async function applyAdjust(){
