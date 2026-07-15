@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.22</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.23</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.22</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.23</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -349,6 +349,12 @@ svg .bar{transition:opacity .2s}
         <button class="btn sm" onclick="saveFmpKey()">Зберегти</button>
       </div>
       <div class="muted" id="fmpKeyStatus" style="font-size:12px;margin-top:6px"></div>
+      <p class="muted" style="margin-top:14px"><b>Yahoo через власний проксі</b> — найнадійніше для Європи й безкоштовно назавжди. Встав адресу свого Cloudflare Worker. Якщо вона тут є — усі не-US папери беруться через неї (символи ті самі: <code>MHPC.L</code>, <code>EMIM.AS</code>).</p>
+      <div class="row">
+        <input id="proxyUrlInput" placeholder="https://...workers.dev">
+        <button class="btn sm" onclick="saveProxyUrl()">Зберегти</button>
+      </div>
+      <div class="muted" id="proxyUrlStatus" style="font-size:12px;margin-top:6px"></div>
     </div>
 
     <h2>AI-помічник (голос і чеки)</h2>
@@ -708,13 +714,13 @@ let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
-let fhKey='', tdKey='', fmpKey='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
   const r=await getMeta('rates'); if(r) rates={...rates,...r};
   const cn=await getMeta('curNames'); if(cn) curNames=cn;
-  fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; fmpKey=await getMeta('fmpKey')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
+  fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; fmpKey=await getMeta('fmpKey')||''; proxyUrl=await getMeta('proxyUrl')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
   const cc=await getMeta('currencies'); if(cc){ CUR = cc.UAH ? cc : {...CUR,...cc}; }
@@ -1247,7 +1253,9 @@ function renderSettings(){
   const te=document.getElementById('tdKeyInput'); if(te) te.value=tdKey;
   const ts=document.getElementById('tdKeyStatus'); if(ts) ts.textContent=tdKey?'Ключ Twelve Data збережено ✓ (безкоштовний тариф — лише US)':'Не встановлено.';
   const fe=document.getElementById('fmpKeyInput'); if(fe) fe.value=fmpKey;
-  const fs=document.getElementById('fmpKeyStatus'); if(fs) fs.textContent=fmpKey?'Ключ FMP збережено ✓ — європейські біржі активні':'Не встановлено — .EU не оновлюються авто.';
+  const fs=document.getElementById('fmpKeyStatus'); if(fs) fs.textContent=fmpKey?'Ключ FMP збережено ✓':'Не встановлено.';
+  const pe=document.getElementById('proxyUrlInput'); if(pe) pe.value=proxyUrl;
+  const ps=document.getElementById('proxyUrlStatus'); if(ps) ps.textContent=proxyUrl?'Проксі збережено ✓ — не-US папери йдуть через Yahoo':'Не встановлено.';
   const ae=document.getElementById('aiKeyInput'); if(ae) ae.value=aiKey;
   const ast=document.getElementById('aiKeyStatus'); if(ast){
     let s=aiKey?'Ключ збережено ✓ — AI-голос і чеки активні':'Ключ не встановлено — AI вимкнено (голос працює простим способом).';
@@ -1266,6 +1274,10 @@ function saveTdKey(){
 function saveFmpKey(){
   fmpKey=document.getElementById('fmpKeyInput').value.trim();
   setMeta('fmpKey',fmpKey); renderSettings(); toast(fmpKey?'Ключ FMP збережено':'Ключ очищено');
+}
+function saveProxyUrl(){
+  proxyUrl=document.getElementById('proxyUrlInput').value.trim();
+  setMeta('proxyUrl',proxyUrl); renderSettings(); toast(proxyUrl?'Проксі збережено':'Проксі очищено');
 }
 function saveAiKey(){
   aiKey=document.getElementById('aiKeyInput').value.trim();
@@ -1339,13 +1351,27 @@ async function tdPrice(spec){
 // Використовуємо НОВИЙ ендпоінт /stable/quote (старий /api/v3/* закритий для нових акаунтів).
 async function fmpPrice(sym){
   const url='https://financialmodelingprep.com/stable/quote?symbol='+encodeURIComponent(sym)+'&apikey='+encodeURIComponent(fmpKey);
-  const r=await fetch(url);
-  let d; try{ d=await r.json(); }catch(_){ return {p:null,msg:'некоректна відповідь FMP'}; }
+  let r, raw;
+  try{ r=await fetch(url); raw=await r.text(); }
+  catch(e){ return {p:null,msg:'мережа/CORS: '+String(e).slice(0,60)}; }
+  let d=null; try{ d=JSON.parse(raw); }
+  catch(_){ return {p:null,msg:'HTTP '+r.status+' · '+(raw?raw.replace(/\s+/g,' ').slice(0,110):'ПОРОЖНЯ відповідь')}; }
   if(d && d['Error Message']) return {p:null,msg:String(d['Error Message']).slice(0,160)};
   const row = Array.isArray(d) ? d[0] : d;
   const p = Number(row && row.price);
   if(p>0) return {p,msg:''};
-  return {p:null,msg:'символ не знайдено або недоступний на цьому тарифі'};
+  return {p:null,msg:'HTTP '+r.status+' · нема ціни: '+raw.replace(/\s+/g,' ').slice(0,90)};
+}
+// Yahoo через власний Cloudflare Worker (обхід CORS). Повертає {p,msg,cur}.
+async function yahooPrice(sym){
+  const url=proxyUrl.replace(/\/+$/,'')+'?symbol='+encodeURIComponent(sym);
+  let r, d;
+  try{ r=await fetch(url); d=await r.json(); }
+  catch(e){ return {p:null,msg:'проксі недоступний: '+String(e).slice(0,60)}; }
+  if(d && d.error) return {p:null,msg:String(d.error).slice(0,120)};
+  const p=Number(d && d.price);
+  if(p>0) return {p,msg:'',cur:d.currency||''};
+  return {p:null,msg:'нема ціни від Yahoo'};
 }
 async function fhPrice(sym){
   const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+encodeURIComponent(fhKey));
@@ -1355,11 +1381,11 @@ async function fhPrice(sym){
 }
 async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
-  if(!fhKey && !tdKey && !fmpKey){alert('Спершу встав API-ключ (Finnhub, FMP або Twelve Data) у розділі «Ще»');go('set');return;}
+  if(!fhKey && !tdKey && !fmpKey && !proxyUrl){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
   const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
   if(!stocks.length){alert('Немає акцій з тикерами для оновлення');return;}
   toast('Оновлюю ціни ('+stocks.length+')…');
-  let updated=0; const failed=[]; const skipped=[]; const tdErr=[];
+  let updated=0; const failed=[]; const skipped=[]; const tdErr=[]; const curWarn=[];
   try{
     for(const h of stocks){
       const raw=(h.ticker||'').trim().toUpperCase();
@@ -1367,16 +1393,25 @@ async function updatePrices(){
       const base = raw.split('.')[0];
       let price=null;
       if(h.quoteSym){
-        // формат сам обирає джерело: «MHPC:XLON» → Twelve Data, «MHPC.L» → FMP
+        // «MHPC:XLON» → Twelve Data. «MHPC.L» → Yahoo через проксі (якщо є), інакше FMP.
         const useTD=h.quoteSym.includes(':');
-        if(useTD && !tdKey){ skipped.push(raw+' (треба ключ Twelve Data)'); continue; }
-        if(!useTD && !fmpKey){ skipped.push(raw+' (треба ключ FMP)'); continue; }
-        const res=useTD? await tdPrice(h.quoteSym) : await fmpPrice(h.quoteSym);
+        let res=null;
+        if(useTD){
+          if(!tdKey){ skipped.push(raw+' (треба ключ Twelve Data)'); continue; }
+          res=await tdPrice(h.quoteSym);
+        } else if(proxyUrl){
+          res=await yahooPrice(h.quoteSym);
+          if(res.p && res.cur && h.currency && res.cur.toUpperCase()!==h.currency.toUpperCase())
+            curWarn.push(raw+': Yahoo дає '+res.cur+', а в позиції '+h.currency);
+        } else if(fmpKey){
+          res=await fmpPrice(h.quoteSym);
+        } else { skipped.push(raw+' (треба проксі Yahoo або ключ FMP)'); continue; }
         price=res.p; if(!price&&res.msg) tdErr.push(raw+' ['+h.quoteSym+'] → '+res.msg);
       } else if(suf && suf!=='US'){          // європейські/інші біржі — потрібен явний символ
         skipped.push(raw+' (впиши «Символ для авто-ціни», напр. MHPC.L)'); continue;
       } else {                               // US або без суфікса
         if(fhKey) price=await fhPrice(base);
+        else if(proxyUrl){ const res=await yahooPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
         else if(fmpKey){ const res=await fmpPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
         else { const res=await tdPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
       }
@@ -1385,7 +1420,8 @@ async function updatePrices(){
     }
     await setMeta('pricesUpdated',Date.now()); await loadAll(); renderInvest();
     toast('✓ Оновлено '+updated+' поз.'+(failed.length?' · без ціни: '+failed.join(','):'')+(skipped.length?' · пропущено: '+skipped.join(','):''));
-    if(tdErr.length) alert('Не вдалось отримати ціну для:\n\n'+tdErr.join('\n')+'\n\nЯкщо пише про план/доступ — біржа не входить у безкоштовний тариф. Якщо «не знайдено» — спробуй інший символ (FMP: MHPC.L / EMIM.AS; Twelve Data: MHPC:XLON).');
+    if(curWarn.length) alert('⚠️ Увага, валюта не збігається:\n\n'+curWarn.join('\n')+'\n\nНапр. Лондон часто котирує в пенсах (GBp), а не фунтах. Або зміни валюту позиції, або візьми лістинг у потрібній валюті.');
+    if(tdErr.length) alert('Не вдалось отримати ціну для:\n\n'+tdErr.join('\n')+'\n\nЯкщо пише про план/доступ — біржа не входить у безкоштовний тариф. Якщо «не знайдено» — спробуй інший символ (Yahoo/FMP: MHPC.L, EMIM.AS; Twelve Data: MHPC:XLON).');
   }catch(e){
     const m=e&&e.message;
     if(m==='FH_KEY') alert('Невірний ключ Finnhub. Перевір у розділі «Ще».');
