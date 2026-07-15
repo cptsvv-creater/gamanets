@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.23</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.28</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.23</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.28</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -329,8 +329,8 @@ svg .bar{transition:opacity .2s}
       <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
     </div>
 
-    <h2>Авто-курси акцій</h2>
-    <div class="card">
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleApi()">Авто-курси акцій <span id="apiArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="apiCard">
       <p class="muted" style="margin-top:0">Щоб оновлювати ціни акцій автоматично, встав безкоштовний API-ключ <b>Finnhub</b>. Реєстрація на finnhub.io займає ~хвилину (60 запитів/хв безкоштовно). Ключ зберігається лише на цьому пристрої.</p>
       <div class="row">
         <input id="fhKeyInput" placeholder="API-ключ Finnhub">
@@ -349,9 +349,9 @@ svg .bar{transition:opacity .2s}
         <button class="btn sm" onclick="saveFmpKey()">Зберегти</button>
       </div>
       <div class="muted" id="fmpKeyStatus" style="font-size:12px;margin-top:6px"></div>
-      <p class="muted" style="margin-top:14px"><b>Yahoo через власний проксі</b> — найнадійніше для Європи й безкоштовно назавжди. Встав адресу свого Cloudflare Worker. Якщо вона тут є — усі не-US папери беруться через неї (символи ті самі: <code>MHPC.L</code>, <code>EMIM.AS</code>).</p>
+      <p class="muted" style="margin-top:14px"><b>Yahoo через проксі</b> — найнадійніше для Європи й безкоштовно. Зазвичай тут <b>нічого не треба</b>: працює вбудований. Поле — лише якщо хочеш свій Cloudflare Worker; тоді він перекриє вбудований. Символи в стилі Yahoo: <code>MHPC.IL</code>, <code>EMIM.AS</code>.</p>
       <div class="row">
-        <input id="proxyUrlInput" placeholder="https://...workers.dev">
+        <input id="proxyUrlInput" placeholder="лишити пусто = вбудований">
         <button class="btn sm" onclick="saveProxyUrl()">Зберегти</button>
       </div>
       <div class="muted" id="proxyUrlStatus" style="font-size:12px;margin-top:6px"></div>
@@ -631,6 +631,14 @@ svg .bar{transition:opacity .2s}
 let CUR = {UAH:{s:'₴',n:'гривня'}, USD:{s:'$',n:'долар'}, EUR:{s:'€',n:'євро'}, MDL:{s:'L',n:'лей'}};
 const DEFAULT_CUR = ['UAH','USD','EUR'];  // обов'язкові (не видаляються); MDL тепер необов'язковий
 const PIVOT = 'UAH';  // технічний якір для курсів НБУ
+
+/* ⬇⬇ ВШИТИЙ ПРОКСІ КОТИРУВАНЬ (Cloudflare Worker) ⬇⬇
+   Встав сюди адресу свого воркера в лапки — і тестери не налаштовують нічого.
+   Приклад:  const DEFAULT_PROXY = 'https://gamanets.мій-нік.workers.dev';
+   Порожньо = вшитого немає. Особисте поле в «Ще» ЗАВЖДИ має пріоритет над цим. */
+const DEFAULT_PROXY = 'https://quiet-tooth-d62b.nd4vp65rtg.workers.dev/';
+// що реально використовуємо: особисте налаштування > вшите
+const activeProxy = ()=> (proxyUrl || DEFAULT_PROXY);
 const fmt = (v,c=PIVOT)=> (CUR[c]?.s||c)+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pad2 = n => String(n).padStart(2,'0');
 const ymKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
@@ -714,7 +722,7 @@ let accounts=[], txs=[], cats=[], holdings=[], rates={USD:41,EUR:44,MDL:2.3,UAH:
 let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
-let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
@@ -1062,29 +1070,125 @@ function renderBondCalendar(){
     ${chart}${list}
   </div>`;
 }
+/* ---- Бюджет місяця (будується з місячних лімітів категорій) ---- */
+// Беремо лише «найвищі» категорії з лімітом: якщо ліміт є і в батька, і в дитини,
+// рахуємо лише батька — інакше витрати порахуються двічі (monthSpent включає підкатегорії).
+function budgetRoots(){
+  const hasLimitedAncestor = c => { let p=c.parent?catById(c.parent):null;
+    while(p){ if(p.limit>0) return true; p=p.parent?catById(p.parent):null; } return false; };
+  return cats.filter(c=>c.type==='expense' && c.limit>0 && !hasLimitedAncestor(c));
+}
+function renderBudgetCard(){
+  const roots=budgetRoots();
+  if(!roots.length) return `<div class="card"><h3 style="margin:0 0 6px">Бюджет місяця</h3>
+    <div class="muted" style="font-size:12px">Постав місячні ліміти категоріям (Ще → Категорії) — і тут з'явиться бюджет: скільки лишилось і чи вкладаєшся в темп.</div></div>`;
+  const budget=roots.reduce((s,c)=>s+(c.limit||0),0);
+  let spent=0; roots.forEach(c=>spent+=(monthSpent(c.id)||0));
+  const left=budget-spent;
+  const pct=budget>0?Math.min(100,Math.max(0,spent/budget*100)):0;
+  const now=new Date(), dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const pace=Math.min(100,now.getDate()/dim*100);          // рівний темп на сьогодні
+  const over=spent>budget, fast=!over && pct>pace+5;
+  const col=over?'var(--red)':fast?'var(--amber)':'var(--green)';
+  const status=over?`⚠️ Перевищено на ${fmt(spent-budget)}`
+    : fast?`⏩ Витрачаєш швидше за рівний темп`
+    : `✓ Бюджет в порядку`;
+  return `<div class="card">
+    <div class="row" style="align-items:baseline;gap:8px">
+      <div style="white-space:nowrap;min-width:0"><span style="font-size:22px;font-weight:700;color:${over?'var(--red)':'inherit'}">${fmt(Math.abs(left))}</span>
+        <span class="muted" style="font-size:12px">&nbsp;${left>=0?'доступно':'перевитрата'}</span></div>
+      <div class="spacer"></div>
+      <span class="muted" style="font-size:12px;white-space:nowrap">${fmt(spent)} / ${fmt(budget)}</span>
+    </div>
+    <div style="position:relative;height:10px;background:var(--surface2);border-radius:6px;margin-top:8px">
+      <div style="width:${pct}%;height:100%;background:${col};border-radius:6px"></div>
+      <div style="position:absolute;top:-3px;left:${pace}%;width:2px;height:16px;background:var(--muted);opacity:.75"></div>
+    </div>
+    <div class="row" style="margin-top:8px;font-size:12px;gap:8px"><span style="color:${col};white-space:nowrap">${status}</span>
+      <div class="spacer"></div><span class="muted" style="font-size:10px;white-space:nowrap">риска — темп на сьогодні</span></div>
+  </div>`;
+}
+/* ---- Динаміка загального балансу (гроші на рахунках; БЕЗ майна та інвестицій) ---- */
+function balanceSeries(n=24){
+  const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
+  if(!accs.length) return [];
+  const now=new Date(), months=[];
+  for(let i=n-1;i>=0;i--) months.push(ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
+  const sorted=txs.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  return months.map(mk=>{
+    const end=mk+'-31';                 // рядкове порівняння дат YYYY-MM-DD — кінець місяця
+    let total=0;
+    for(const a of accs){
+      let b=Number(a.balance||0);
+      for(const t of sorted){
+        if(t.date>end) break;           // відсортовано — далі все пізніше
+        const amt=Number(t.amount)||0;
+        if(t.type==='income'&&t.account===a.id) b+=amt;
+        else if(t.type==='expense'&&t.account===a.id) b-=amt;
+        else if(t.type==='transfer'){ if(t.account===a.id) b-=amt; if(t.to===a.id) b+=(Number(t.amountTo??t.amount)||0); }
+        else if(t.type==='adjust'&&t.account===a.id) b+=amt;
+      }
+      total+=(toBase(b,a.currency)||0);
+    }
+    return {mk,val:total};
+  });
+}
+function renderBalanceTrend(){
+  const s=balanceSeries(24);
+  if(s.length<2) return '';
+  const vals=s.map(d=>d.val), cur=vals[vals.length-1], first=vals[0];
+  const mx=Math.max(0,...vals), mn=Math.min(0,...vals), span=(mx-mn)||1;
+  const Y=v=>6+(mx-v)/span*88, X=i=>i/(s.length-1)*100;
+  let segs='';
+  for(let i=1;i<s.length;i++){
+    const c=(vals[i]<0||vals[i-1]<0)?'var(--red)':'var(--brand)';
+    segs+=`<line x1="${X(i-1)}" y1="${Y(vals[i-1])}" x2="${X(i)}" y2="${Y(vals[i])}" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linecap="round"><title>${monthLabel(s[i].mk)}: ${fmtDisp(vals[i])}</title></line>`;
+  }
+  const pct = first!==0 ? (cur-first)/Math.abs(first)*100 : null;
+  return `<div class="card">
+    <h3 style="margin:0 0 2px">Динаміка загального балансу</h3>
+    <div class="muted" style="font-size:11px">Гроші на рахунках і картках. Без майна та інвестицій.</div>
+    <div class="row" style="align-items:baseline;margin-top:6px">
+      <span style="font-size:22px;font-weight:700;color:${cur<0?'var(--red)':'inherit'}">${fmtDisp(cur)}</span>
+      ${pct!==null?`<span style="font-size:13px;margin-left:8px;color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(0)}%</span>`:''}
+      <div class="spacer"></div><span class="muted" style="font-size:11px">за 24 міс.</span>
+    </div>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:110px;display:block;margin-top:6px">
+      <line x1="0" y1="${Y(0)}" x2="100" y2="${Y(0)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".5" vector-effect="non-scaling-stroke"/>
+      ${segs}
+    </svg>
+    <div style="display:flex;margin-top:3px">${s.map((d,i)=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--muted)">${i%4?'':d.mk.slice(5)+'.'+d.mk.slice(2,4)}</div>`).join('')}</div>
+  </div>`;
+}
 function renderAnalytics(){
   const {venues,cash,posVal,inv,value}=portfolioTotals();
   let html='';
   // структура активів (чистий капітал): живі гроші + інвестиції + майно
-  let liveMoney=0; accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=>liveMoney+=toBase(accBalance(a),a.currency));
-  let assetsTotal=0; accounts.filter(a=>a.type==='asset'&&!a.archived).forEach(a=>assetsTotal+=toBase(accBalance(a),a.currency));
+  let liveMoney=0, moneyAccs=0;
+  accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=>{ moneyAccs++; liveMoney+=(toBase(accBalance(a),a.currency)||0); });
+  let assetsTotal=0; accounts.filter(a=>a.type==='asset'&&!a.archived).forEach(a=>assetsTotal+=(toBase(accBalance(a),a.currency)||0));
   const netWorth=liveMoney+cash+posVal+assetsTotal;
   const byKind={};
-  if(liveMoney>0) byKind.money=liveMoney;      // рахунки: готівка, картки (будь-які валюти)
-  if(cash>0) byKind.venuecash=cash;            // вільний кеш на інвест-майданчиках
+  byKind.money=liveMoney;                      // рахунки: готівка, картки — показуємо ЗАВЖДИ (навіть 0 чи мінус)
+  if(cash!==0) byKind.venuecash=cash;          // вільний кеш на інвест-майданчиках (буває мінус від комісій)
   holdings.forEach(h=>{const v=accById(h.venue); if(v&&v.type==='invest'&&!v.archived) byKind[h.kind]=(byKind[h.kind]||0)+toBase(hVal(h),h.currency);});
-  if(assetsTotal>0) byKind.property=assetsTotal;
+  if(assetsTotal!==0) byKind.property=assetsTotal;
   const kindLabels={money:'💵 Готівка й картки',venuecash:'🏦 Кеш на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
   const palette={money:'#64748b',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
-  const kt=Object.entries(byKind).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const ktotal=kt.reduce((s,[,v])=>s+v,0)||1;
+  const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='money').sort((a,b)=>b[1]-a[1]);
+  const ktotal=kt.reduce((s,[,v])=>s+(v>0?v:0),0)||1;   // частки рахуємо лише від додатних
+  const neg=kt.some(([,v])=>v<0);
   if(kt.length){
     html+=`<div class="card"><div class="row"><h3 style="margin:0">Чистий капітал</h3><div class="spacer"></div><b>${fmtDisp(netWorth)}</b></div>
       <div class="muted" style="font-size:11px;margin:2px 0 6px">Живі гроші + інвестиції + майно. Майно не входить у «Загальний баланс» на Огляді.</div>`+
-      kt.map(([k,v])=>{const pct=v/ktotal*100;
-        return `<div style="margin:8px 0"><div class="row" style="font-size:13px"><span>${kindLabels[k]||k}</span><div class="spacer"></div><b>${fmtDisp(v)}</b><span class="muted" style="margin-left:6px">${pct.toFixed(0)}%</span></div>
-          <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${palette[k]||'#888'}"></div></div></div>`;}).join('')+`</div>`;
+      kt.map(([k,v])=>{const pct=v>0?v/ktotal*100:0;
+        return `<div style="margin:8px 0"><div class="row" style="font-size:13px;gap:6px"><span style="white-space:nowrap">${kindLabels[k]||k}</span><div class="spacer"></div><b style="white-space:nowrap;color:${v<0?'var(--red)':'inherit'}">${fmtDisp(v)}</b><span class="muted" style="white-space:nowrap">${pct.toFixed(0)}%</span></div>
+          <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${palette[k]||'#888'}"></div></div></div>`;}).join('')+
+      (moneyAccs===0?`<div class="muted" style="font-size:11px;margin-top:6px">Немає жодного грошового рахунку — додай їх у «Рахунки», щоб бачити живі гроші тут.</div>`
+        :neg?`<div class="muted" style="font-size:11px;margin-top:6px">Мінус означає, що по рахунку списань більше, ніж надходжень. Відкрий рахунок і тисни «⚖️ Коригувати баланс», вписавши фактичний залишок.</div>`:'')+`</div>`;
   }
+  html+=renderBudgetCard();
+  html+=renderBalanceTrend();
   html+=renderBondCalendar();
   html+=`<div class="card"><div class="muted" style="font-size:12px">🚧 Далі тут з'являться: кешфлоу по рахунках/майданчиках і стан кожного активу окремо.</div></div>`;
   document.getElementById('analyticsBody').innerHTML=html||'<div class="card"><div class="empty">Немає даних для аналітики.</div></div>';
@@ -1255,11 +1359,14 @@ function renderSettings(){
   const fe=document.getElementById('fmpKeyInput'); if(fe) fe.value=fmpKey;
   const fs=document.getElementById('fmpKeyStatus'); if(fs) fs.textContent=fmpKey?'Ключ FMP збережено ✓':'Не встановлено.';
   const pe=document.getElementById('proxyUrlInput'); if(pe) pe.value=proxyUrl;
-  const ps=document.getElementById('proxyUrlStatus'); if(ps) ps.textContent=proxyUrl?'Проксі збережено ✓ — не-US папери йдуть через Yahoo':'Не встановлено.';
+  const ps=document.getElementById('proxyUrlStatus');
+  if(ps) ps.textContent = proxyUrl ? 'Свій проксі збережено ✓ — використовується він (перекриває вбудований)'
+    : DEFAULT_PROXY ? 'Порожньо — працює вбудований проксі ✓ (нічого налаштовувати не треба)'
+    : 'Не встановлено — не-US папери не оновлюються авто.';
   const ae=document.getElementById('aiKeyInput'); if(ae) ae.value=aiKey;
   const ast=document.getElementById('aiKeyStatus'); if(ast){
     let s=aiKey?'Ключ збережено ✓ — AI-голос і чеки активні':'Ключ не встановлено — AI вимкнено (голос працює простим способом).';
-    if(aiUsage.calls) s+=` · Витрачено ≈ $${aiCostUSD().toFixed(3)} за ${aiUsage.calls} запитів (${(aiUsage.in+aiUsage.out).toLocaleString('uk-UA')} токенів)`;
+    if(aiUsage.calls) s+=` · На цьому пристрої витрачено ≈ $${aiCostUSD().toFixed(3)} за ${aiUsage.calls} запитів (${(aiUsage.in+aiUsage.out).toLocaleString('uk-UA')} токенів). Якщо ключем користується ще хтось — його витрати сюди не входять; спільний підсумок дивись на console.anthropic.com`;
     ast.textContent=s;
   }
 }
@@ -1336,6 +1443,11 @@ function toggleCur(){
   document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
   if(curExpanded) renderCurrencySettings();
 }
+function toggleApi(){
+  apiExpanded=!apiExpanded;
+  document.getElementById('apiCard').classList.toggle('hidden',!apiExpanded);
+  document.getElementById('apiArrow').textContent=apiExpanded?'▾':'▸';
+}
 // Twelve Data: одна ціна. spec «MHPC», «MHPC:LSE» (біржа) або «MHPC:XLON» (MIC-код).
 // Повертає {p:ціна|null, msg:'причина якщо нема'}.
 async function tdPrice(spec){
@@ -1364,7 +1476,7 @@ async function fmpPrice(sym){
 }
 // Yahoo через власний Cloudflare Worker (обхід CORS). Повертає {p,msg,cur}.
 async function yahooPrice(sym){
-  const url=proxyUrl.replace(/\/+$/,'')+'?symbol='+encodeURIComponent(sym);
+  const url=activeProxy().replace(/\/+$/,'')+'?symbol='+encodeURIComponent(sym);
   let r, d;
   try{ r=await fetch(url); d=await r.json(); }
   catch(e){ return {p:null,msg:'проксі недоступний: '+String(e).slice(0,60)}; }
@@ -1381,7 +1493,7 @@ async function fhPrice(sym){
 }
 async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
-  if(!fhKey && !tdKey && !fmpKey && !proxyUrl){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
+  if(!fhKey && !tdKey && !fmpKey && !activeProxy()){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
   const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
   if(!stocks.length){alert('Немає акцій з тикерами для оновлення');return;}
   toast('Оновлюю ціни ('+stocks.length+')…');
@@ -1399,7 +1511,7 @@ async function updatePrices(){
         if(useTD){
           if(!tdKey){ skipped.push(raw+' (треба ключ Twelve Data)'); continue; }
           res=await tdPrice(h.quoteSym);
-        } else if(proxyUrl){
+        } else if(activeProxy()){
           res=await yahooPrice(h.quoteSym);
           if(res.p && res.cur && h.currency && res.cur.toUpperCase()!==h.currency.toUpperCase())
             curWarn.push(raw+': Yahoo дає '+res.cur+', а в позиції '+h.currency);
@@ -1411,7 +1523,7 @@ async function updatePrices(){
         skipped.push(raw+' (впиши «Символ для авто-ціни», напр. MHPC.L)'); continue;
       } else {                               // US або без суфікса
         if(fhKey) price=await fhPrice(base);
-        else if(proxyUrl){ const res=await yahooPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
+        else if(activeProxy()){ const res=await yahooPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
         else if(fmpKey){ const res=await fmpPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
         else { const res=await tdPrice(base); price=res.p; if(!price&&res.msg) tdErr.push(raw+' → '+res.msg); }
       }
