@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.36</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.37</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.36</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.37</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1240,17 +1240,84 @@ function budgetRowsHtml(roots){
       ${budgetAllOpen?'▾ Сховати категорії в нормі':`▸ Показати всі категорії (${rows.length})`}</span></div>`;
   return html;
 }
+/* ---- Кешфлоу: скільки зайшло і вийшло по обраному рахунку за період ---- */
+let aaAcc='', aaPeriod='month', aaFrom='', aaTo='';
+function setAa(k,v){ ({acc:()=>aaAcc=v, period:()=>aaPeriod=v, from:()=>aaFrom=v, to:()=>aaTo=v})[k](); renderAnalytics(); }
+function accFlow(accId,from,to){
+  const byM={}; let inc=0,out=0,adj=0,n=0;
+  const bump=(mk,k,v)=>{ (byM[mk]=byM[mk]||{in:0,out:0})[k]+=v; };
+  txs.forEach(t=>{
+    const mk=monthKey(t.date); if(mk<from||mk>to) return;
+    const amt=Number(t.amount)||0;
+    if(t.type==='income'&&t.account===accId){ inc+=amt; bump(mk,'in',amt); n++; }
+    else if(t.type==='expense'&&t.account===accId){ out+=amt; bump(mk,'out',amt); n++; }
+    else if(t.type==='adjust'&&t.account===accId){ adj+=amt; n++; }          // коригування — не рух грошей
+    else if(t.type==='transfer'){                                            // переказ теж рух по рахунку
+      if(t.account===accId){ out+=amt; bump(mk,'out',amt); n++; }
+      if(t.to===accId){ const v=Number(t.amountTo??t.amount)||0; inc+=v; bump(mk,'in',v); n++; }
+    }
+  });
+  return {inc,out,adj,n,byM};
+}
+function renderAccAnalysis(){
+  const list=accounts.filter(a=>a.type!=='asset'&&!a.archived);
+  if(!list.length) return '';
+  if(!aaAcc||!accById(aaAcc)||accById(aaAcc).type==='asset') aaAcc=list[0].id;
+  const a=accById(aaAcc), [from,to]=periodRange(aaPeriod,aaFrom,aaTo);
+  const f=accFlow(aaAcc,from,to), net=f.inc-f.out;
+  const months=Object.keys(f.byM).sort().reverse();
+  const mx=Math.max(1,...months.map(m=>Math.max(f.byM[m].in,f.byM[m].out)));
+  const C=v=>fmt(v,a.currency);
+  return `<div class="card">
+    <h3 style="margin:0 0 8px">Аналіз рахунків</h3>
+    <select onchange="setAa('acc',this.value)">${accOptsHtml([],aaAcc)}</select>
+    <select style="margin-top:8px" onchange="setAa('period',this.value)">${periodOpts(aaPeriod)}</select>
+    ${aaPeriod==='custom'?`<div class="grid cols2" style="margin-top:8px">
+      <div><label>З</label><input type="month" value="${aaFrom}" onchange="setAa('from',this.value)"></div>
+      <div><label>По</label><input type="month" value="${aaTo}" onchange="setAa('to',this.value)"></div></div>`:''}
+    <div class="grid cols2" style="margin-top:12px">
+      <div><div class="muted" style="font-size:12px">Зайшло</div>
+        <div style="font-size:19px;font-weight:700;color:var(--green);white-space:nowrap">+${C(f.inc)}</div></div>
+      <div><div class="muted" style="font-size:12px">Вийшло</div>
+        <div style="font-size:19px;font-weight:700;color:var(--red);white-space:nowrap">−${C(f.out)}</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;font-size:13px;gap:8px"><span class="muted" style="white-space:nowrap">Різниця</span>
+      <div class="spacer"></div>
+      <b style="white-space:nowrap;color:${net>=0?'var(--green)':'var(--red)'}">${net>=0?'+':'−'}${C(Math.abs(net))}</b></div>
+    <div class="row" style="font-size:11px;margin-top:2px"><span class="muted">${f.n} оп. · зараз на рахунку</span>
+      <div class="spacer"></div><span class="muted">${C(accBalance(a))}</span></div>
+    ${f.adj?`<div class="muted" style="font-size:11px;margin-top:4px">＋ коригування балансу: ${C(f.adj)} (не рух грошей)</div>`:''}
+    ${months.length?`<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--line)"></div>`+
+      months.map(m=>`<div style="margin:8px 0">
+        <div class="row" style="font-size:13px;gap:6px"><span style="text-transform:capitalize;white-space:nowrap">${monthLabel(m)}</span>
+          <div class="spacer"></div>
+          <span style="color:var(--green);white-space:nowrap">+${C(f.byM[m].in)}</span>
+          <span style="color:var(--red);white-space:nowrap">−${C(f.byM[m].out)}</span></div>
+        <div style="display:flex;gap:3px;margin-top:4px">
+          <div style="flex:1;height:6px;background:var(--surface2);border-radius:4px;overflow:hidden">
+            <div style="width:${f.byM[m].in/mx*100}%;height:100%;background:var(--green)"></div></div>
+          <div style="flex:1;height:6px;background:var(--surface2);border-radius:4px;overflow:hidden">
+            <div style="width:${f.byM[m].out/mx*100}%;height:100%;background:var(--red)"></div></div>
+        </div>
+      </div>`).join('')
+      :'<div class="empty">Немає руху по цьому рахунку за період.</div>'}
+  </div>`;
+}
 /* ---- Аналіз обраної категорії за період ---- */
 let caCat='', caPeriod='month', caFrom='', caTo='';
 function setCa(k,v){ ({cat:()=>caCat=v, period:()=>caPeriod=v, from:()=>caFrom=v, to:()=>caTo=v})[k](); renderAnalytics(); }
-function caRange(){
+// спільний вибір періоду: місяць / минулий / рік / весь час / свій
+function periodRange(p,from,to){
   const nowM=monthKey(todayISO()), d=new Date();
-  if(caPeriod==='month') return [nowM,nowM];
-  if(caPeriod==='prev'){ const p=ymKey(new Date(d.getFullYear(),d.getMonth()-1,1)); return [p,p]; }
-  if(caPeriod==='year') return [todayISO().slice(0,4)+'-01', todayISO().slice(0,4)+'-12'];
-  if(caPeriod==='custom') return [caFrom||'0000-01', caTo||'9999-12'];
+  if(p==='month') return [nowM,nowM];
+  if(p==='prev'){ const x=ymKey(new Date(d.getFullYear(),d.getMonth()-1,1)); return [x,x]; }
+  if(p==='year') return [todayISO().slice(0,4)+'-01', todayISO().slice(0,4)+'-12'];
+  if(p==='custom') return [from||'0000-01', to||'9999-12'];
   return ['0000-01','9999-12'];   // весь час
 }
+const periodOpts=(cur,fn)=>['month','Цей місяць','prev','Минулий місяць','year','Цей рік','all','Весь час','custom','Свій період']
+  .reduce((s,_,i,arr)=> i%2?s+`<option value="${arr[i-1]}" ${cur===arr[i-1]?'selected':''}>${arr[i]}</option>`:s,'');
+function caRange(){ return periodRange(caPeriod,caFrom,caTo); }
 function renderCatAnalysis(){
   const leafs=cats.slice().sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'));
   if(!leafs.length) return '';
@@ -1265,14 +1332,11 @@ function renderCatAnalysis(){
   const avg=months.length?total/months.length:0;
   const isInc=c.type==='income';
   const opts=leafs.map(x=>`<option value="${x.id}" ${x.id===caCat?'selected':''}>${x.icon||'📦'} ${catFullName(x.id)}${x.type==='income'?' (дохід)':''}</option>`).join('');
-  const pOpt=(v,l)=>`<option value="${v}" ${caPeriod===v?'selected':''}>${l}</option>`;
   const mx=Math.max(1,...months.map(m=>byM[m]));
   return `<div class="card">
     <h3 style="margin:0 0 8px">Аналіз категорії</h3>
     <select onchange="setCa('cat',this.value)">${opts}</select>
-    <select style="margin-top:8px" onchange="setCa('period',this.value)">
-      ${pOpt('month','Цей місяць')}${pOpt('prev','Минулий місяць')}${pOpt('year','Цей рік')}${pOpt('all','Весь час')}${pOpt('custom','Свій період')}
-    </select>
+    <select style="margin-top:8px" onchange="setCa('period',this.value)">${periodOpts(caPeriod)}</select>
     ${caPeriod==='custom'?`<div class="grid cols2" style="margin-top:8px">
       <div><label>З</label><input type="month" value="${caFrom}" onchange="setCa('from',this.value)"></div>
       <div><label>По</label><input type="month" value="${caTo}" onchange="setCa('to',this.value)"></div></div>`:''}
@@ -1382,6 +1446,7 @@ function renderAnalytics(){
         :neg?`<div class="muted" style="font-size:11px;margin-top:6px">Мінус означає, що по рахунку списань більше, ніж надходжень. Відкрий рахунок і тисни «⚖️ Коригувати баланс», вписавши фактичний залишок.</div>`:'')+`</div>`;
   }
   html+=renderBudgetCard();
+  html+=renderAccAnalysis();
   html+=renderCatAnalysis();
   html+=renderBalanceTrend();
   html+=renderBondCalendar();
@@ -2057,7 +2122,7 @@ let txKind='expense', editingTx=null;
 function fillSelect(sel,items,val){sel.innerHTML=items.map(i=>`<option value="${i.id}">${i.label}</option>`).join('');if(val)sel.value=val;}
 function accOpts(extraIds=[]){return accounts.filter(a=>!a.archived||extraIds.includes(a.id)).map(a=>({id:a.id,label:`${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}`}));}
 // Список рахунків для операцій: БЕЗ майна (з квартири не платять) + згруповано, щоб не скролити.
-function accOptsHtml(extraIds=[]){
+function accOptsHtml(extraIds=[],selId=''){
   const ok=a=>a.type!=='asset' && (!a.archived||extraIds.includes(a.id));
   const byOrder=(x,y)=>(x.order??1e9)-(y.order??1e9);
   const G=[
@@ -2067,7 +2132,7 @@ function accOptsHtml(extraIds=[]){
   ];
   return G.filter(([,arr])=>arr.length).map(([label,arr])=>
     `<optgroup label="${label}">`+arr.map(a=>
-      `<option value="${a.id}">${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}</option>`
+      `<option value="${a.id}" ${a.id===selId?'selected':''}>${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}</option>`
     ).join('')+`</optgroup>`).join('');
 }
 
