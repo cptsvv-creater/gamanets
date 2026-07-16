@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.32</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.33</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.32</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.33</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -482,7 +482,8 @@ svg .bar{transition:opacity .2s}
     <div class="grid cols2" style="margin-top:10px">
       <div id="accTypeWrap"><label>Тип рахунку</label>
         <select id="accType" onchange="toggleCreditWrap()">
-          <option value="regular">Звичайний</option>
+          <option value="regular">Звичайний (картка/рахунок)</option>
+          <option value="cash">Готівка</option>
           <option value="credit">Кредитна картка</option>
           <option value="invest">Інвестиційний майданчик</option>
           <option value="asset">Майно (пасивний актив)</option>
@@ -775,7 +776,7 @@ let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
-let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
@@ -1133,7 +1134,10 @@ function renderBondCalendar(){
     <div class="row" style="font-size:13px"><span class="muted">Найближча виплата (${next.date})</span><div class="spacer"></div><b class="pos">+${fmt(next.amount,next.currency)}</b></div>
     <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">За 12 місяців</span><div class="spacer"></div><b>${fmtDisp(sum12)}</b></div>
     <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">Усього попереду (купони+тіло)</span><div class="spacer"></div><b>${fmtDisp(total)}</b></div>
-    ${chart}${list}
+    ${chart}
+    <div style="margin-top:10px"><span onclick="toggleBonds()" style="cursor:pointer;font-size:12px;color:var(--brand)">
+      ${bondsOpen?'▾ Сховати список виплат':`▸ Показати всі виплати (${pays.length})`}</span></div>
+    ${bondsOpen?list:''}
   </div>`;
 }
 /* ---- Бюджет місяця (будується з місячних лімітів категорій) ---- */
@@ -1144,9 +1148,18 @@ function budgetRoots(){
     while(p){ if(p.limit>0) return true; p=p.parent?catById(p.parent):null; } return false; };
   return cats.filter(c=>c.type==='expense' && c.limit>0 && !hasLimitedAncestor(c));
 }
+// Витрати цього місяця в категоріях БЕЗ ліміту — тобто поза бюджетом.
+function unbudgeted(){
+  const inB=new Set(); budgetRoots().forEach(c=>descendantIds(c.id).forEach(id=>inB.add(id)));
+  const mk=monthKey(todayISO()); const map={}; let total=0;
+  txs.forEach(t=>{ if(t.type!=='expense'||monthKey(t.date)!==mk||inB.has(t.category)) return;
+    const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
+    total+=v; map[t.category||'']=(map[t.category||'']||0)+v; });
+  return {total, rows:Object.entries(map).sort((a,b)=>b[1]-a[1])};
+}
 function renderBudgetCard(){
   const roots=budgetRoots();
-  if(!roots.length) return `<div class="card"><h3 style="margin:0 0 6px">Бюджет місяця</h3>
+  if(!roots.length) return `<div class="card"><h3 style="margin:0 0 6px">Бюджет</h3>
     <div class="muted" style="font-size:12px">Постав місячні ліміти категоріям (Ще → Категорії) — і тут з'явиться бюджет: скільки лишилось і чи вкладаєшся в темп.</div></div>`;
   const budget=roots.reduce((s,c)=>s+(c.limit||0),0);
   let spent=0; roots.forEach(c=>spent+=(monthSpent(c.id)||0));
@@ -1159,7 +1172,9 @@ function renderBudgetCard(){
   const status=over?`⚠️ Перевищено на ${fmt(spent-budget)}`
     : fast?`⏩ Витрачаєш швидше за рівний темп`
     : `✓ Бюджет в порядку`;
+  const ub=unbudgeted();
   return `<div class="card">
+    <h3 style="margin:0 0 10px">Бюджет</h3>
     <div class="row" style="align-items:baseline;gap:8px">
       <div style="white-space:nowrap;min-width:0"><span style="font-size:22px;font-weight:700;color:${over?'var(--red)':'inherit'}">${fmt(Math.abs(left))}</span>
         <span class="muted" style="font-size:12px">&nbsp;${left>=0?'доступно':'перевитрата'}</span></div>
@@ -1172,6 +1187,14 @@ function renderBudgetCard(){
     </div>
     <div class="row" style="margin-top:8px;font-size:12px;gap:8px"><span style="color:${col};white-space:nowrap">${status}</span>
       <div class="spacer"></div><span class="muted" style="font-size:10px;white-space:nowrap">риска — темп на сьогодні</span></div>
+    ${ub.total>0?`<div class="row" style="margin-top:10px;font-size:13px;gap:8px">
+        <span onclick="toggleUnbudgeted()" style="cursor:pointer;white-space:nowrap">
+          <span style="color:var(--muted)">${unbudgetedOpen?'▾':'▸'}</span> Витрати поза бюджетом</span>
+        <div class="spacer"></div><b style="white-space:nowrap">${fmt(ub.total)}</b></div>
+      <div class="muted" style="font-size:10px;margin-top:2px">Категорії без ліміту — не входять у розрахунок вище</div>
+      ${unbudgetedOpen?ub.rows.map(([cid,v])=>{const c=catById(cid);
+        return `<div class="row" style="font-size:12px;margin-top:6px;gap:6px"><span style="white-space:nowrap">${c?.icon||'📦'} ${c?catFullName(cid):'Без категорії'}</span>
+          <div class="spacer"></div><span style="white-space:nowrap">${fmt(v)}</span></div>`;}).join(''):''}`:''}
     ${budgetRowsHtml(roots)}
   </div>`;
 }
@@ -1310,20 +1333,27 @@ function renderAnalytics(){
   const {venues,cash,posVal,inv,value}=portfolioTotals();
   let html='';
   // структура активів (чистий капітал): живі гроші + інвестиції + майно
-  let liveMoney=0, moneyAccs=0;
-  accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=>{ moneyAccs++; liveMoney+=(toBase(accBalance(a),a.currency)||0); });
+  let cardsMoney=0, cashMoney=0, nCards=0, nCash=0;
+  accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=>{
+    const v=toBase(accBalance(a),a.currency)||0;
+    if(a.type==='cash'){ cashMoney+=v; nCash++; } else { cardsMoney+=v; nCards++; }
+  });
+  const liveMoney=cardsMoney+cashMoney, moneyAccs=nCards+nCash;
   let assetsTotal=0; accounts.filter(a=>a.type==='asset'&&!a.archived).forEach(a=>assetsTotal+=(toBase(accBalance(a),a.currency)||0));
   const netWorth=liveMoney+cash+posVal+assetsTotal;
   const byKind={};
-  byKind.money=liveMoney;                      // рахунки: готівка, картки — показуємо ЗАВЖДИ (навіть 0 чи мінус)
   if(cash!==0) byKind.venuecash=cash;          // вільний кеш на інвест-майданчиках (буває мінус від комісій)
   holdings.forEach(h=>{const v=accById(h.venue); if(v&&v.type==='invest'&&!v.archived) byKind[h.kind]=(byKind[h.kind]||0)+toBase(hVal(h),h.currency);});
   if(assetsTotal!==0) byKind.property=assetsTotal;
-  const kindLabels={money:'💵 Готівка й картки',venuecash:'🏦 Кеш на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
-  const palette={money:'#64748b',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
-  // сортуємо за сумою, але «Готівка й картки» ЗАВЖДИ йде останньою
-  const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='money')
-    .sort((a,b)=> (a[0]==='money')-(b[0]==='money') || b[1]-a[1]);
+  // гроші — окремо картки й готівка; показуємо завжди (навіть 0 чи мінус)
+  if(nCards) byKind.cards=cardsMoney;
+  if(nCash)  byKind.cash=cashMoney;
+  const kindLabels={cards:'💳 Картки',cash:'💵 Готівка',venuecash:'🏦 Баланс на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
+  const palette={cards:'#64748b',cash:'#10b981',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
+  // сортуємо за сумою, але наприкінці ЗАВЖДИ: … → 💳 Картки → 💵 Готівка (остання)
+  const rank=k=> k==='cash'?2 : k==='cards'?1 : 0;
+  const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='cards'||k==='cash')
+    .sort((a,b)=> rank(a[0])-rank(b[0]) || b[1]-a[1]);
   const ktotal=kt.reduce((s,[,v])=>s+(v>0?v:0),0)||1;   // частки рахуємо лише від додатних
   const neg=kt.some(([,v])=>v<0);
   if(kt.length){
@@ -1594,6 +1624,8 @@ function toggleCur(){
   if(curExpanded) renderCurrencySettings();
 }
 function toggleBudgetAll(){ budgetAllOpen=!budgetAllOpen; renderAnalytics(); }
+function toggleUnbudgeted(){ unbudgetedOpen=!unbudgetedOpen; renderAnalytics(); }
+function toggleBonds(){ bondsOpen=!bondsOpen; renderAnalytics(); }
 function toggleRestore(){
   restoreOpen=!restoreOpen;
   document.getElementById('restoreBox').classList.toggle('hidden',!restoreOpen);
@@ -2652,9 +2684,19 @@ function voiceFill(p){
   toast('Розпізнав: '+(p.amount?fmt(p.amount):'сума?')+' · '+(p.catId?catFullName(p.catId):'категорія?')+'. Перевір і збережи.');
 }
 
+/* Разова міграція: відділяємо готівку від карток (тип 'cash').
+   Спрацьовує один раз; тип потім можна змінити вручну в картці рахунку. */
+async function migrateCash(){
+  if(await getMeta('cashMigrated')) return;
+  const isCash=a=>a.type==='regular' && (/готівк|готівка|cash|наличн/i.test(a.name||'') || ['💰','💵','💴','💶','💷','🤑'].includes(a.icon));
+  let n=0;
+  for(const a of accounts){ if(isCash(a)){ a.type='cash'; await put('accounts',a); n++; } }
+  await setMeta('cashMigrated',true);
+  if(n) await loadAll();
+}
 /* ========================= BOOT ========================= */
 (async function(){
-  await openDB(); await seed(); await loadAll(); await normalizeOrder();
+  await openDB(); await seed(); await loadAll(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   updateNet(); go('dash');
 })();
