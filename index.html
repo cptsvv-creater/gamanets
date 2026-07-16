@@ -45,7 +45,7 @@ header .logo b{color:var(--brand)}
 
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
 .stat .k{font-size:12px;color:var(--muted);margin-bottom:6px}
-.stat .v{font-size:22px;font-weight:700}
+.stat .v{font-size:22px;font-weight:700;white-space:nowrap;letter-spacing:-.2px}
 .pos{color:var(--green)} .neg{color:var(--red)}
 
 .btn{background:var(--brand);color:#04211d;border:none;border-radius:10px;
@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.30</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.32</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.30</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.32</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -239,18 +239,15 @@ svg .bar{transition:opacity .2s}
       </div>
     </div>
 
-    <div class="card hidden" id="limitsCard">
-      <h3>Ліміти витрат (міс.)</h3>
-      <div id="limitsBox"></div>
-    </div>
-
     <div class="card">
-      <div class="row" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:2px">
         <h3 style="margin:0">Витрати за категоріями</h3><div class="spacer"></div>
         <button class="btn ghost sm" onclick="catMonthShift(-1)">‹</button>
         <span id="catMonthLbl" style="font-size:13px;min-width:104px;text-align:center;text-transform:capitalize"></span>
         <button class="btn ghost sm" onclick="catMonthShift(1)">›</button>
       </div>
+      <div class="row" style="margin-bottom:8px"><span class="muted" style="font-size:12px">Разом за місяць</span>
+        <div class="spacer"></div><b id="catMonthTotal" style="font-size:15px">—</b></div>
       <div id="chartCats"></div>
     </div>
 
@@ -351,27 +348,12 @@ svg .bar{transition:opacity .2s}
       <div class="muted" id="aiKeyStatus" style="font-size:12px;margin-top:6px"></div>
     </div>
 
-    <h2>Дані</h2>
-    <div class="card">
-      <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
-      <div class="row wrap">
-        <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
-        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
-        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
-        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
-      </div>
-      <div class="row wrap" style="margin-top:10px">
-        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
-        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
-    </div>
-
     <h2 style="cursor:pointer;user-select:none" onclick="toggleBk()">Хмарний бекап <span id="bkArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="bkCard">
       <p class="muted" style="margin-top:0">Копія даних у хмарі. Шифрується <b>на цьому телефоні</b> — ні Cloudflare, ні автор застосунку не можуть її прочитати. Офлайн усе працює як завжди; копія полетить, щойно з'явиться інтернет.</p>
       <div id="bkOff">
         <div><label>Пароль шифрування</label><input id="bkPassInput" type="password" placeholder="вигадай пароль"></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Це все, що треба — <b>ключ відновлення застосунок створить сам</b> і покаже тобі після вмикання.</div>
         <div class="muted" style="font-size:11px;margin-top:4px">⚠️ Забудеш пароль — бекап не відновити <b>ніколи</b>. Це плата за те, що його ніхто не прочитає. Запиши в надійне місце.</div>
         <button class="btn sm" style="margin-top:10px" onclick="bkEnable()">Увімкнути бекап</button>
       </div>
@@ -389,14 +371,35 @@ svg .bar{transition:opacity .2s}
         </div>
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
-        <label>Відновити з хмари (на новому телефоні)</label>
-        <input id="bkRestoreId" placeholder="ключ відновлення" style="font-family:monospace;font-size:12px">
-        <input id="bkRestorePass" type="password" placeholder="пароль" style="margin-top:8px">
-        <button class="btn ghost sm" style="margin-top:10px" onclick="bkRestore()">⬇ Відновити</button>
-        <div class="muted" style="font-size:11px;margin-top:4px">Замінить усі дані на цьому пристрої даними з хмари.</div>
+        <span onclick="toggleRestore()" style="cursor:pointer;font-size:12px;color:var(--brand)">
+          <span id="restoreArrow">▸</span> У мене вже є бекап — відновити на цьому телефоні</span>
+        <div id="restoreBox" class="hidden" style="margin-top:10px">
+          <div class="muted" style="font-size:11px;margin-bottom:8px">Потрібні ключ відновлення й пароль з <b>іншого</b> телефона, де бекап уже увімкнено.</div>
+          <input id="bkRestoreId" placeholder="ключ відновлення (32 символи)" style="font-family:monospace;font-size:12px">
+          <input id="bkRestorePass" type="password" placeholder="пароль" style="margin-top:8px">
+          <button class="btn ghost sm" style="margin-top:10px" onclick="bkRestore()">⬇ Відновити</button>
+          <div class="muted" style="font-size:11px;margin-top:4px">Замінить усі дані на цьому пристрої даними з хмари.</div>
+        </div>
       </div>
       <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
     </div>
+
+    <h2>Дані</h2>
+    <div class="card">
+      <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
+      <div class="row wrap">
+        <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
+        <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
+        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
+        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
+      </div>
+      <div class="row wrap" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
+        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
+    </div>
+
 
 
   </section>
@@ -546,7 +549,8 @@ svg .bar{transition:opacity .2s}
       <select id="catParent"></select>
       <div class="muted" id="catParentHint" style="font-size:11px;margin-top:4px"></div></div>
     <div style="margin-top:10px"><label>Іконка</label>
-      <input id="catIconPreview" readonly style="width:64px;text-align:center;font-size:20px" value="📦">
+      <input id="catIconPreview" style="width:64px;text-align:center;font-size:20px" value="📦" oninput="typeIcon(this.value)">
+      <div class="muted" style="font-size:11px;margin:4px 0 6px">Обери зі списку або встав <b>будь-яке</b> емодзі сюди ↑ (клавіатура айфона → 😀).</div>
       <div class="iconpicker" id="iconGrid"></div></div>
     <div style="margin-top:10px"><label>Колір</label><div class="colorrow" id="colorRow"></div></div>
     <div style="margin-top:10px" id="catLimitWrap"><label>Місячний ліміт, ₴ (необов'язково)</label>
@@ -723,6 +727,18 @@ const EMOJI=[
   '🖲️','💽','📟','📠','🔭','🔬','🧪','🧬','💉','🩻','🦽','♿','🛗','🧴','🪒','🧼','🪮','🩱','👓','🥽','🧤','🧣','👒','🎩','💍','⌛','⏰','🔦','🪫','🔩','⚗️',
   // діяльність / події
   '🎄','🎃','🎆','🎇','🧨','🎂','🥳','💒','🕌','⛪','🏥','🏫','🏦','🏭','🏗️','🚧','⛽','🏁','🏅','🎖️','🥋','🛹','🏄','🚣','🧗','🚵','🏇','🏊','⛹️','🤸','🧘',
+  // зброя / стрільба / військове
+  '🔫','🏹','🗡️','⚔️','🛡️','🪖','💣','💥','🪃','🔪','🪓','🥷','🚀','🛰️','🪂','🎖️','🏅','🧿',
+  // гроші / доходи
+  '💰','💵','💴','💶','💷','💸','🤑','💲','🏧','💹','📈','📉','🧾','🏦','💳','🏢','📥','📤','🤝','🪙',
+  // рахунки / комуналка
+  '💡','🔌','🚿','💧','🔥','🌡️','🗑️','📄','📋','🧯','🪫',
+  // транспорт / авто
+  '🚗','🚕','🚙','🚌','🚐','🛻','🏍️','🛵','🚲','⛽','🅿️','🚦','🛞','🔧','🧰','🚨','🛣️','✈️','🚆','🚢','🛺',
+  // дім / побут
+  '🏠','🏡','🏘️','🛋️','🛏️','🚪','🪑','🪟','🧹','🧺','🔑','🪛',
+  // послуги / зв'язок / краса
+  '📶','📞','🛠️','💈','✂️','🧼',
   '📦','➕'];
 
 /* ---------- IndexedDB ---------- */
@@ -759,7 +775,7 @@ let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
-let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
@@ -917,25 +933,32 @@ function monthsForRange(){
   for(let i=count-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push(ymKey(d));}
   return arr;
 }
+// великі суми не влазять у плитку — зменшуємо шрифт під довжину числа
+function setStat(id,text){
+  const el=document.getElementById(id); if(!el) return;
+  el.textContent=text;
+  const n=text.length;
+  el.style.fontSize = n>17?'14px' : n>14?'16px' : n>12?'18px' : n>10?'20px' : '22px';
+}
 function renderDash(){
   renderCurSel(); renderRangeSel();
   document.getElementById('dynCur').textContent=CUR[dispCur]?.s||dispCur;
   let total=0; accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived).forEach(a=> total+=toBase(accBalance(a),a.currency));
-  document.getElementById('totalBal').textContent=fmtDisp(total);
+  setStat('totalBal',fmtDisp(total));
   const mk=monthKey(todayISO());
   let inc=0,exp=0;
   txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
     const acc=accById(t.account); const v=toBase(t.amount,acc?.currency||PIVOT);
     if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
-  document.getElementById('mIncome').textContent='+'+fmtDisp(inc);
-  document.getElementById('mExpense').textContent='−'+fmtDisp(exp);
+  setStat('mIncome','+'+fmtDisp(inc));
+  setStat('mExpense','−'+fmtDisp(exp));
   const P=portfolioTotals(), tile=document.getElementById('investTile');
   if(P.venues.length){ tile.classList.remove('hidden');
-    document.getElementById('invValue').textContent=fmtDisp(P.value);
+    setStat('invValue',fmtDisp(P.value));
     const gc=P.gain>=0?'var(--green)':'var(--red)';
     document.getElementById('invSub').innerHTML=`<span class="muted">вкл. ${fmtDisp(P.inv)}</span><br><span style="color:${gc}">${P.gain>=0?'+':'−'}${fmtDisp(Math.abs(P.gain))} · ${P.gainPct.toFixed(1)}%</span>`;
   }else tile.classList.add('hidden');
-  renderMonthlyChart(); renderCatChart(); renderLimits(); renderRatesCard(); renderDashOps();
+  renderMonthlyChart(); renderCatChart(); renderRatesCard(); renderDashOps();
 }
 function renderDashOps(){
   const fb=document.getElementById('dashTxFilter');
@@ -993,8 +1016,12 @@ function renderCatChart(){
     const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||PIVOT);
     map[t.category]=(map[t.category]||0)+v;});
   const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]);
-  if(!rows.length){document.getElementById('chartCats').innerHTML='<div class="empty">Немає витрат цього місяця.</div>';return;}
+  const totalEl=document.getElementById('catMonthTotal');
+  if(!rows.length){
+    if(totalEl) totalEl.textContent=fmtDisp(0);
+    document.getElementById('chartCats').innerHTML='<div class="empty">Немає витрат цього місяця.</div>';return;}
   const total=rows.reduce((s,r)=>s+r[1],0);
+  if(totalEl) totalEl.textContent=fmtDisp(total);
   const palette=['#f43f5e','#f59e0b','#3b82f6','#14b8a6','#a855f7','#84cc16','#ec4899','#06b6d4','#eab308','#64748b'];
   document.getElementById('chartCats').innerHTML=rows.map(([cid,v],i)=>{
     const c=catById(cid); const pct=(v/total*100); const color=c?.color||palette[i%palette.length];
@@ -1145,6 +1172,80 @@ function renderBudgetCard(){
     </div>
     <div class="row" style="margin-top:8px;font-size:12px;gap:8px"><span style="color:${col};white-space:nowrap">${status}</span>
       <div class="spacer"></div><span class="muted" style="font-size:10px;white-space:nowrap">риска — темп на сьогодні</span></div>
+    ${budgetRowsHtml(roots)}
+  </div>`;
+}
+/* Категорії всередині бюджету: спершу перевищені, потім «жовті» (>80% ліміту),
+   решта — лише по тапу. Якщо все в нормі — не показуємо нічого, поки не тапнеш. */
+function budgetRowsHtml(roots){
+  const rows=roots.map(c=>{ const sp=monthSpent(c.id)||0, lim=c.limit||0;
+    const p=lim?sp/lim*100:0;
+    return {c,sp,lim,p,over:sp>lim,warn:sp<=lim&&p>80}; });
+  const overs=rows.filter(r=>r.over).sort((a,b)=>b.p-a.p);
+  const warns=rows.filter(r=>r.warn).sort((a,b)=>b.p-a.p);
+  const oks  =rows.filter(r=>!r.over&&!r.warn).sort((a,b)=>b.p-a.p);
+  const row=r=>{ const cc=r.over?'var(--red)':r.warn?'var(--amber)':'var(--green)';
+    return `<div style="margin:8px 0">
+      <div class="row" style="font-size:13px;gap:6px"><span style="white-space:nowrap">${r.c.icon||'📦'} ${r.c.name}</span><div class="spacer"></div>
+        <b style="color:${cc};white-space:nowrap">${fmt(r.sp)}</b><span class="muted" style="white-space:nowrap;font-size:12px">/ ${fmt(r.lim)}</span></div>
+      <div class="limbar"><div style="width:${Math.min(100,r.p)}%;background:${cc}"></div></div>
+      ${r.over?`<div style="font-size:11px;color:var(--red);margin-top:3px">Перевищено на ${fmt(r.sp-r.lim)}</div>`:''}
+    </div>`; };
+  const sep='<div style="margin-top:12px;padding-top:4px;border-top:1px solid var(--line)"></div>';
+  let html='';
+  const alarm=overs.concat(warns);
+  if(alarm.length) html+=sep+alarm.map(row).join('');
+  if(budgetAllOpen) html+=(alarm.length?'':sep)+oks.map(row).join('');
+  if(oks.length) html+=`<div style="margin-top:${alarm.length||budgetAllOpen?'8':'12'}px">
+    <span onclick="toggleBudgetAll()" style="cursor:pointer;font-size:12px;color:var(--brand)">
+      ${budgetAllOpen?'▾ Сховати категорії в нормі':`▸ Показати всі категорії (${rows.length})`}</span></div>`;
+  return html;
+}
+/* ---- Аналіз обраної категорії за період ---- */
+let caCat='', caPeriod='month', caFrom='', caTo='';
+function setCa(k,v){ ({cat:()=>caCat=v, period:()=>caPeriod=v, from:()=>caFrom=v, to:()=>caTo=v})[k](); renderAnalytics(); }
+function caRange(){
+  const nowM=monthKey(todayISO()), d=new Date();
+  if(caPeriod==='month') return [nowM,nowM];
+  if(caPeriod==='prev'){ const p=ymKey(new Date(d.getFullYear(),d.getMonth()-1,1)); return [p,p]; }
+  if(caPeriod==='year') return [todayISO().slice(0,4)+'-01', todayISO().slice(0,4)+'-12'];
+  if(caPeriod==='custom') return [caFrom||'0000-01', caTo||'9999-12'];
+  return ['0000-01','9999-12'];   // весь час
+}
+function renderCatAnalysis(){
+  const leafs=cats.slice().sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'));
+  if(!leafs.length) return '';
+  if(!caCat||!catById(caCat)) caCat=leafs[0].id;
+  const c=catById(caCat), [from,to]=caRange();
+  const ids=descendantIds(caCat);
+  const hits=txs.filter(t=>ids.includes(t.category)&&t.type===c.type&&monthKey(t.date)>=from&&monthKey(t.date)<=to);
+  let total=0; const byM={};
+  hits.forEach(t=>{ const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0; total+=v;
+    const mk=monthKey(t.date); byM[mk]=(byM[mk]||0)+v; });
+  const months=Object.keys(byM).sort().reverse();
+  const avg=months.length?total/months.length:0;
+  const isInc=c.type==='income';
+  const opts=leafs.map(x=>`<option value="${x.id}" ${x.id===caCat?'selected':''}>${x.icon||'📦'} ${catFullName(x.id)}${x.type==='income'?' (дохід)':''}</option>`).join('');
+  const pOpt=(v,l)=>`<option value="${v}" ${caPeriod===v?'selected':''}>${l}</option>`;
+  const mx=Math.max(1,...months.map(m=>byM[m]));
+  return `<div class="card">
+    <h3 style="margin:0 0 8px">Аналіз категорії</h3>
+    <select onchange="setCa('cat',this.value)">${opts}</select>
+    <select style="margin-top:8px" onchange="setCa('period',this.value)">
+      ${pOpt('month','Цей місяць')}${pOpt('prev','Минулий місяць')}${pOpt('year','Цей рік')}${pOpt('all','Весь час')}${pOpt('custom','Свій період')}
+    </select>
+    ${caPeriod==='custom'?`<div class="grid cols2" style="margin-top:8px">
+      <div><label>З</label><input type="month" value="${caFrom}" onchange="setCa('from',this.value)"></div>
+      <div><label>По</label><input type="month" value="${caTo}" onchange="setCa('to',this.value)"></div></div>`:''}
+    <div class="row" style="margin-top:12px;align-items:baseline;gap:8px">
+      <span style="font-size:22px;font-weight:700;white-space:nowrap;color:${isInc?'var(--green)':'inherit'}">${isInc?'+':''}${fmtDisp(total)}</span>
+      <div class="spacer"></div><span class="muted" style="font-size:12px;white-space:nowrap">${hits.length} оп. · сер. ${fmtDisp(avg)}/міс</span>
+    </div>
+    ${months.length?months.map(m=>`<div style="margin:8px 0">
+      <div class="row" style="font-size:13px;gap:6px"><span style="text-transform:capitalize;white-space:nowrap">${monthLabel(m)}</span>
+        <div class="spacer"></div><b style="white-space:nowrap">${fmtDisp(byM[m])}</b></div>
+      <div class="limbar"><div style="width:${byM[m]/mx*100}%;background:${c.color||'var(--brand)'}"></div></div>
+    </div>`).join(''):'<div class="empty">Немає операцій за цей період.</div>'}
   </div>`;
 }
 /* ---- Динаміка загального балансу (гроші на рахунках; БЕЗ майна та інвестицій) ---- */
@@ -1178,10 +1279,16 @@ function renderBalanceTrend(){
   const vals=s.map(d=>d.val), cur=vals[vals.length-1], first=vals[0];
   const mx=Math.max(0,...vals), mn=Math.min(0,...vals), span=(mx-mn)||1;
   const Y=v=>6+(mx-v)/span*88, X=i=>i/(s.length-1)*100;
+  const line=(x1,y1,x2,y2,neg,tip)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${neg?'var(--red)':'var(--brand)'}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linecap="round">${tip?`<title>${tip}</title>`:''}</line>`;
   let segs='';
   for(let i=1;i<s.length;i++){
-    const c=(vals[i]<0||vals[i-1]<0)?'var(--red)':'var(--brand)';
-    segs+=`<line x1="${X(i-1)}" y1="${Y(vals[i-1])}" x2="${X(i)}" y2="${Y(vals[i])}" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linecap="round"><title>${monthLabel(s[i].mk)}: ${fmtDisp(vals[i])}</title></line>`;
+    const v0=vals[i-1], v1=vals[i], x0=X(i-1), x1=X(i), y0=Y(v0), y1=Y(v1);
+    const tip=`${monthLabel(s[i].mk)}: ${fmtDisp(v1)}`;
+    if((v0<0)!==(v1<0) && v0!==v1){          // відрізок перетинає нуль → ріжемо в точці перетину
+      const t=v0/(v0-v1);                     // 0..1 — де саме перетнули
+      const xz=x0+(x1-x0)*t, yz=Y(0);
+      segs+=line(x0,y0,xz,yz,v0<0,tip)+line(xz,yz,x1,y1,v1<0,tip);
+    } else segs+=line(x0,y0,x1,y1,(v0<0||v1<0),tip);
   }
   const pct = first!==0 ? (cur-first)/Math.abs(first)*100 : null;
   return `<div class="card">
@@ -1214,7 +1321,9 @@ function renderAnalytics(){
   if(assetsTotal!==0) byKind.property=assetsTotal;
   const kindLabels={money:'💵 Готівка й картки',venuecash:'🏦 Кеш на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
   const palette={money:'#64748b',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
-  const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='money').sort((a,b)=>b[1]-a[1]);
+  // сортуємо за сумою, але «Готівка й картки» ЗАВЖДИ йде останньою
+  const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='money')
+    .sort((a,b)=> (a[0]==='money')-(b[0]==='money') || b[1]-a[1]);
   const ktotal=kt.reduce((s,[,v])=>s+(v>0?v:0),0)||1;   // частки рахуємо лише від додатних
   const neg=kt.some(([,v])=>v<0);
   if(kt.length){
@@ -1227,6 +1336,7 @@ function renderAnalytics(){
         :neg?`<div class="muted" style="font-size:11px;margin-top:6px">Мінус означає, що по рахунку списань більше, ніж надходжень. Відкрий рахунок і тисни «⚖️ Коригувати баланс», вписавши фактичний залишок.</div>`:'')+`</div>`;
   }
   html+=renderBudgetCard();
+  html+=renderCatAnalysis();
   html+=renderBalanceTrend();
   html+=renderBondCalendar();
   html+=`<div class="card"><div class="muted" style="font-size:12px">🚧 Далі тут з'являться: кешфлоу по рахунках/майданчиках і стан кожного активу окремо.</div></div>`;
@@ -1482,6 +1592,12 @@ function toggleCur(){
   document.getElementById('curCard').classList.toggle('hidden',!curExpanded);
   document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
   if(curExpanded) renderCurrencySettings();
+}
+function toggleBudgetAll(){ budgetAllOpen=!budgetAllOpen; renderAnalytics(); }
+function toggleRestore(){
+  restoreOpen=!restoreOpen;
+  document.getElementById('restoreBox').classList.toggle('hidden',!restoreOpen);
+  document.getElementById('restoreArrow').textContent=restoreOpen?'▾':'▸';
 }
 function toggleBk(){
   bkExpanded=!bkExpanded;
@@ -1748,21 +1864,7 @@ function monthSpent(catId){
     const acc=accById(t.account); s+=toBase(t.amount,acc?.currency||PIVOT);} });
   return s;
 }
-function renderLimits(){
-  const withLim=cats.filter(c=>c.type==='expense'&&c.limit>0);
-  const card=document.getElementById('limitsCard');
-  if(!withLim.length){card.classList.add('hidden');return;}
-  card.classList.remove('hidden');
-  document.getElementById('limitsBox').innerHTML=withLim.map(c=>{
-    const sp=monthSpent(c.id), pct=Math.min(100,sp/c.limit*100), over=sp>c.limit;
-    const col=over?'var(--red)':pct>80?'var(--amber)':'var(--green)';
-    return `<div style="margin:10px 0">
-      <div class="row" style="font-size:13px"><span>${c.icon} ${c.name}</span><div class="spacer"></div>
-        <b style="color:${col}">${fmt(sp)}</b><span class="muted">&nbsp;/ ${fmt(c.limit)}</span></div>
-      <div class="limbar"><div style="width:${pct}%;background:${col}"></div></div>
-      ${over?`<div style="font-size:11px;color:var(--red);margin-top:3px">Перевищено на ${fmt(sp-c.limit)}</div>`:''}
-    </div>`;}).join('');
-}
+// (ліміти категорій переїхали в Аналітику → картка «Бюджет місяця»)
 
 /* dashboard: курси + конвертер */
 let convFrom='', convTo='', ratePickCur='EUR';
@@ -2033,6 +2135,12 @@ function switchCatTab(t){catTab=t;
   document.getElementById('catTabExp').classList.toggle('on',t==='expense');
   document.getElementById('catTabInc').classList.toggle('on',t==='income');renderCats();}
 let editingCat=null, pickedIcon='📦', pickedColor=CAT_COLORS[0];
+// дозволяємо вписати будь-яке емодзі (напр. те, якого немає в нашому списку)
+function typeIcon(v){
+  const s=[...String(v||'').trim()];        // по символах, щоб не різати емодзі навпіл
+  pickedIcon = s.length? s.slice(0,3).join('') : '📦';
+  renderIconPicker();
+}
 function renderIconPicker(){
   document.getElementById('iconGrid').innerHTML=[...new Set(EMOJI)].map(e=>
     `<button type="button" class="${e===pickedIcon?'on':''}" onclick="pickIcon('${e}')">${e}</button>`).join('');
