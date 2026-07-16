@@ -20,10 +20,14 @@
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-  -webkit-tap-highlight-color:transparent}
+  -webkit-tap-highlight-color:transparent;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%;   /* iOS не роздуває текст сам */
+  overflow-x:hidden}
 h1,h2,h3{margin:0 0 .4em}
 button{font:inherit;cursor:pointer;color:inherit}
-input,select{font:inherit;color:var(--text);background:var(--surface2);
+/* ВАЖЛИВО: 16px — iOS Safari сам зумить сторінку при фокусі в поле з меншим шрифтом
+   (і назад не повертає) → інтерфейс «вилазить за екран». 16px це вимикає. */
+input,select,textarea{font-family:inherit;font-size:16px;line-height:1.35;color:var(--text);background:var(--surface2);
   border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
 input:focus,select:focus{outline:2px solid var(--brand)}
 label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
@@ -83,8 +87,10 @@ nav.tabbar .gi{font-size:20px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
   align-items:flex-end;justify-content:center;z-index:40}
 .modal.open{display:flex}
+/* dvh враховує панель Safari, що з'являється/зникає; vh — ні (звідси зрізаний низ модалки) */
 .sheet{background:var(--surface);width:100%;max-width:520px;border-radius:18px 18px 0 0;
-  padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;max-height:92dvh;overflow:auto;
+  -webkit-overflow-scrolling:touch}
 @media(min-width:560px){.modal{align-items:center}.sheet{border-radius:18px}}
 .seg{display:flex;background:var(--surface2);border-radius:10px;padding:3px;gap:3px}
 .seg button{flex:1;border:none;background:none;padding:8px;border-radius:8px;color:var(--muted);font-weight:600}
@@ -175,13 +181,13 @@ svg .bar{transition:opacity .2s}
 .txfilter .chip{white-space:nowrap;cursor:pointer}
 .txfilter .chip.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
 .chipsel{flex:none;background:var(--surface2);border:1px solid var(--line);border-radius:999px;
-  padding:5px 11px;font-size:13px;color:var(--text);-webkit-appearance:none;appearance:none;max-width:150px}
+  padding:5px 11px;font-size:16px;color:var(--text);-webkit-appearance:none;appearance:none;max-width:170px}
 .chipsel.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
 </style>
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.34</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.36</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.34</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.36</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -360,7 +366,7 @@ svg .bar{transition:opacity .2s}
       <div id="bkOn" class="hidden">
         <div class="muted" id="bkStatus" style="font-size:12px"></div>
         <div style="margin-top:10px"><label>Твій ключ відновлення</label>
-          <input id="bkIdView" readonly style="font-family:monospace;font-size:12px"></div>
+          <input id="bkIdView" readonly style="font-family:monospace;font-size:16px;letter-spacing:.5px"></div>
         <div class="muted" style="font-size:11px;margin-top:4px">Знадобиться разом з паролем, щоб дістати дані на іншому телефоні. Збережи його.</div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
           <input type="checkbox" id="bkAuto" onchange="bkToggleAuto()"> Зберігати автоматично (через 30 сек після змін)</label>
@@ -375,7 +381,7 @@ svg .bar{transition:opacity .2s}
           <span id="restoreArrow">▸</span> У мене вже є бекап — відновити на цьому телефоні</span>
         <div id="restoreBox" class="hidden" style="margin-top:10px">
           <div class="muted" style="font-size:11px;margin-bottom:8px">Потрібні ключ відновлення й пароль з <b>іншого</b> телефона, де бекап уже увімкнено.</div>
-          <input id="bkRestoreId" placeholder="ключ відновлення (32 символи)" style="font-family:monospace;font-size:12px">
+          <input id="bkRestoreId" placeholder="ключ відновлення (32 символи)" style="font-family:monospace;font-size:16px;letter-spacing:.5px">
           <input id="bkRestorePass" type="password" placeholder="пароль" style="margin-top:8px">
           <button class="btn ghost sm" style="margin-top:10px" onclick="bkRestore()">⬇ Відновити</button>
           <div class="muted" style="font-size:11px;margin-top:4px">Замінить усі дані на цьому пристрої даними з хмари.</div>
@@ -491,6 +497,11 @@ svg .bar{transition:opacity .2s}
       <div id="accCreditWrap" style="display:none"><label>Кредитний ліміт</label>
         <input id="accCreditLimit" type="number" step="0.01" placeholder="напр. 20000"></div>
     </div>
+    <div id="accCryptoWrap" class="hidden" style="margin-top:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text)">
+        <input type="checkbox" id="accCrypto"> 🪙 Крипто-майданчик (біржа або гаманець)</label>
+      <div class="muted" style="font-size:11px;margin-top:4px">Тоді позиції тут будуть монети (ціна з CoinGecko) і ф'ючерси, а не акції/ОВДП.</div>
+    </div>
     <div style="margin-top:10px"><label>Колір картки</label><div class="colorrow" id="accColorRow"></div></div>
     <div style="margin-top:10px"><label>Іконка</label>
       <input id="accIconPreview" readonly style="width:64px;text-align:center;font-size:20px" value="💳">
@@ -586,31 +597,29 @@ svg .bar{transition:opacity .2s}
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="holdModalTitle">Позиція</h3>
       <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('holdModal')">✕</button></div>
     <div><label>Тип активу</label>
-      <select id="hKind" onchange="toggleBondFields()">
-        <option value="stock">📈 Акція</option>
-        <option value="fund">🏦 Фонд / сертифікат</option>
-        <option value="bond">📜 ОВДП / облігація</option>
-        <option value="alt">🏨 Альтернативне (нерухомість тощо)</option>
-      </select></div>
+      <select id="hKind" onchange="toggleBondFields()"></select></div>
     <div style="margin-top:10px"><label>Назва</label><input id="hName" placeholder="Напр. Apple, InZhur Нерухомість, ОВДП 2027"></div>
-    <div class="grid cols2" style="margin-top:10px">
-      <div><label>Тикер (необов'язково)</label><input id="hTicker" placeholder="AAPL"></div>
-      <div><label>Валюта</label><select id="hCur"></select></div>
+    <div id="futHide">
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label id="hTickerLabel">Тикер (необов'язково)</label><input id="hTicker" placeholder="AAPL" list="coinList"></div>
+        <div><label>Валюта</label><select id="hCur"></select></div>
+      </div>
+      <datalist id="coinList"></datalist>
+      <div id="quoteSymWrap" style="margin-top:10px"><label>Символ для авто-ціни (для не-US бірж)</label><input id="hQuoteSym" placeholder="FMP: MHPC.L, EMIM.AS · Twelve Data: MHPC:XLON"></div>
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label id="hQtyLabel">Кількість (шт / паї / облігації)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="напр. 5" oninput="recalcHolding()"></div>
+        <div></div>
+      </div>
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label>Ціна купівлі (за од.)</label><input id="hBuyPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
+        <div><label>Поточна ціна (за од.)</label><input id="hCurPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
+      </div>
     </div>
-    <div style="margin-top:10px"><label>Символ для авто-ціни (для не-US бірж)</label><input id="hQuoteSym" placeholder="FMP: MHPC.L, EMIM.AS · Twelve Data: MHPC:XLON"></div>
     <div class="grid cols2" style="margin-top:10px">
-      <div><label>Кількість (шт / паї / облігації)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="напр. 5" oninput="recalcHolding()"></div>
-      <div></div>
+      <div><label id="hInvLabel">Вкладено (усього)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+      <div><label id="hValLabel">Поточна вартість (усього)</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
     </div>
-    <div class="grid cols2" style="margin-top:10px">
-      <div><label>Ціна купівлі (за од.)</label><input id="hBuyPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
-      <div><label>Поточна ціна (за од.)</label><input id="hCurPrice" type="number" step="any" inputmode="decimal" placeholder="0.00" oninput="recalcHolding()"></div>
-    </div>
-    <div class="grid cols2" style="margin-top:10px">
-      <div><label>Вкладено (усього)</label><input id="hInvested" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
-      <div><label>Поточна вартість (усього)</label><input id="hCurValue" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
-    </div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Прибуток = вартість − вкладено. Для машини/квартири краще заведи окремий рахунок типу «Майно».</div>
+    <div class="muted" id="holdHint" style="font-size:11px;margin-top:4px">Впиши кількість і ціни — суми порахуються самі. Прибуток = вартість − вкладено. Для машини/квартири краще заведи окремий рахунок типу «Майно».</div>
     <div id="bondFields" class="hidden" style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:10px">
       <div class="muted" style="font-size:11px;margin-bottom:8px">📜 Параметри облігації — для календаря виплат</div>
       <div class="row" style="margin-bottom:8px">
@@ -636,6 +645,7 @@ svg .bar{transition:opacity .2s}
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="holdDelBtn" onclick="deleteHolding()">Видалити</button>
       <button class="btn ghost sm hidden" id="holdReinvestBtn" onclick="reinvestHolding()">↻ Реінвест</button>
+      <button class="btn ghost sm hidden" id="holdTradeBtn" onclick="futuresTrade()">📊 Угода</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveHolding()">Зберегти</button>
     </div>
@@ -776,7 +786,8 @@ let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
-let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, aiKey='', aiUsage={in:0,out:0,calls:0};
+let coinIdCache={};   // символ монети → id CoinGecko (щоб не шукати щоразу)
+let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, venueOpen={}, aiKey='', aiUsage={in:0,out:0,calls:0};
 
 async function loadAll(){
   accounts=await all('accounts'); txs=await all('tx'); cats=await all('categories'); holdings=await all('holdings');
@@ -785,6 +796,7 @@ async function loadAll(){
   fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; fmpKey=await getMeta('fmpKey')||''; proxyUrl=await getMeta('proxyUrl')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
   backupId=await getMeta('backupId')||''; backupPass=await getMeta('backupPass')||''; backupSalt=await getMeta('backupSalt')||'';
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
+  coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
   const cc=await getMeta('currencies'); if(cc){ CUR = cc.UAH ? cc : {...CUR,...cc}; }
@@ -1061,8 +1073,9 @@ function txRow(t){
 
 function setTxFilter(k){txFilter=k;txShowAll=false;renderDashOps();}
 /* ========================= INVESTMENTS ========================= */
-const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨'};
-const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне'};
+const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨',crypto:'🪙',futures:'📊'};
+const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне',crypto:'Монета',futures:'Ф\'ючерси'};
+const isCryptoVenue=vid=>!!accById(vid)?.crypto;
 const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
 const hInv=h=>h.invested||0;
 // вартість позиції: якщо ринкової ціни нема (напр. ОВДП без курсу) — беремо вкладене, щоб не було фальшивого −100%
@@ -1351,8 +1364,8 @@ function renderAnalytics(){
   // гроші — окремо картки й готівка; показуємо завжди (навіть 0 чи мінус)
   if(nCards) byKind.cards=cardsMoney;
   if(nCash)  byKind.cash=cashMoney;
-  const kindLabels={cards:'💳 Картки',cash:'💵 Готівка',venuecash:'🏦 Баланс на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно'};
-  const palette={cards:'#64748b',cash:'#10b981',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899'};
+  const kindLabels={cards:'💳 Картки',cash:'💵 Готівка',venuecash:'🏦 Баланс на майданчиках',stock:'📈 Акції',fund:'🏦 Фонди/сертифікати',bond:'📜 ОВДП',alt:'🏨 Альтернативне',property:'🏠 Майно',crypto:'🪙 Крипта',futures:'📊 Ф\'ючерси'};
+  const palette={cards:'#64748b',cash:'#10b981',venuecash:'#94a3b8',stock:'#3b82f6',fund:'#14b8a6',bond:'#f59e0b',alt:'#8b5cf6',property:'#ec4899',crypto:'#f7931a',futures:'#eab308'};
   // сортуємо за сумою, але наприкінці ЗАВЖДИ: … → 💳 Картки → 💵 Готівка (остання)
   const rank=k=> k==='cash'?2 : k==='cards'?1 : 0;
   const kt=Object.entries(byKind).filter(([k,v])=>v!==0||k==='cards'||k==='cash')
@@ -1387,7 +1400,7 @@ function renderInvest(){
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
   </div>
-  ${holdings.some(h=>h.kind==='stock'&&(h.ticker||h.quoteSym))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни акцій${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
+  ${holdings.some(h=>(h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
@@ -1410,13 +1423,17 @@ function renderInvest(){
           <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${v.id}',-1)">↑</button>
           <button class="btn ghost sm" style="padding:4px 11px" onclick="event.stopPropagation();moveAccount('${v.id}',1)">↓</button></div>`:''}
       </div>`;
-    hs.forEach(h=>{
+    // позиції ховаємо за тапом — у майданчиків їх буває багато
+    const open=!!venueOpen[v.id];
+    if(hs.length) html+=`<div style="margin:10px 0 4px"><span onclick="event.stopPropagation();toggleVenue('${v.id}')" style="cursor:pointer;font-size:12px;color:var(--brand)">
+      ${open?'▾ Сховати позиції':`▸ Позиції (${hs.length})`}</span></div>`;
+    if(open) hs.forEach(h=>{
       const hv=hVal(h),hi=hInv(h),g=hv-hi,gp=hi?g/hi*100:0;
       const priced=h.curValue>0;   // чи є ринкова ціна
       html+=`<div class="tx" onclick="openHolding('${v.id}','${h.id}')" style="cursor:pointer">
         <div class="ic">${KIND_ICON[h.kind]||'📊'}</div>
         <div class="mid"><div class="t">${h.name}${h.ticker?` · ${h.ticker}`:''}</div>
-          <div class="s">${KIND_NAME[h.kind]||''}${h.qty?` · ${h.qty} шт`:''}${!priced?' · без ціни':''}</div></div>
+          <div class="s">${KIND_NAME[h.kind]||''}${h.kind==='futures'?'' : h.qty?` · ${h.qty}${h.kind==='crypto'?'':' шт'}`:''}${(!priced&&h.kind!=='futures')?' · без ціни':''}</div></div>
         <div style="text-align:right"><div class="amt">${fmt(hv,h.currency)}</div>
           ${(hi&&priced)?`<div style="font-size:12px;color:${g>=0?'var(--green)':'var(--red)'}">${g>=0?'+':'−'}${Math.abs(gp).toFixed(1)}%</div>`:''}</div>
       </div>`;
@@ -1434,7 +1451,22 @@ function recalcHolding(){
   if(q&&!isNaN(cp)) document.getElementById('hCurValue').value=+(q*cp).toFixed(2);
 }
 function toggleBondFields(){
-  document.getElementById('bondFields').classList.toggle('hidden',document.getElementById('hKind').value!=='bond');
+  const k=document.getElementById('hKind').value;
+  document.getElementById('bondFields').classList.toggle('hidden',k!=='bond');
+  const fut=k==='futures', cry=k==='crypto';
+  // ф'ючерси: без кількості й цін — лише «заведено» та «баланс»
+  document.getElementById('futHide').classList.toggle('hidden',fut);
+  document.getElementById('hInvLabel').textContent = fut?'Заведено (усього)':'Вкладено (усього)';
+  document.getElementById('hValLabel').textContent = fut?'Баланс зараз':'Поточна вартість (усього)';
+  // монета: тикер = символ монети, «символ для авто-ціни» не потрібен
+  document.getElementById('quoteSymWrap').classList.toggle('hidden',fut||cry);
+  document.getElementById('hTickerLabel').textContent = cry?'Монета (BTC, ETH, SOL…)':'Тикер (необов\'язково)';
+  document.getElementById('hTicker').placeholder = cry?'BTC':'AAPL';
+  document.getElementById('hQtyLabel').textContent = cry?'Кількість монет':'Кількість (шт / паї / облігації)';
+  document.getElementById('holdHint').textContent = fut
+    ? 'Впиши, скільки всього завів на ф\'ючерси і скільки там зараз. Далі користуйся кнопкою «Угода» — вона змінює баланс. Прибуток = баланс − заведено.'
+    : cry ? 'Кількість може бути дробова (напр. 0.0234). Ціна — з CoinGecko за символом: підійде будь-яка монета (PEPE, FET, ARB…), у списку лише популярні.'
+    : 'Впиши кількість і ціни — суми порахуються самі. Прибуток = вартість − вкладено. Для машини/квартири краще заведи окремий рахунок типу «Майно».';
 }
 let ovdpCache=null;
 async function fetchOvdpList(){
@@ -1465,8 +1497,16 @@ function openHolding(vid,hid){
   const v=accById(vid);
   document.getElementById('holdModalTitle').textContent=hid?'Редагувати позицію':'Нова позиція';
   document.getElementById('holdDelBtn').classList.toggle('hidden',!hid);
-  document.getElementById('hKind').value=editingHold?.kind||'stock';
+  // список типів залежить від майданчика: крипто → монета/ф'ючі, звичайний → акції/фонди/ОВДП
+  const cryptoV=isCryptoVenue(vid);
+  const kinds = cryptoV
+    ? [['crypto','🪙 Монета (спот)'],['futures','📊 Ф\'ючерси'],['alt','🏨 Інше']]
+    : [['stock','📈 Акція'],['fund','🏦 Фонд / сертифікат'],['bond','📜 ОВДП / облігація'],['alt','🏨 Альтернативне (нерухомість тощо)']];
+  document.getElementById('hKind').innerHTML=kinds.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  document.getElementById('coinList').innerHTML=Object.keys(CRYPTO_IDS).map(c=>`<option value="${c}">`).join('');
+  document.getElementById('hKind').value=editingHold?.kind || (cryptoV?'crypto':'stock');
   document.getElementById('holdReinvestBtn').classList.toggle('hidden', !(hid && editingHold?.kind==='fund'));
+  document.getElementById('holdTradeBtn').classList.toggle('hidden', !(hid && editingHold?.kind==='futures'));
   document.getElementById('hName').value=editingHold?.name||'';
   document.getElementById('hTicker').value=editingHold?.ticker||'';
   document.getElementById('hQuoteSym').value=editingHold?.quoteSym||'';
@@ -1529,6 +1569,22 @@ async function reinvestHolding(){
   await put('holdings',h); await loadAll(); closeModal('holdModal'); renderInvest();
   toast('✓ Реінвест: +'+units+' серт.');
  }catch(e){ alert('Не вдалося записати реінвест:\n'+(e&&e.message||e)); }
+}
+// Ф'ючерси: не моделюємо угоди детально — просто ±результат до балансу гаманця.
+async function futuresTrade(){
+ try{
+  if(!editingHold) return;
+  const h=holdings.find(x=>x.id===editingHold.id); if(!h) return;
+  const s=prompt('Результат угоди у '+h.currency+'\n\nПрибуток: 340\nЗбиток: -120');
+  if(s===null) return;
+  const d=parseFloat(String(s).replace(',','.').replace(/\s/g,''));
+  if(!isFinite(d)||d===0){alert('Впиши число, напр. 340 або -120');return;}
+  h.curValue=+(((h.curValue||0)+d).toFixed(2));
+  const stamp=todayISO()+': '+(d>0?'+':'')+d+' '+h.currency;
+  h.note=(h.note?h.note+' | ':'')+stamp;
+  await put('holdings',h); await loadAll(); closeModal('holdModal'); renderInvest();
+  toast((d>0?'✓ Прибуток +':'✓ Збиток ')+fmt(Math.abs(d),h.currency)+' · баланс '+fmt(h.curValue,h.currency));
+ }catch(e){ alert('Не вдалося записати угоду:\n'+(e&&e.message||e)); }
 }
 async function deleteHolding(){
   if(editingHold&&confirm('Видалити позицію?')){await del('holdings',editingHold.id);await loadAll();closeModal('holdModal');renderInvest();}
@@ -1626,6 +1682,7 @@ function toggleCur(){
   document.getElementById('curArrow').textContent=curExpanded?'▾':'▸';
   if(curExpanded) renderCurrencySettings();
 }
+function toggleVenue(id){ venueOpen[id]=!venueOpen[id]; renderInvest(); }
 function toggleBudgetAll(){ budgetAllOpen=!budgetAllOpen; renderAnalytics(); }
 function toggleUnbudgeted(){ unbudgetedOpen=!unbudgetedOpen; renderAnalytics(); }
 function toggleBonds(){ bondsOpen=!bondsOpen; renderAnalytics(); }
@@ -1770,14 +1827,56 @@ async function fhPrice(sym){
   if(r.status===429) throw new Error('FH_LIMIT');
   const d=await r.json(); const p=Number(d.c); return p>0?p:null;
 }
+/* Символ монети → id CoinGecko. Спершу вбудований список (миттєво, без запиту),
+   інакше — пошук у CoinGecko (знає будь-який альт) з кешем у meta, щоб не питати щоразу.
+   Обираємо збіг по символу з найкращим ринковим рангом — це майже завжди «та сама» монета. */
+async function coinId(sym){
+  const s=String(sym||'').trim().toUpperCase();
+  if(!s) return null;
+  if(CRYPTO_IDS[s]) return CRYPTO_IDS[s];
+  if(coinIdCache[s]!==undefined) return coinIdCache[s];
+  try{
+    const d=await (await fetch('https://api.coingecko.com/api/v3/search?query='+encodeURIComponent(s))).json();
+    const exact=(d.coins||[]).filter(c=>String(c.symbol).toUpperCase()===s);
+    const pick=(exact.length?exact:(d.coins||[]))
+      .sort((a,b)=>(a.market_cap_rank??1e9)-(b.market_cap_rank??1e9))[0];
+    coinIdCache[s]=pick?pick.id:null;
+  }catch(_){ return null; }               // мережа впала — не кешуємо помилку
+  await setMeta('coinIdCache',coinIdCache);
+  return coinIdCache[s];
+}
+// Монети: одним запитом на всі (CoinGecko не любить частих окремих). Ціни в USD.
+async function updateCryptoPrices(){
+  const coins=holdings.filter(h=>h.kind==='crypto'&&h.ticker&&h.ticker.trim());
+  if(!coins.length) return {updated:0,failed:[]};
+  const map={};                            // символ → id (з кешу або пошуком)
+  for(const h of coins){ const s=h.ticker.trim().toUpperCase(); if(!(s in map)) map[s]=await coinId(s); }
+  const ids=[...new Set(Object.values(map).filter(Boolean))];
+  const failed=[]; let updated=0;
+  if(!ids.length){ coins.forEach(h=>failed.push(h.ticker+' (не знайшов на CoinGecko)')); return {updated,failed}; }
+  const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids='+ids.join(',')+'&vs_currencies=usd');
+  const d=await r.json();
+  for(const h of coins){
+    const sym=h.ticker.trim().toUpperCase(), id=map[sym];
+    const usd=id&&d[id]?Number(d[id].usd):0;
+    if(!(usd>0)){ failed.push(sym); continue; }
+    // ціна в USD → у валюту позиції (напр. позиція в USD → як є; в UAH → множимо)
+    const price = h.currency==='USD' ? usd : usd*(rates.USD||1)/(rates[h.currency]||1);
+    h.curPrice=+price.toFixed(6); h.curValue=+(price*(h.qty||0)).toFixed(2);
+    await put('holdings',h); updated++;
+  }
+  return {updated,failed};
+}
 async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
-  if(!fhKey && !tdKey && !fmpKey && !activeProxy()){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
   const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
-  if(!stocks.length){alert('Немає акцій з тикерами для оновлення');return;}
-  toast('Оновлюю ціни ('+stocks.length+')…');
+  const coins=holdings.filter(h=>h.kind==='crypto'&&h.ticker&&h.ticker.trim());
+  if(!stocks.length && !coins.length){alert('Немає акцій чи монет з тикерами для оновлення');return;}
+  if(stocks.length && !fhKey && !tdKey && !fmpKey && !activeProxy()){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
+  toast('Оновлюю ціни ('+(stocks.length+coins.length)+')…');
   let updated=0; const failed=[]; const skipped=[]; const tdErr=[]; const curWarn=[];
   try{
+    if(coins.length){ const c=await updateCryptoPrices(); updated+=c.updated; failed.push(...c.failed); }
     for(const h of stocks){
       const raw=(h.ticker||'').trim().toUpperCase();
       const suf = raw.includes('.') ? raw.split('.').pop() : '';
@@ -1957,6 +2056,20 @@ function go(tab){
 let txKind='expense', editingTx=null;
 function fillSelect(sel,items,val){sel.innerHTML=items.map(i=>`<option value="${i.id}">${i.label}</option>`).join('');if(val)sel.value=val;}
 function accOpts(extraIds=[]){return accounts.filter(a=>!a.archived||extraIds.includes(a.id)).map(a=>({id:a.id,label:`${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}`}));}
+// Список рахунків для операцій: БЕЗ майна (з квартири не платять) + згруповано, щоб не скролити.
+function accOptsHtml(extraIds=[]){
+  const ok=a=>a.type!=='asset' && (!a.archived||extraIds.includes(a.id));
+  const byOrder=(x,y)=>(x.order??1e9)-(y.order??1e9);
+  const G=[
+    ['💵 Готівка',        accounts.filter(a=>ok(a)&&a.type==='cash').sort(byOrder)],
+    ['💳 Картки й рахунки',accounts.filter(a=>ok(a)&&(a.type==='regular'||a.type==='credit')).sort(byOrder)],
+    ['📈 Майданчики',     accounts.filter(a=>ok(a)&&a.type==='invest').sort(byOrder)]
+  ];
+  return G.filter(([,arr])=>arr.length).map(([label,arr])=>
+    `<optgroup label="${label}">`+arr.map(a=>
+      `<option value="${a.id}">${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}</option>`
+    ).join('')+`</optgroup>`).join('');
+}
 
 function setTxKind(k){
   txKind=k;
@@ -1981,8 +2094,8 @@ function openTx(id){
   if(accounts.filter(a=>!a.archived).length===0){alert('Спершу додай хоча б один рахунок.');go('acc');return;}
   editingTx = id? txs.find(t=>t.id===id):null;
   const extra=editingTx?[editingTx.account,editingTx.to].filter(Boolean):[];
-  fillSelect(document.getElementById('txAccFrom'),accOpts(extra));
-  fillSelect(document.getElementById('txAccTo'),accOpts(extra));
+  document.getElementById('txAccFrom').innerHTML=accOptsHtml(extra);
+  document.getElementById('txAccTo').innerHTML=accOptsHtml(extra);
   document.getElementById('txModalTitle').textContent = id?'Редагувати':'Нова операція';
   document.getElementById('txDelBtn').classList.toggle('hidden',!id);
   if(editingTx){
@@ -2049,6 +2162,7 @@ function pickAccIcon(e){pickedAccIcon=e;document.getElementById('accIconPreview'
 function toggleCreditWrap(){
   const t=document.getElementById('accType').value;
   document.getElementById('accCreditWrap').style.display= t==='credit'?'':'none';
+  document.getElementById('accCryptoWrap').classList.toggle('hidden', t!=='invest');
   const isAsset=t==='asset';
   document.getElementById('accBalLabel').textContent= isAsset?'Оцінна вартість':'Стартовий баланс';
   document.getElementById('accBalHint').textContent= isAsset
@@ -2073,6 +2187,7 @@ function openAccount(id){
   document.getElementById('accBalance').value=editingAcc?editingAcc.balance:'';
   document.getElementById('accType').value=editingAcc?.type||'regular';
   document.getElementById('accCreditLimit').value=editingAcc?.creditLimit||'';
+  document.getElementById('accCrypto').checked=!!editingAcc?.crypto;
   pickedAccColor=editingAcc?.color||CAT_COLORS[7];
   pickedAccIcon=editingAcc?.icon||'💳';
   document.getElementById('accIconPreview').value=pickedAccIcon;
@@ -2147,6 +2262,7 @@ async function saveAccount(){
     icon:pickedAccIcon,type,color:pickedAccColor,
     order: editingAcc? editingAcc.order : (accounts.reduce((m,a)=>Math.max(m,a.order??-1),-1)+1)};
   if(type==='credit'){const cl=parseFloat(document.getElementById('accCreditLimit').value);if(cl>0)rec.creditLimit=cl;}
+  if(type==='invest' && document.getElementById('accCrypto').checked) rec.crypto=true;
   await put('accounts',rec);await loadAll();closeModal('accModal');renderAccounts();
 }
 async function toggleArchiveAccount(){
@@ -2437,7 +2553,7 @@ async function onMonoFile(ev){
   window._monoRows=parsed;
   const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
   const sel=document.getElementById('monoAccount');
-  sel.innerHTML=accs.map(a=>`<option value="${a.id}">${a.name} (${a.currency})</option>`).join('');
+  sel.innerHTML=accOptsHtml();
   const uah=accs.find(a=>a.currency==='UAH'); if(uah) sel.value=uah.id;
   const dates=parsed.map(p=>p.date).sort();
   document.getElementById('monoInfo').textContent='Знайдено операцій: '+parsed.length+' (з '+dates[0]+' по '+dates[dates.length-1]+').';
@@ -2650,7 +2766,7 @@ function updateReceiptTotal(){
 function openReceiptPreview(j){
   receiptData=j;
   document.getElementById('receiptInfo').textContent=(j.merchant||'Чек')+(j.currency?(' · '+j.currency):'');
-  fillSelect(document.getElementById('receiptAcc'),accOpts());
+  document.getElementById('receiptAcc').innerHTML=accOptsHtml();
   document.getElementById('receiptDate').value=(j.date&&/^\d{4}-\d{2}-\d{2}$/.test(j.date))?j.date:todayISO();
   document.getElementById('receiptGroups').innerHTML=j.groups.map((g,i)=>{
     const c=catById(g.categoryId);
