@@ -181,7 +181,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.33</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.34</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -192,7 +192,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.33</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.34</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1118,6 +1118,10 @@ function renderBondCalendar(){
     bars+=`<rect x="${i*W+W*0.15}%" y="${(94-h)}%" width="${W*0.7}%" height="${h}%" rx="1" fill="var(--green)"><title>${monthLabel(d.mk)}: ${fmtDisp(d.val)}</title></rect>`;});
   const chart=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:90px;display:block;margin-top:8px">${bars}</svg>
     <div style="display:flex;margin-top:3px">${mData.map((d,i)=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--muted)">${i%2?'':d.mk.slice(5)}</div>`).join('')}</div>`;
+  // рядок однієї виплати
+  const payRow=p=>`<div class="tx"><div class="ic">${p.kind==='redeem'?'💰':'🎟️'}</div>
+    <div class="mid"><div class="t">${p.name}</div><div class="s">${p.date} · ${p.kind==='redeem'?'погашення тіла':'купон'}</div></div>
+    <span class="amt pos">+${fmt(p.amount,p.currency)}</span></div>`;
   // список по місяцях
   const byMonth={}; pays.forEach(p=>{(byMonth[p.date.slice(0,7)]=byMonth[p.date.slice(0,7)]||[]).push(p);});
   let list=''; Object.keys(byMonth).sort().slice(0,18).forEach(mk=>{
@@ -1135,9 +1139,9 @@ function renderBondCalendar(){
     <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">За 12 місяців</span><div class="spacer"></div><b>${fmtDisp(sum12)}</b></div>
     <div class="row" style="font-size:13px;margin-top:2px"><span class="muted">Усього попереду (купони+тіло)</span><div class="spacer"></div><b>${fmtDisp(total)}</b></div>
     ${chart}
-    <div style="margin-top:10px"><span onclick="toggleBonds()" style="cursor:pointer;font-size:12px;color:var(--brand)">
-      ${bondsOpen?'▾ Сховати список виплат':`▸ Показати всі виплати (${pays.length})`}</span></div>
-    ${bondsOpen?list:''}
+    ${bondsOpen?list:payRow(next)}
+    ${pays.length>1?`<div style="margin-top:10px"><span onclick="toggleBonds()" style="cursor:pointer;font-size:12px;color:var(--brand)">
+      ${bondsOpen?'▾ Сховати список виплат':`▸ Показати решту виплат (${pays.length-1})`}</span></div>`:''}
   </div>`;
 }
 /* ---- Бюджет місяця (будується з місячних лімітів категорій) ---- */
@@ -1176,10 +1180,9 @@ function renderBudgetCard(){
   return `<div class="card">
     <h3 style="margin:0 0 10px">Бюджет</h3>
     <div class="row" style="align-items:baseline;gap:8px">
-      <div style="white-space:nowrap;min-width:0"><span style="font-size:22px;font-weight:700;color:${over?'var(--red)':'inherit'}">${fmt(Math.abs(left))}</span>
-        <span class="muted" style="font-size:12px">&nbsp;${left>=0?'доступно':'перевитрата'}</span></div>
+      <span style="font-size:22px;font-weight:700;white-space:nowrap;color:${over?'var(--red)':'inherit'}">${fmt(spent)}</span>
       <div class="spacer"></div>
-      <span class="muted" style="font-size:12px;white-space:nowrap">${fmt(spent)} / ${fmt(budget)}</span>
+      <span class="muted" style="font-size:12px;white-space:nowrap">${left>=0?'доступно':'перевитрата'} ${fmt(Math.abs(left))} / ${fmt(budget)}</span>
     </div>
     <div style="position:relative;height:10px;background:var(--surface2);border-radius:6px;margin-top:8px">
       <div style="width:${pct}%;height:100%;background:${col};border-radius:6px"></div>
