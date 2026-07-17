@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.43</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.44</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.43</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.44</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -366,7 +366,10 @@ svg .bar{transition:opacity .2s}
       <div id="bkOn" class="hidden">
         <div class="muted" id="bkStatus" style="font-size:12px"></div>
         <div style="margin-top:10px"><label>Твій ключ відновлення</label>
-          <input id="bkIdView" readonly style="font-family:monospace;font-size:16px;letter-spacing:.5px"></div>
+          <div class="row">
+            <input id="bkIdView" readonly onclick="this.select()" style="font-family:monospace;font-size:16px;letter-spacing:.5px">
+            <button class="btn sm" onclick="bkCopyId()">📋</button>
+          </div></div>
         <div class="muted" style="font-size:11px;margin-top:4px">Знадобиться разом з паролем, щоб дістати дані на іншому телефоні. Збережи його.</div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
           <input type="checkbox" id="bkAuto" onchange="bkToggleAuto()"> Зберігати автоматично (через 30 сек після змін)</label>
@@ -1790,6 +1793,11 @@ function toggleBk(){
   document.getElementById('bkCard').classList.toggle('hidden',!bkExpanded);
   document.getElementById('bkArrow').textContent=bkExpanded?'▾':'▸';
   if(bkExpanded) renderBkSettings();
+}
+async function bkCopyId(){
+  if(!backupId) return;
+  try{ await navigator.clipboard.writeText(backupId); toast('✓ Ключ скопійовано — встав у нотатки'); }
+  catch(_){ prompt('Скопіюй ключ вручну (Виділити все → Копіювати):', backupId); }   // старі iOS без clipboard API
 }
 function renderBkSettings(){
   const on=!!(backupId&&backupPass);
