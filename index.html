@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.44</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.45</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.44</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.45</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -393,20 +393,24 @@ svg .bar{transition:opacity .2s}
       <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
     </div>
 
-    <h2>Дані</h2>
-    <div class="card">
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleDataSec()">Дані <span id="dataArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="dataCard">
       <p class="muted" style="margin-top:0">Дані зберігаються лише на цьому пристрої. Роби експорт, щоб перенести на інший або зробити резервну копію.</p>
       <div class="row wrap">
         <button class="btn ghost sm" onclick="exportData()">⬇ Експорт (.json)</button>
         <button class="btn ghost sm" onclick="document.getElementById('importFile').click()">⬆ Імпорт</button>
         <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)">
-        <button class="btn danger sm" onclick="wipeData()">Стерти все</button>
       </div>
-      <div class="row wrap" style="margin-top:10px">
-        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Імпорт виписки Монобанк (.csv)</button>
+      <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
+      <label>Імпорт виписки з банку</label>
+      <div class="row wrap" style="margin-top:6px">
+        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Монобанк (.csv)</button>
         <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
       </div>
       <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
+      <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
+      <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
+      <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
     </div>
 
 
@@ -1787,6 +1791,12 @@ function toggleRestore(){
   restoreOpen=!restoreOpen;
   document.getElementById('restoreBox').classList.toggle('hidden',!restoreOpen);
   document.getElementById('restoreArrow').textContent=restoreOpen?'▾':'▸';
+}
+let dataSecOpen=false;
+function toggleDataSec(){
+  dataSecOpen=!dataSecOpen;
+  document.getElementById('dataCard').classList.toggle('hidden',!dataSecOpen);
+  document.getElementById('dataArrow').textContent=dataSecOpen?'▾':'▸';
 }
 function toggleBk(){
   bkExpanded=!bkExpanded;
