@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.37</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.39</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.37</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.39</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -823,7 +823,7 @@ async function seed(){
   add('Відсотки','🏦','#3b82f6',null,'income'); add('Подарунок','🎁','#ec4899',null,'income');
   add('Інше','➕','#64748b',null,'income');
   for(const c of C) await put('categories',c);
-  await put('accounts',{id:uid(),name:'Готівка',currency:'UAH',balance:0,icon:'💵'});
+  await put('accounts',{id:uid(),name:'Готівка',currency:'UAH',balance:0,icon:'💵',type:'cash',order:0});
 }
 
 /* ---------- conversion ---------- */
@@ -2125,15 +2125,19 @@ function accOpts(extraIds=[]){return accounts.filter(a=>!a.archived||extraIds.in
 function accOptsHtml(extraIds=[],selId=''){
   const ok=a=>a.type!=='asset' && (!a.archived||extraIds.includes(a.id));
   const byOrder=(x,y)=>(x.order??1e9)-(y.order??1e9);
+  const pool=accounts.filter(ok);
+  const grp=a=> a.type==='cash'?0 : a.type==='invest'?2 : 1;   // без типу / невідомий → «Картки й рахунки»
   const G=[
-    ['💵 Готівка',        accounts.filter(a=>ok(a)&&a.type==='cash').sort(byOrder)],
-    ['💳 Картки й рахунки',accounts.filter(a=>ok(a)&&(a.type==='regular'||a.type==='credit')).sort(byOrder)],
-    ['📈 Майданчики',     accounts.filter(a=>ok(a)&&a.type==='invest').sort(byOrder)]
+    ['💵 Готівка',         pool.filter(a=>grp(a)===0).sort(byOrder)],
+    ['💳 Картки й рахунки',pool.filter(a=>grp(a)===1).sort(byOrder)],
+    ['📈 Майданчики',      pool.filter(a=>grp(a)===2).sort(byOrder)]
   ];
-  return G.filter(([,arr])=>arr.length).map(([label,arr])=>
+  const html=G.filter(([,arr])=>arr.length).map(([label,arr])=>
     `<optgroup label="${label}">`+arr.map(a=>
       `<option value="${a.id}" ${a.id===selId?'selected':''}>${a.icon||''} ${a.name} (${a.currency})${a.archived?' — закритий':''}</option>`
     ).join('')+`</optgroup>`).join('');
+  // страховка: якщо групування чомусь усе відсіяло — краще плоский список, ніж порожньо
+  return html || pool.map(a=>`<option value="${a.id}" ${a.id===selId?'selected':''}>${a.icon||''} ${a.name} (${a.currency})</option>`).join('');
 }
 
 function setTxKind(k){
@@ -2468,7 +2472,7 @@ async function importData(ev){
   for(const c of data.categories||[])await put('categories',c);
   for(const h of data.holdings||[])await put('holdings',h);
   if(data.rates)await setMeta('rates',data.rates);
-  await loadAll();await normalizeOrder();go('dash');alert('Готово! Дані імпортовано.');
+  await loadAll();await migrateAccountTypes();await normalizeOrder();go('dash');alert('Готово! Дані імпортовано.');
 }
 async function wipeData(){
   if(!confirm('Стерти ВСІ дані без відновлення?'))return;
@@ -2572,7 +2576,7 @@ async function applyBackupData(data){
   for(const c of data.categories||[])await put('categories',c);
   for(const h of data.holdings||[])await put('holdings',h);
   if(data.rates)await setMeta('rates',data.rates);
-  await loadAll(); await normalizeOrder();
+  await loadAll(); await migrateAccountTypes(); await normalizeOrder();
 }
 
 /* ========================= ІМПОРТ МОНОБАНК (CSV) ========================= */
@@ -2650,13 +2654,26 @@ async function runMonoImport(){
       if(!aiKey){ alert('Для AI-розкладки встав ключ Anthropic у «Ще». Або обери «без категорій».'); btn.disabled=false; return; }
       btn.textContent='AI думає…'; catOf=await aiCategorizeMono(rows);
     }
-    const sig=t=>t.account+'|'+t.date+'|'+t.type+'|'+Number(t.amount).toFixed(2)+'|'+(t.note||'');
-    const existing=new Set(txs.filter(t=>t.account===acc).map(sig));
+    /* Дедуплікація за impKey — стабільним ключем самої операції з виписки.
+       Монобанк дає ТОЧНИЙ ЧАС (до секунди) — це і робить рядок унікальним.
+       Раніше ключ був account|дата|сума|опис і мав три вади:
+        1) дві однакові операції за день (кава вранці й ввечері) → одну З'ЇДАЛО;
+        2) відредагував опис → повторний імпорт додавав дубль;
+        3) імпорт у інший рахунок → дублі, бо ключ був прив'язаний до рахунку.
+       impKey не залежить ні від рахунку, ні від того, що юзер потім поправив. */
+    const impKey=r=>'mono:'+r.createdAt+':'+Number(r.amount).toFixed(2)+':'+r.type;
+    const seen=new Set(txs.map(t=>t.impKey).filter(Boolean));
+    // старі імпорти (до impKey) — підстрахуємось давнім ключем, щоб не задублювати їх
+    const legacy=new Set(txs.filter(t=>t.account===acc&&!t.impKey)
+      .map(t=>t.date+'|'+t.type+'|'+Number(t.amount).toFixed(2)+'|'+(t.note||'')));
     let added=0, dup=0;
     for(const r of rows){
-      const rec={id:uid(),type:r.type,amount:r.amount,date:r.date,account:acc,category:(mode==='ai'?catOf(r):''),note:r.note,createdAt:r.createdAt};
-      if(existing.has(sig(rec))){ dup++; continue; }
-      existing.add(sig(rec)); await put('tx',rec); added++;
+      const k=impKey(r);
+      if(seen.has(k) || legacy.has(r.date+'|'+r.type+'|'+Number(r.amount).toFixed(2)+'|'+(r.note||''))){ dup++; continue; }
+      seen.add(k);
+      await put('tx',{id:uid(),type:r.type,amount:r.amount,date:r.date,account:acc,
+        category:(mode==='ai'?catOf(r):''),note:r.note,createdAt:r.createdAt,impKey:k});
+      added++;
     }
     await loadAll(); closeModal('monoModal'); go('dash');
     alert('Готово! Додано: '+added+(dup?('. Пропущено дублів: '+dup):'.'));
@@ -2868,6 +2885,17 @@ function voiceFill(p){
   toast('Розпізнав: '+(p.amount?fmt(p.amount):'сума?')+' · '+(p.catId?catFullName(p.catId):'категорія?')+'. Перевір і збережи.');
 }
 
+/* Самолікування: у частини рахунків могло не бути поля type — стартова «Готівка»
+   створювалась без нього. Після переходу на згрупований список такий рахунок
+   не потрапляв у жодну групу і зникав з операцій («No Options»).
+   Перевіряємо ЩОРАЗУ (це дешево) — щоб полагодилось саме, без дій користувача. */
+async function migrateAccountTypes(){
+  const looksCash=a=>/готівк|готiвк|cash|наличн/i.test(a.name||'')||['💰','💵','💴','💶','💷','🤑'].includes(a.icon);
+  let n=0;
+  for(const a of accounts) if(!a.type){ a.type=looksCash(a)?'cash':'regular'; await put('accounts',a); n++; }
+  if(n) await loadAll();
+  return n;
+}
 /* Разова міграція: відділяємо готівку від карток (тип 'cash').
    Спрацьовує один раз; тип потім можна змінити вручну в картці рахунку. */
 async function migrateCash(){
@@ -2880,7 +2908,7 @@ async function migrateCash(){
 }
 /* ========================= BOOT ========================= */
 (async function(){
-  await openDB(); await seed(); await loadAll(); await migrateCash(); await normalizeOrder();
+  await openDB(); await seed(); await loadAll(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   updateNet(); go('dash');
 })();
