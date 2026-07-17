@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.47</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.49</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.47</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.49</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -307,8 +307,41 @@ svg .bar{transition:opacity .2s}
     <div id="analyticsBody"></div>
   </section>
 
+  <!-- ============ AI-РАДНИК ============ -->
+  <section id="view-ai" class="view hidden">
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn ghost sm" onclick="go('set')">‹ Назад</button>
+      <h2 style="margin:0">🔮 AI — крок у майбутнє</h2>
+    </div>
+    <div class="card" style="border-left:4px solid var(--red)">
+      <b>⚠️ Важливо.</b> <span class="muted" style="font-size:13px">АІ-помічник не дає гарантованих фінансових рекомендацій. Усі рішення ви приймаєте на власний страх і ризик!</span>
+    </div>
+    <div class="card">
+      <label>Твоя мета (своїми словами)</label>
+      <textarea id="aiGoal" rows="3" style="width:100%;resize:vertical" placeholder="Напр.: хочу через 20 років отримувати $1000/міс пасивного доходу. Або: зібрати $27 000 на авто — за скільки встигну?"></textarea>
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label>Горизонт</label>
+          <select id="aiHorizon">
+            <option value="1">1 рік</option><option value="2">2 роки</option>
+            <option value="5" selected>5 років</option><option value="10">10 років</option>
+            <option value="20">20 років</option>
+          </select></div>
+        <div><label>Профіль ризику</label>
+          <select id="aiRisk">
+            <option value="conservative" selected>🛡 Обережний — поступове зростання</option>
+            <option value="balanced">⚖️ Збалансований</option>
+            <option value="aggressive">🔥 Ризикований — вищі ставки</option>
+          </select></div>
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px" id="aiGoBtn" onclick="runAdvisor()">🔮 Зробити прогноз</button>
+      <div class="muted" style="font-size:11px;margin-top:6px">Радник бачить твій портфель, рахунки й кешфлоу, гуглить свіжі курси/дохідності (НБУ, ОВДП, ринки) і рахує сценарії. Один запит ≈ $0.05–0.15 з твого AI-ключа.</div>
+    </div>
+    <div id="aiAdviceBox"></div>
+  </section>
+
   <!-- ============ SETTINGS ============ -->
   <section id="view-set" class="view hidden">
+    <h2 style="cursor:pointer;user-select:none" onclick="go('ai')">🔮 AI — крок у майбутнє <span style="font-size:20px;color:var(--muted)">›</span></h2>
     <h2 style="cursor:pointer;user-select:none" onclick="toggleCur()">Валюта <span id="curArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="curCard">
       <label>Основна валюта застосунку</label>
@@ -2189,13 +2222,14 @@ function go(tab){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  const hideFab = tab==='set'||tab==='invest'||tab==='analytics';
+  const hideFab = tab==='set'||tab==='invest'||tab==='analytics'||tab==='ai';
   document.getElementById('fab').classList.toggle('hidden', hideFab);
   closeFabMenu();
   if(tab==='dash')renderDash();
   if(tab==='acc')renderAccounts(); if(tab==='set'){renderSettings();renderCurrencySettings();if(catsExpanded)renderCats();}
   if(tab==='invest')renderInvest();
   if(tab==='analytics')renderAnalytics();
+  if(tab==='ai')renderAdvisor();
   window.scrollTo(0,0);
 }
 /* Свайп між вкладками (як у нативних застосунках).
@@ -2988,8 +3022,101 @@ async function aiCall(messages,{maxTokens=1024}={}){
   }
   return (d.content||[]).map(c=>c.text||'').join('');
 }
-// Haiku 4.5: $1 / 1M вх., $5 / 1M вих. токенів
-function aiCostUSD(){ return (aiUsage.in/1e6)*1 + (aiUsage.out/1e6)*5; }
+// Haiku 4.5: $1 / 1M вх., $5 / 1M вих. токенів; веб-пошук: $10 / 1000 запитів
+function aiCostUSD(){ return (aiUsage.in/1e6)*1 + (aiUsage.out/1e6)*5 + ((aiUsage.search||0)/1000)*10; }
+
+/* ===== 🔮 AI-радник: портфель + кешфлоу + свіжі дані з інтернету → прогноз ===== */
+function aiSnapshot(){
+  const acc=accounts.filter(a=>!a.archived).map(a=>({name:a.name,type:a.type,currency:a.currency,balance:+accBalance(a).toFixed(2)}));
+  const hold=holdings.filter(h=>{const v=accById(h.venue);return v&&!v.archived;}).map(h=>({venue:accById(h.venue)?.name,kind:h.kind,name:h.name,ticker:h.ticker||undefined,qty:h.qty||undefined,currency:h.currency,invested:h.invested,curValue:hVal(h),
+    ...(h.kind==='bond'?{couponRate:h.couponRate,maturity:h.maturityDate}:{})}));
+  // кешфлоу за 12 місяців: доходи по джерелах. Рік, а не півроку — щоб покрити повний цикл
+  // «контракт у морі / берег без зарплатні», інакше радник бачив би лише вдалу половину.
+  const byM={};
+  txs.forEach(t=>{
+    const mk=monthKey(t.date); if(!mk) return;
+    const m=byM[mk]=byM[mk]||{income:{},expense:0};
+    const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
+    if(t.type==='income'){ const c=catById(t.category)?.name||'інше'; m.income[c]=+((m.income[c]||0)+v).toFixed(0); }
+    else if(t.type==='expense') m.expense=+(m.expense+v).toFixed(0);
+  });
+  const months=Object.keys(byM).sort().slice(-12);
+  const cashflow={}; months.forEach(mk=>cashflow[mk]=byM[mk]);
+  const used=[...new Set(acc.map(a=>a.currency).concat(hold.map(h=>h.currency)))];
+  const rt={}; used.forEach(c=>{ if(rates[c]) rt[c]=rates[c]; });
+  return {date:todayISO(), baseCurrency:baseCur, ratesToUAH:rt, accounts:acc, investments:hold, cashflow12m:cashflow};
+}
+const RISK_TXT={conservative:'обережний — головне поступове стабільне зростання, без спекуляцій',
+  balanced:'збалансований — помірний ризик заради кращої дохідності',
+  aggressive:'готовий до ризику — цікавлять і агресивніші ідеї, свідомий можливих втрат'};
+async function runAdvisor(){
+  if(!aiKey){ alert('Для радника потрібен AI-ключ Anthropic — встав його у «Ще → AI-помічник».'); go('set'); return; }
+  if(!navigator.onLine){ alert('Радник гуглить свіжі дані — потрібен інтернет.'); return; }
+  const goal=document.getElementById('aiGoal').value.trim();
+  const horizon=document.getElementById('aiHorizon').value, risk=document.getElementById('aiRisk').value;
+  const btn=document.getElementById('aiGoBtn'); btn.disabled=true; btn.textContent='🔮 Думаю… (до хвилини)';
+  document.getElementById('aiAdviceBox').innerHTML='<div class="card"><div class="muted">Аналізую портфель, гуглю свіжі курси й дохідності…</div></div>';
+  try{
+    const prompt=`Ти — обережний персональний фінансовий радник. Відповідай УКРАЇНСЬКОЮ, стисло, з конкретними цифрами.
+Профіль ризику користувача: ${RISK_TXT[risk]}.
+Горизонт планування: ${horizon} р. ${goal?('Мета користувача: «'+goal+'»'):'Окремої мети немає — зроби загальний план зростання капіталу.'}
+
+Скористайся веб-пошуком (українською та англійською) щоб дізнатись АКТУАЛЬНІ: дохідність ОВДП і депозитів в Україні, курс і прогноз USD/UAH, інфляцію в Україні, стан ринків США/ЄС і згадані у портфелі активи. Не вигадуй цифр — бери зі снапшота або з пошуку, вказуй що звідки.
+
+Дай відповідь за структурою (заголовки ##):
+## Оцінка портфеля — сильні/слабкі місця, концентрації, валютні ризики
+## Кешфлоу — скільки в середньому заробляється/витрачається, скільки реально відкладати. УВАЖНО: доходи можуть бути циклічними (напр., морський контракт — кілька місяців зарплатня йде, потім місяці на березі без неї, і витрати в ці періоди різні). Середнє рахуй за ВЕСЬ рік даних, не екстраполюй останні місяці
+## Прогноз капіталу — 3 сценарії (обережний/базовий/оптимістичний) на ${horizon} р., з припущеннями щодо дохідності
+## Мета — чи досяжна, скільки відкладати щомісяця і в які інструменти (якщо мета є)
+## Кроки — 3-5 конкретних дій: що докупити/продати/змінити, відповідно до профілю ризику
+
+Фінансовий знімок користувача (суми в ${baseCur}, курси до UAH додано):
+${JSON.stringify(aiSnapshot())}`;
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:4000,
+        tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}],
+        messages:[{role:'user',content:prompt}]})});
+    if(r.status===401) throw new Error('невірний AI-ключ');
+    const d=await r.json();
+    if(d.error){ const m=d.error.message||'AI помилка';
+      if(/credit balance|insufficient|too low/i.test(m)) throw new Error('Закінчились кошти на API-ключі. Поповни на console.anthropic.com.');
+      throw new Error(m); }
+    if(d.usage){ aiUsage.in+=d.usage.input_tokens||0; aiUsage.out+=d.usage.output_tokens||0; aiUsage.calls+=1;
+      aiUsage.search=(aiUsage.search||0)+(d.usage.server_tool_use?.web_search_requests||0);
+      setMeta('aiUsage',aiUsage); }
+    const text=(d.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
+    if(!text.trim()) throw new Error('порожня відповідь — спробуй ще раз');
+    const advice={at:Date.now(),goal,horizon,risk,text};
+    await setMeta('aiAdvice',advice);
+    renderAdvisor(advice);
+  }catch(e){
+    document.getElementById('aiAdviceBox').innerHTML='<div class="card" style="border-left:4px solid var(--red)">Не вийшло: '+(e&&e.message||e)+'</div>';
+  }finally{ btn.disabled=false; btn.textContent='🔮 Зробити прогноз'; }
+}
+// markdown-лайт: ## заголовки, **жирний**, - списки
+function mdLite(s){
+  const esc=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc(s).split('\n').map(l=>{
+    l=l.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+    if(/^##+\s/.test(l)) return '<h3 style="margin:14px 0 6px">'+l.replace(/^##+\s*/,'')+'</h3>';
+    if(/^[-•]\s/.test(l)) return '<div style="margin:3px 0 3px 8px">• '+l.replace(/^[-•]\s*/,'')+'</div>';
+    return l?('<div style="margin:3px 0">'+l+'</div>'):'';
+  }).join('');
+}
+async function renderAdvisor(advice){
+  const box=document.getElementById('aiAdviceBox'); if(!box) return;
+  const a=advice||await getMeta('aiAdvice');
+  if(!a){ box.innerHTML=''; return; }
+  document.getElementById('aiGoal').value=a.goal||'';
+  document.getElementById('aiHorizon').value=a.horizon||'5';
+  document.getElementById('aiRisk').value=a.risk||'conservative';
+  box.innerHTML=`<div class="card"><div class="row" style="margin-bottom:6px">
+      <h3 style="margin:0">Прогноз</h3><div class="spacer"></div>
+      <span class="muted" style="font-size:11px">${new Date(a.at).toLocaleString('uk-UA')}</span></div>
+    <div style="font-size:14px;line-height:1.5">${mdLite(a.text)}</div>
+    <div class="muted" style="font-size:11px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px">⚠️ Це не гарантована рекомендація. Рішення — на власний страх і ризик.</div></div>`;
+}
 function extractJSON(s){const m=s&&s.match(/\{[\s\S]*\}/);return m?JSON.parse(m[0]):null;}
 async function aiParseVoice(text){
   const cs=cats.filter(c=>kids(c.id).length===0).map(c=>({id:c.id,name:catFullName(c.id),type:c.type}));
