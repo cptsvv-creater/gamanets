@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.40</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.42</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.40</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.42</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -774,7 +774,10 @@ const tx=(store,mode='readonly')=>db.transaction(store,mode).objectStore(store);
 const all=store=>new Promise((res)=>{const out=[];tx(store).openCursor().onsuccess=e=>{const c=e.target.result;if(c){out.push(c.value);c.continue();}else res(out);};});
 // автобекап чіпляємо лише до даних; 'meta' ігноруємо (там ключі/налаштування — інакше зациклиться)
 const DATA_STORES=['accounts','tx','categories','holdings'];
-const touched=store=>{ if(DATA_STORES.includes(store) && typeof scheduleBackup==='function') scheduleBackup(); };
+let _restoring=false;   // під час відновлення/імпорту не рахуємо записи за «локальні зміни» і не плануємо бекап
+const touched=store=>{ if(_restoring||!DATA_STORES.includes(store)) return;
+  lastChangeAt=Date.now(); setMeta('lastChangeAt',lastChangeAt);
+  if(typeof scheduleBackup==='function') scheduleBackup(); };
 const put=(store,val)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).put(val);r.onsuccess=()=>{touched(store);res(r.result);};t.onerror=()=>rej(t.error||r.error);t.onabort=()=>rej(t.error||new Error('запис перервано (можливо, немає місця у сховищі)'));});
 const del=(store,id)=>new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');const r=t.objectStore(store).delete(id);r.onsuccess=()=>{touched(store);res();};t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||new Error('видалення перервано'));});
 const getMeta=k=>new Promise(res=>{tx('meta').get(k).onsuccess=e=>res(e.target.result?.v);});
@@ -786,6 +789,7 @@ let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
+let lastChangeAt=0, lastCloudVer='', syncDismissedVer='';   // синхронізація: остання локальна зміна / остання відома версія у хмарі
 let coinIdCache={};   // символ монети → id CoinGecko (щоб не шукати щоразу)
 let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, venueOpen={}, aiKey='', aiUsage={in:0,out:0,calls:0};
 
@@ -796,6 +800,7 @@ async function loadAll(){
   fhKey=await getMeta('fhKey')||''; tdKey=await getMeta('tdKey')||''; fmpKey=await getMeta('fmpKey')||''; proxyUrl=await getMeta('proxyUrl')||''; pricesUpdatedAt=await getMeta('pricesUpdated')||0; aiKey=await getMeta('aiKey')||''; aiUsage=await getMeta('aiUsage')||{in:0,out:0,calls:0};
   backupId=await getMeta('backupId')||''; backupPass=await getMeta('backupPass')||''; backupSalt=await getMeta('backupSalt')||'';
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
+  lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
   coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
@@ -1242,8 +1247,20 @@ function budgetRowsHtml(roots){
   return html;
 }
 /* ---- Кешфлоу: скільки зайшло і вийшло по обраному рахунку за період ---- */
-let aaAcc='', aaPeriod='month', aaFrom='', aaTo='';
-function setAa(k,v){ ({acc:()=>aaAcc=v, period:()=>aaPeriod=v, from:()=>aaFrom=v, to:()=>aaTo=v})[k](); renderAnalytics(); }
+let aaAcc='', aaPeriod='month', aaFrom='', aaTo='', aaOps=false;
+function setAa(k,v){ ({acc:()=>{aaAcc=v;aaOps=false;}, period:()=>aaPeriod=v, from:()=>aaFrom=v, to:()=>aaTo=v})[k](); renderAnalytics(); }
+function toggleAaOps(){ aaOps=!aaOps; renderAnalytics(); }
+/* список операцій під «Детальніше» — спільний для аналізу рахунків і категорій */
+function opsListHtml(hits,open,toggleFn){
+  const btn=`<div style="margin-top:10px;text-align:center"><span class="muted" style="font-size:13px;cursor:pointer" onclick="${toggleFn}()">${open?'▾ Сховати операції':`▸ Детальніше (${hits.length} оп.)`}</span></div>`;
+  if(!open||!hits.length) return hits.length?btn:'';
+  const sorted=hits.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||((b.createdAt||0)-(a.createdAt||0)));
+  const CAP=60, extra=sorted.length-CAP;
+  return btn+`<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:4px">`
+    +sorted.slice(0,CAP).map(txRow).join('')
+    +(extra>0?`<div class="muted" style="font-size:12px;text-align:center;margin-top:6px">…і ще ${extra} — звузь період, щоб побачити всі</div>`:'')
+    +`</div>`;
+}
 function accFlow(accId,from,to){
   const byM={}; let inc=0,out=0,adj=0,n=0;
   const bump=(mk,k,v)=>{ (byM[mk]=byM[mk]||{in:0,out:0})[k]+=v; };
@@ -1302,11 +1319,13 @@ function renderAccAnalysis(){
         </div>
       </div>`).join('')
       :'<div class="empty">Немає руху по цьому рахунку за період.</div>'}
+    ${opsListHtml(txs.filter(t=>{const mk=monthKey(t.date);return mk>=from&&mk<=to&&(t.account===aaAcc||(t.type==='transfer'&&t.to===aaAcc));}),aaOps,'toggleAaOps')}
   </div>`;
 }
 /* ---- Аналіз обраної категорії за період ---- */
-let caCat='', caPeriod='month', caFrom='', caTo='';
-function setCa(k,v){ ({cat:()=>caCat=v, period:()=>caPeriod=v, from:()=>caFrom=v, to:()=>caTo=v})[k](); renderAnalytics(); }
+let caCat='', caPeriod='month', caFrom='', caTo='', caOps=false;
+function setCa(k,v){ ({cat:()=>{caCat=v;caOps=false;}, period:()=>caPeriod=v, from:()=>caFrom=v, to:()=>caTo=v})[k](); renderAnalytics(); }
+function toggleCaOps(){ caOps=!caOps; renderAnalytics(); }
 // спільний вибір періоду: місяць / минулий / рік / весь час / свій
 function periodRange(p,from,to){
   const nowM=monthKey(todayISO()), d=new Date();
@@ -1350,6 +1369,7 @@ function renderCatAnalysis(){
         <div class="spacer"></div><b style="white-space:nowrap">${fmtDisp(byM[m])}</b></div>
       <div class="limbar"><div style="width:${byM[m]/mx*100}%;background:${c.color||'var(--brand)'}"></div></div>
     </div>`).join(''):'<div class="empty">Немає операцій за цей період.</div>'}
+    ${opsListHtml(hits,caOps,'toggleCaOps')}
   </div>`;
 }
 /* ---- Динаміка загального балансу (гроші на рахунках; БЕЗ майна та інвестицій) ---- */
@@ -1569,8 +1589,10 @@ function openHolding(vid,hid){
   document.getElementById('holdDelBtn').classList.toggle('hidden',!hid);
   // список типів залежить від майданчика: крипто → монета/ф'ючі, звичайний → акції/фонди/ОВДП
   const cryptoV=isCryptoVenue(vid);
+  // на крипто-майданчику все зводиться до монети або ф'ючерсів (холодний гаманець — це теж спот).
+  // «Інше» лишаємо тільки якщо позиція вже така, щоб не зламати старий запис.
   const kinds = cryptoV
-    ? [['crypto','🪙 Монета (спот)'],['futures','📊 Ф\'ючерси'],['alt','🏨 Інше']]
+    ? [['crypto','🪙 Монета (спот)'],['futures','📊 Ф\'ючерси'],...(editingHold?.kind==='alt'?[['alt','🏨 Інше']]:[])]
     : [['stock','📈 Акція'],['fund','🏦 Фонд / сертифікат'],['bond','📜 ОВДП / облігація'],['alt','🏨 Альтернативне (нерухомість тощо)']];
   document.getElementById('hKind').innerHTML=kinds.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
   document.getElementById('coinList').innerHTML=Object.keys(CRYPTO_IDS).map(c=>`<option value="${c}">`).join('');
@@ -2239,12 +2261,12 @@ async function saveTx(){
     if(fee>0) await put('tx',{id:uid(),type:'expense',amount:fee,date,account,
       category:document.getElementById('txFeeCat').value,note:'Комісія',linkedTransfer:rec.id,createdAt:(rec.createdAt||Date.now())+1});
   }
-  await loadAll(); closeModal('txModal'); go('dash');
+  await loadAll(); closeModal('txModal'); go(curTab());   // лишаємось де були (напр. в Аналітиці)
  }catch(e){ alert('Не вдалося зберегти операцію:\n'+(e&&e.message||e)); }
 }
 async function deleteTx(){ if(editingTx&&confirm('Видалити операцію?')){
   for(const l of txs.filter(t=>t.linkedTransfer===editingTx.id)) await del('tx',l.id);
-  await del('tx',editingTx.id);await loadAll();closeModal('txModal');go('dash');}}
+  await del('tx',editingTx.id);await loadAll();closeModal('txModal');go(curTab());}}
 
 /* ========================= ACCOUNT MODAL ========================= */
 let editingAcc=null, pickedAccColor=CAT_COLORS[7], pickedAccIcon='💳';
@@ -2493,6 +2515,8 @@ async function importData(ev){
   const data=JSON.parse(await file.text());
   if(data.app!=='gamanets'){alert('Це не файл Гаманця.');return;}
   if(!confirm('Замінити всі поточні дані даними з файлу?'))return;
+ _restoring=true;
+ try{
   for(const s of ['accounts','tx','categories','holdings']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   for(const a of data.accounts||[])await put('accounts',a);
   for(const t of data.tx||[])await put('tx',t);
@@ -2500,7 +2524,9 @@ async function importData(ev){
   for(const h of data.holdings||[])await put('holdings',h);
   if(data.rates)await setMeta('rates',data.rates);
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
-  await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();go('dash');alert('Готово! Дані імпортовано.');
+  await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
+ }finally{ _restoring=false; }
+ go('dash');alert('Готово! Дані імпортовано.');
 }
 async function wipeData(){
   if(!confirm('Стерти ВСІ дані без відновлення?'))return;
@@ -2572,6 +2598,7 @@ async function cloudBackupNow(silent){
     let d={}; try{ d=await r.json(); }catch(_){}
     if(!r.ok||d.error) throw new Error(d.error||('HTTP '+r.status));
     lastBackupAt=Date.now(); await setMeta('lastBackupAt',lastBackupAt);
+    if(d.version){ lastCloudVer=d.version; await setMeta('lastCloudVer',lastCloudVer); }   // тепер знаємо «свою» версію в хмарі
     backupPending=false; lastBackupErr='';
     if(!silent) toast('✓ Збережено в хмару · '+(blob.length/1024).toFixed(1)+' KB');
     renderSettings(); return true;
@@ -2598,6 +2625,8 @@ async function cloudFetchBackup(id, pass, version){
   return data;
 }
 async function applyBackupData(data){
+ _restoring=true;
+ try{
   for(const s of ['accounts','tx','categories','holdings']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   for(const a of data.accounts||[])await put('accounts',a);
   for(const t of data.tx||[])await put('tx',t);
@@ -2606,7 +2635,68 @@ async function applyBackupData(data){
   if(data.rates)await setMeta('rates',data.rates);
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await normalizeOrder();
+ }finally{ _restoring=false; }
 }
+
+/* ========================= СИНХРОНІЗАЦІЯ (один пише — інші підтягують) =========================
+   Не «розумне» злиття, а чесна пропозиція: якщо у хмарі версія новіша за ту, що знає цей
+   пристрій, — показуємо плашку «Оновитись?». Якщо тут є незбережені зміни — попереджаємо. */
+let _syncBusy=false, _syncLastCheck=0;
+async function syncCheck(){
+  if(_syncBusy||_restoring) return;
+  if(!backupId||!backupPass||!activeProxy()||!navigator.onLine) return;
+  if(Date.now()-_syncLastCheck<30000) return;    // не смикаємо хмару частіше, ніж раз на 30с
+  _syncLastCheck=Date.now(); _syncBusy=true;
+  try{
+    const r=await fetch(bkUrl('id='+backupId+'&list=1'));
+    if(!r.ok) return;
+    const items=(await r.json()).items||[];
+    const newest=items[0]; if(!newest) return;
+    // версії — ISO-мітки часу, тож порівнюються як рядки
+    if(!lastCloudVer){
+      // перший запуск після оновлення: якщо найновіша версія — наш же нещодавній бекап, тихо приймаємо її за свою
+      const at=newest.at?Date.parse(newest.at):0;
+      if(lastBackupAt && at && Math.abs(at-lastBackupAt)<15*60*1000){
+        lastCloudVer=newest.v; await setMeta('lastCloudVer',lastCloudVer); return;
+      }
+    }
+    if(newest.v<=lastCloudVer || newest.v===syncDismissedVer) return;
+    showSyncBanner(newest);
+  }catch(_){ /* тихо: без інтернету чи хмара недоступна — спробуємо наступного разу */ }
+  finally{ _syncBusy=false; }
+}
+function showSyncBanner(newest){
+  hideSyncBanner();
+  const when=newest.at?new Date(newest.at).toLocaleString('uk-UA',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  const dirty=lastChangeAt>lastBackupAt;   // тут є зміни, яких ще немає в хмарі
+  const b=document.createElement('div'); b.id='syncBanner';
+  b.style.cssText='position:fixed;left:12px;right:12px;bottom:76px;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.35)';
+  b.innerHTML=`<div style="font-size:14px">☁️ У хмарі є новіша версія${when?' · '+when:''}</div>
+    ${dirty?'<div style="font-size:12px;color:var(--red);margin-top:4px">⚠️ На цьому пристрої є незбережені зміни — оновлення їх перезапише.</div>':''}
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button class="btn sm" style="flex:1" onclick="syncPull('${newest.v}')">Оновитись</button>
+      <button class="btn ghost sm" onclick="syncDismiss('${newest.v}')">Пізніше</button>
+    </div>`;
+  document.body.appendChild(b);
+}
+function hideSyncBanner(){ document.getElementById('syncBanner')?.remove(); }
+async function syncDismiss(v){ hideSyncBanner(); syncDismissedVer=v; await setMeta('syncDismissedVer',v); }
+async function syncPull(v){
+  hideSyncBanner();
+  try{
+    const data=await cloudFetchBackup(backupId, backupPass);
+    await applyBackupData(data);
+    lastCloudVer=v; await setMeta('lastCloudVer',v);
+    lastChangeAt=0; await setMeta('lastChangeAt',0);    // ми рівні з хмарою — незбережених змін нема
+    go(curTab()); toast('✓ Оновлено з хмари');
+  }catch(e){ alert('Не вдалось оновитися з хмари:\n'+(e&&e.message||e)); }
+}
+// розгорнули застосунок → перевіряємо хмару; згорнули → досилаємо бекап, що чекав у таймері
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){ updateNet(); syncCheck(); }
+  else if(_bkTimer && autoBackup && backupId && backupPass){ clearTimeout(_bkTimer); _bkTimer=null; cloudBackupNow(true); }
+});
+window.addEventListener('online',()=>syncCheck());
 
 /* ========================= ІМПОРТ МОНОБАНК (CSV) ========================= */
 function parseCSV(text){
@@ -2859,7 +2949,7 @@ async function onReceiptPhoto(ev){
   try{
     const b64=await fileToBase64(file);
     const cs=cats.filter(c=>c.type==='expense'&&kids(c.id).length===0).map(c=>({id:c.id,name:catFullName(c.id)}));
-    const prompt=`Прочитай фото чека (будь-яка мова). Розпізнай товари й ЗГРУПУЙ суми ПО КАТЕГОРІЯХ зі списку. Поверни ЛИШЕ JSON: {"merchant":"назва","date":"YYYY-MM-DD","currency":"код","groups":[{"categoryId":"id","amount":число,"items":"товари через кому"}]}. Використовуй лише categoryId зі списку. Якщо дати не видно — ${todayISO()}.\nКатегорії витрат: ${JSON.stringify(cs)}`;
+    const prompt=`Прочитай фото чека (будь-яка мова). Розпізнай товари й ЗГРУПУЙ суми ПО КАТЕГОРІЯХ зі списку. ВАЖЛИВО: кожен товар потрапляє РІВНО В ОДНУ категорію (обирай найвлучнішу; напр. пиво → алкоголь, а НЕ їжа+алкоголь одночасно). Сума всіх groups.amount МУСИТЬ дорівнювати підсумку чека — перерахуй перед відповіддю. Поверни ЛИШЕ JSON: {"merchant":"назва","date":"YYYY-MM-DD","currency":"код","total":підсумок_чека,"groups":[{"categoryId":"id","amount":число,"items":"товари через кому"}]}. Використовуй лише categoryId зі списку. Якщо дати не видно — ${todayISO()}.\nКатегорії витрат: ${JSON.stringify(cs)}`;
     const raw=await aiCall([{role:'user',content:[
       {type:'text',text:prompt},
       {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}}
@@ -2872,7 +2962,13 @@ async function onReceiptPhoto(ev){
 let receiptData=null;
 function updateReceiptTotal(){
   const t=(receiptData?.groups||[]).reduce((s,g)=>s+(parseFloat(g.amount)||0),0);
-  document.getElementById('receiptTotal').textContent='Разом: '+t.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const F=v=>v.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const el=document.getElementById('receiptTotal');
+  const rt=parseFloat(receiptData?.total);
+  // страховка від подвійного обліку (позиція в двох категоріях): звіряємо з підсумком чека
+  if(rt>0 && Math.abs(t-rt)>0.011){
+    el.innerHTML=`Разом: ${F(t)} <span style="color:var(--red);font-size:12px;font-weight:400">· у чеку ${F(rt)} — не сходиться, схоже якась позиція порахована двічі. Підправ суми.</span>`;
+  } else el.textContent='Разом: '+F(t);
 }
 function openReceiptPreview(j){
   receiptData=j;
@@ -2893,6 +2989,10 @@ async function saveReceipt(){
  try{
   const acc=document.getElementById('receiptAcc').value;
   const date=document.getElementById('receiptDate').value||todayISO();
+  const sum=(receiptData?.groups||[]).reduce((s,g)=>s+(parseFloat(g.amount)||0),0);
+  const rt=parseFloat(receiptData?.total);
+  if(rt>0 && Math.abs(sum-rt)>0.011 &&
+     !confirm(`Сума позицій (${fmt(sum)}) не збігається з підсумком чека (${fmt(rt)}).\nЗберегти як є?`)) return;
   let n=0;
   for(const g of (receiptData?.groups||[])){
     const amt=parseFloat(g.amount)||0;
@@ -2949,6 +3049,7 @@ async function migrateCash(){
   await openDB(); await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   updateNet(); go('dash');
+  syncCheck();   // холодний старт: чи не приніс інший пристрій щось новіше в хмару
 })();
 
 /* Service Worker — контрольоване оновлення + офлайн (мережа передусім) */
