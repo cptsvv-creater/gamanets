@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.49</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.51</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.49</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.51</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -341,7 +341,6 @@ svg .bar{transition:opacity .2s}
 
   <!-- ============ SETTINGS ============ -->
   <section id="view-set" class="view hidden">
-    <h2 style="cursor:pointer;user-select:none" onclick="go('ai')">🔮 AI — крок у майбутнє <span style="font-size:20px;color:var(--muted)">›</span></h2>
     <h2 style="cursor:pointer;user-select:none" onclick="toggleCur()">Валюта <span id="curArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="curCard">
       <label>Основна валюта застосунку</label>
@@ -468,6 +467,8 @@ svg .bar{transition:opacity .2s}
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
     </div>
 
+    <h2 style="cursor:pointer;user-select:none;color:#eab308" onclick="go('ai')">🔮 AI — крок у майбутнє</h2>
+
 
 
   </section>
@@ -548,6 +549,8 @@ svg .bar{transition:opacity .2s}
         <input id="adjTarget" type="number" step="0.01" inputmode="decimal" placeholder="фактичний баланс">
         <button class="btn sm" onclick="applyAdjust()">Вирівняти</button>
       </div>
+      <button class="btn ghost sm hidden" id="seedFixBtn" style="width:100%;margin-top:8px" onclick="seedToAdjust()">🧹 Перенести стартовий баланс у коригування</button>
+      <div class="muted hidden" id="seedFixHint" style="font-size:11px;margin-top:4px">Стартова цифра стане 0, а замість неї з'явиться запис «⚖️ Коригування» датою початку обліку. Усі баланси й графіки не зміняться.</div>
     </div>
     <div class="grid cols2" style="margin-top:10px">
       <div id="accTypeWrap"><label>Тип рахунку</label>
@@ -2407,6 +2410,10 @@ function openAccount(id){
     document.getElementById('adjTarget').value='';
     document.getElementById('adjHint').textContent=
       'Зараз за розрахунком: '+fmt(accBalance(editingAcc),editingAcc.currency)+'. Впиши фактичний — створю запис на різницю.';
+    // стартовий баланс ≠ 0 → пропонуємо перенести його в коригування датою початку обліку
+    const showSeed=Number(editingAcc.balance)!==0;
+    document.getElementById('seedFixBtn').classList.toggle('hidden',!showSeed);
+    document.getElementById('seedFixHint').classList.toggle('hidden',!showSeed);
   }else aw.classList.add('hidden');
   openModal('accModal');
 }
@@ -2416,6 +2423,23 @@ function openVenue(){
   document.getElementById('accType').value='invest'; toggleCreditWrap();
   document.getElementById('accTypeWrap').classList.add('hidden');   // тип уже відомий — не питаємо
   document.getElementById('accName').focus();
+}
+/* Стартовий баланс → запис «Коригування» датою ПЕРЕД першою операцією рахунку.
+   Підсумки і графіки від початку обліку не змінюються — просто цифра переїжджає
+   з поля рахунку в чесний запис в історії. */
+async function seedToAdjust(){
+  if(!editingAcc) return;
+  const a=accounts.find(x=>x.id===editingAcc.id); if(!a||!Number(a.balance)) return;
+  const amt=+Number(a.balance).toFixed(2);
+  const dates=txs.filter(t=>t.account===a.id||t.to===a.id).map(t=>t.date).sort();
+  let d;
+  if(dates.length){ const x=new Date(dates[0]); x.setDate(x.getDate()-1); d=`${x.getFullYear()}-${pad2(x.getMonth()+1)}-${pad2(x.getDate())}`; }
+  else d=todayISO();
+  if(!confirm(`Перенести стартовий баланс ${fmt(amt,a.currency)} у запис «Коригування» від ${d}?`)) return;
+  await put('tx',{id:uid(),type:'adjust',amount:amt,date:d,account:a.id,note:'Стартовий баланс',createdAt:Date.now()});
+  a.balance=0; await put('accounts',a);
+  await loadAll(); closeModal('accModal'); renderAccounts();
+  toast('✓ Стартовий баланс тепер у коригуванні від '+d);
 }
 function adjToggleSign(){
   const el=document.getElementById('adjTarget');
