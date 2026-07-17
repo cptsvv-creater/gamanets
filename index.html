@@ -187,7 +187,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.42</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.43</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -198,7 +198,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.42</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.43</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -481,6 +481,8 @@ svg .bar{transition:opacity .2s}
       <label style="margin-bottom:2px">⚖️ Коригувати баланс</label>
       <div class="muted" style="font-size:11px;margin-bottom:8px" id="adjHint"></div>
       <div class="row">
+        <!-- ± бо на iOS числова клавіатура без мінуса — інакше борг кредитки не впишеш -->
+        <button class="btn ghost sm" style="min-width:44px" onclick="adjToggleSign()" title="змінити знак">±</button>
         <input id="adjTarget" type="number" step="0.01" inputmode="decimal" placeholder="фактичний баланс">
         <button class="btn sm" onclick="applyAdjust()">Вирівняти</button>
       </div>
@@ -2327,6 +2329,13 @@ function openVenue(){
   document.getElementById('accType').value='invest'; toggleCreditWrap();
   document.getElementById('accTypeWrap').classList.add('hidden');   // тип уже відомий — не питаємо
   document.getElementById('accName').focus();
+}
+function adjToggleSign(){
+  const el=document.getElementById('adjTarget');
+  const v=parseFloat(el.value);
+  // у порожнє type=number «-» програмно не впишеш — тож знак міняємо вже введеному числу
+  if(!isNaN(v)&&v!==0){ el.value=-v; el.focus(); }
+  else { toast('Спершу впиши суму, потім тисни ± щоб зробити її від\'ємною'); el.focus(); }
 }
 async function applyAdjust(){
   if(!editingAcc)return;
