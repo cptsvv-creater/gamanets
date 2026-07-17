@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.51</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.52</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.51</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.52</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -3064,8 +3064,10 @@ function aiSnapshot(){
     if(t.type==='income'){ const c=catById(t.category)?.name||'інше'; m.income[c]=+((m.income[c]||0)+v).toFixed(0); }
     else if(t.type==='expense') m.expense=+(m.expense+v).toFixed(0);
   });
-  const months=Object.keys(byM).sort().slice(-12);
-  const cashflow={}; months.forEach(mk=>cashflow[mk]=byM[mk]);
+  // рівно останні 12 календарних місяців: операції з помилковими датами (2023 рік тощо)
+  // інакше потрапляли в знімок і збивали радника з пантелику
+  const now=new Date(), cashflow={};
+  for(let i=11;i>=0;i--){ const mk=ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)); if(byM[mk]) cashflow[mk]=byM[mk]; }
   const used=[...new Set(acc.map(a=>a.currency).concat(hold.map(h=>h.currency)))];
   const rt={}; used.forEach(c=>{ if(rates[c]) rt[c]=rates[c]; });
   return {date:todayISO(), baseCurrency:baseCur, ratesToUAH:rt, accounts:acc, investments:hold, cashflow12m:cashflow};
@@ -3086,6 +3088,7 @@ async function runAdvisor(){
 Горизонт планування: ${horizon} р. ${goal?('Мета користувача: «'+goal+'»'):'Окремої мети немає — зроби загальний план зростання капіталу.'}
 
 Скористайся веб-пошуком (українською та англійською) щоб дізнатись АКТУАЛЬНІ: дохідність ОВДП і депозитів в Україні, курс і прогноз USD/UAH, інфляцію в Україні, стан ринків США/ЄС і згадані у портфелі активи. Не вигадуй цифр — бери зі снапшота або з пошуку, вказуй що звідки.
+ЗАЛІЗНІ ПРАВИЛА: 1) Використовуй ЛИШЕ точні назви рахунків/банків зі снапшота — НЕ вигадуй назв. 2) Усі підсумки й прогнози рахуй В ОДНІЙ валюті — USD (конвертуй за курсом зі снапшота), поруч можеш дублювати в UAH. 3) Для ключових розрахунків коротко показуй формулу (напр. 720К грн/рік × 10 р. × 1.16^n → …). 4) Будь стислим, щоб відповідь ПОМІСТИЛАСЬ ПОВНІСТЮ — краще коротші розділи, ніж обірваний звіт.
 
 Дай відповідь за структурою (заголовки ##):
 ## Оцінка портфеля — сильні/слабкі місця, концентрації, валютні ризики
@@ -3098,7 +3101,7 @@ async function runAdvisor(){
 ${JSON.stringify(aiSnapshot())}`;
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:4000,
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:8000,
         tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}],
         messages:[{role:'user',content:prompt}]})});
     if(r.status===401) throw new Error('невірний AI-ключ');
