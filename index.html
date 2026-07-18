@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.52</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.55</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.52</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.55</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -333,8 +333,10 @@ svg .bar{transition:opacity .2s}
             <option value="aggressive">🔥 Ризикований — вищі ставки</option>
           </select></div>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="aiSmart"> 🎯 Точніший аналіз — розумніша модель, краща математика (≈ ×3 ціни)</label>
       <button class="btn" style="width:100%;margin-top:12px" id="aiGoBtn" onclick="runAdvisor()">🔮 Зробити прогноз</button>
-      <div class="muted" style="font-size:11px;margin-top:6px">Радник бачить твій портфель, рахунки й кешфлоу, гуглить свіжі курси/дохідності (НБУ, ОВДП, ринки) і рахує сценарії. Один запит ≈ $0.05–0.15 з твого AI-ключа.</div>
+      <div class="muted" style="font-size:11px;margin-top:6px">Радник бачить твій портфель, рахунки й кешфлоу, гуглить свіжі курси/дохідності (НБУ, ОВДП, ринки) і рахує сценарії. Один запит ≈ $0.05–0.15 з твого AI-ключа (з «🎯» — до $0.5).</div>
     </div>
     <div id="aiAdviceBox"></div>
   </section>
@@ -2713,6 +2715,9 @@ async function cloudBackupNow(silent){
   if(!activeProxy()){ if(!silent) alert('Немає адреси воркера — вкажи її в «Ще → Авто-курси акцій»'); return false; }
   if(!navigator.onLine){ backupPending=true; if(!silent) toast('Немає інтернету — збережу, щойно з\'явиться'); return false; }
   try{
+    // пристрій, увімкнений через «відновити за ключем», не мав солі → шифрування мовчки падало
+    // і бекап з нього НІКОЛИ не відлітав. Сіль лежить усередині блоба, тож нова — безпечна.
+    if(!backupSalt){ backupSalt=hex(crypto.getRandomValues(new Uint8Array(16))); await setMeta('backupSalt',backupSalt); }
     const blob=await bkEncrypt(bkPayload(), backupPass, backupSalt);
     const r=await fetch(bkUrl('id='+backupId),{method:'PUT',body:blob});
     let d={}; try{ d=await r.json(); }catch(_){}
@@ -3046,8 +3051,9 @@ async function aiCall(messages,{maxTokens=1024}={}){
   }
   return (d.content||[]).map(c=>c.text||'').join('');
 }
-// Haiku 4.5: $1 / 1M вх., $5 / 1M вих. токенів; веб-пошук: $10 / 1000 запитів
-function aiCostUSD(){ return (aiUsage.in/1e6)*1 + (aiUsage.out/1e6)*5 + ((aiUsage.search||0)/1000)*10; }
+// Haiku 4.5: $1/$5 за 1M токенів; Sonnet (🎯): $3/$15; веб-пошук: $10 / 1000 запитів
+function aiCostUSD(){ return (aiUsage.in/1e6)*1 + (aiUsage.out/1e6)*5
+  + ((aiUsage.sIn||0)/1e6)*3 + ((aiUsage.sOut||0)/1e6)*15 + ((aiUsage.search||0)/1000)*10; }
 
 /* ===== 🔮 AI-радник: портфель + кешфлоу + свіжі дані з інтернету → прогноз ===== */
 function aiSnapshot(){
@@ -3070,7 +3076,22 @@ function aiSnapshot(){
   for(let i=11;i>=0;i--){ const mk=ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)); if(byM[mk]) cashflow[mk]=byM[mk]; }
   const used=[...new Set(acc.map(a=>a.currency).concat(hold.map(h=>h.currency)))];
   const rt={}; used.forEach(c=>{ if(rates[c]) rt[c]=rates[c]; });
-  return {date:todayISO(), baseCurrency:baseCur, ratesToUAH:rt, accounts:acc, investments:hold, cashflow12m:cashflow};
+  // ГОТОВІ підсумки по класах активів — рахує застосунок, а не модель
+  // (Haiku згубив кому і перетворив $2k ОВДП на $20k; хай додає калькулятор)
+  const usd=rates.USD||1, toUSD=v=>+(v/usd).toFixed(0);
+  const sums={};
+  accounts.filter(a=>!a.archived).forEach(a=>{
+    const v=toBase(accBalance(a),a.currency)||0;
+    const k=a.type==='asset'?'property': a.type==='invest'?'venueCash':'money';
+    sums[k]=(sums[k]||0)+v;
+  });
+  holdings.forEach(h=>{const ven=accById(h.venue); if(!(ven&&ven.type==='invest'&&!ven.archived)) return;
+    const k=ven.crypto?'crypto':h.kind; sums[k]=(sums[k]||0)+ (toBase(hVal(h),h.currency)||0);});
+  const totals={}; Object.entries(sums).forEach(([k,v])=>{ totals[k]={UAH:+v.toFixed(0),USD:toUSD(v)}; });
+  let net=0; Object.values(sums).forEach(v=>net+=v);
+  totals.NET_WORTH={UAH:+net.toFixed(0),USD:toUSD(net)};
+  return {date:todayISO(), baseCurrency:baseCur, ratesToUAH:rt,
+    totalsByClass_PRECOMPUTED:totals, accounts:acc, investments:hold, cashflow12m:cashflow};
 }
 const RISK_TXT={conservative:'обережний — головне поступове стабільне зростання, без спекуляцій',
   balanced:'збалансований — помірний ризик заради кращої дохідності',
@@ -3080,6 +3101,7 @@ async function runAdvisor(){
   if(!navigator.onLine){ alert('Радник гуглить свіжі дані — потрібен інтернет.'); return; }
   const goal=document.getElementById('aiGoal').value.trim();
   const horizon=document.getElementById('aiHorizon').value, risk=document.getElementById('aiRisk').value;
+  const smart=document.getElementById('aiSmart').checked;
   const btn=document.getElementById('aiGoBtn'); btn.disabled=true; btn.textContent='🔮 Думаю… (до хвилини)';
   document.getElementById('aiAdviceBox').innerHTML='<div class="card"><div class="muted">Аналізую портфель, гуглю свіжі курси й дохідності…</div></div>';
   try{
@@ -3088,7 +3110,7 @@ async function runAdvisor(){
 Горизонт планування: ${horizon} р. ${goal?('Мета користувача: «'+goal+'»'):'Окремої мети немає — зроби загальний план зростання капіталу.'}
 
 Скористайся веб-пошуком (українською та англійською) щоб дізнатись АКТУАЛЬНІ: дохідність ОВДП і депозитів в Україні, курс і прогноз USD/UAH, інфляцію в Україні, стан ринків США/ЄС і згадані у портфелі активи. Не вигадуй цифр — бери зі снапшота або з пошуку, вказуй що звідки.
-ЗАЛІЗНІ ПРАВИЛА: 1) Використовуй ЛИШЕ точні назви рахунків/банків зі снапшота — НЕ вигадуй назв. 2) Усі підсумки й прогнози рахуй В ОДНІЙ валюті — USD (конвертуй за курсом зі снапшота), поруч можеш дублювати в UAH. 3) Для ключових розрахунків коротко показуй формулу (напр. 720К грн/рік × 10 р. × 1.16^n → …). 4) Будь стислим, щоб відповідь ПОМІСТИЛАСЬ ПОВНІСТЮ — краще коротші розділи, ніж обірваний звіт.
+ЗАЛІЗНІ ПРАВИЛА: 0) Підсумки по класах активів УЖЕ ПОРАХОВАНІ застосунком у totalsByClass_PRECOMPUTED (UAH і USD) — використовуй САМЕ ЇХ, не перераховуй суми позицій сам. 1) Використовуй ЛИШЕ точні назви рахунків/банків зі снапшота — НЕ вигадуй назв. 2) Усі підсумки й прогнози рахуй В ОДНІЙ валюті — USD (конвертуй за курсом зі снапшота), поруч можеш дублювати в UAH. 3) Для ключових розрахунків коротко показуй формулу (напр. 720К грн/рік × 10 р. × 1.16^n → …). 4) Будь стислим, щоб відповідь ПОМІСТИЛАСЬ ПОВНІСТЮ — краще коротші розділи, ніж обірваний звіт. 5) УЗГОДЖЕНІСТЬ: суму щорічних заощаджень для ВСІХ сценаріїв виводь ТІЛЬКИ з кешфлоу знімка (обережний = нижня межа реального, оптимістичний = не більше ніж +30% до реального) — НЕ вигадуй сум, яких не видно в даних; перед видачею перевір, що цифра заощаджень у сценаріях збігається з висновком розділу «Кешфлоу». 6) Податки на іноземні активи (дивіденди США, курсові прибутки в Україні) не стверджуй з пам'яті — перевір пошуком або познач як «уточнити». 7) Не вставляй у відповідь обірваних таблиць чи повторів.
 
 Дай відповідь за структурою (заголовки ##):
 ## Оцінка портфеля — сильні/слабкі місця, концентрації, валютні ризики
@@ -3101,20 +3123,23 @@ async function runAdvisor(){
 ${JSON.stringify(aiSnapshot())}`;
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:8000,
-        tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}],
+      body:JSON.stringify({model:smart?'claude-sonnet-4-6':'claude-haiku-4-5-20251001',max_tokens:8000,
+        tools:[{type:smart?'web_search_20260209':'web_search_20250305',name:'web_search',max_uses:6}],
         messages:[{role:'user',content:prompt}]})});
     if(r.status===401) throw new Error('невірний AI-ключ');
     const d=await r.json();
     if(d.error){ const m=d.error.message||'AI помилка';
       if(/credit balance|insufficient|too low/i.test(m)) throw new Error('Закінчились кошти на API-ключі. Поповни на console.anthropic.com.');
       throw new Error(m); }
-    if(d.usage){ aiUsage.in+=d.usage.input_tokens||0; aiUsage.out+=d.usage.output_tokens||0; aiUsage.calls+=1;
+    if(d.usage){ // «розумні» токени (Sonnet) дорожчі — рахуємо окремо
+      if(smart){ aiUsage.sIn=(aiUsage.sIn||0)+(d.usage.input_tokens||0); aiUsage.sOut=(aiUsage.sOut||0)+(d.usage.output_tokens||0); }
+      else { aiUsage.in+=d.usage.input_tokens||0; aiUsage.out+=d.usage.output_tokens||0; }
+      aiUsage.calls+=1;
       aiUsage.search=(aiUsage.search||0)+(d.usage.server_tool_use?.web_search_requests||0);
       setMeta('aiUsage',aiUsage); }
     const text=(d.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
     if(!text.trim()) throw new Error('порожня відповідь — спробуй ще раз');
-    const advice={at:Date.now(),goal,horizon,risk,text};
+    const advice={at:Date.now(),goal,horizon,risk,smart,text};
     await setMeta('aiAdvice',advice);
     renderAdvisor(advice);
   }catch(e){
@@ -3138,6 +3163,7 @@ async function renderAdvisor(advice){
   document.getElementById('aiGoal').value=a.goal||'';
   document.getElementById('aiHorizon').value=a.horizon||'5';
   document.getElementById('aiRisk').value=a.risk||'conservative';
+  document.getElementById('aiSmart').checked=!!a.smart;
   box.innerHTML=`<div class="card"><div class="row" style="margin-bottom:6px">
       <h3 style="margin:0">Прогноз</h3><div class="spacer"></div>
       <span class="muted" style="font-size:11px">${new Date(a.at).toLocaleString('uk-UA')}</span></div>
