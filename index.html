@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.58</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.60</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.58</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.60</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -274,8 +274,11 @@ svg .bar{transition:opacity .2s}
         <span id="catMonthLbl" style="font-size:13px;min-width:104px;text-align:center;text-transform:capitalize"></span>
         <button class="btn ghost sm" onclick="catMonthShift(1)">›</button>
       </div>
-      <div class="row" style="margin-bottom:8px"><span class="muted" style="font-size:12px">Разом за місяць</span>
-        <div class="spacer"></div><b id="catMonthTotal" style="font-size:15px">—</b></div>
+      <!-- підсумок вирівняно з колонками нижче: сума над сумами, «100%» над відсотками -->
+      <div class="row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)">
+        <span class="muted" style="font-size:12px">Разом за місяць</span>
+        <div class="spacer"></div><b id="catMonthTotal" style="font-size:15px">—</b>
+        <span class="muted" id="catMonthPct" style="margin-left:6px">100%</span></div>
       <div id="chartCats"></div>
     </div>
 
@@ -1105,7 +1108,8 @@ function renderMonthlyChart(){
 }
 
 function monthLabel(mk){const [y,m]=mk.split('-').map(Number);
-  return new Date(y,m-1,1).toLocaleDateString('uk-UA',{month:'long',year:'numeric'});}
+  // без « р.» в кінці — зайве, а довгі місяці (листопад) через нього лізли у два рядки
+  return new Date(y,m-1,1).toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(/\s*р\.\s*$/,'');}
 function catMonthShift(d){
   const [y,m]=catMonth.split('-').map(Number);
   const nk=ymKey(new Date(y,m-1+d,1));
@@ -1121,6 +1125,8 @@ function renderCatChart(){
     map[t.category]=(map[t.category]||0)+v;});
   const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]);
   const totalEl=document.getElementById('catMonthTotal');
+  const pctEl=document.getElementById('catMonthPct');
+  if(pctEl) pctEl.style.visibility=rows.length?'visible':'hidden';   // «100%» біля нуля — дивно
   if(!rows.length){
     if(totalEl) totalEl.textContent=fmtDisp(0);
     document.getElementById('chartCats').innerHTML='<div class="empty">Немає витрат цього місяця.</div>';return;}
@@ -2254,24 +2260,60 @@ function go(tab){
   if(tab==='ai')renderAdvisor();
   window.scrollTo(0,0);
 }
-/* Свайп між вкладками (як у нативних застосунках).
-   Ігноруємо жести, що почались на графіку/списку, який гортається вбік, і будь-який вертикальний скрол. */
+/* Свайп між вкладками — «живий», як у нативних застосунках:
+   екран тягнеться за пальцем, при відпусканні доїжджає до сусідньої вкладки або пружинить назад. */
 const TABS=['dash','acc','invest','analytics','set'];
 const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.contains('hidden'))||'dash';
 (function initSwipe(){
-  let x0=0,y0=0,t0=0,live=false;
-  const skip=e=>!!e.target.closest('.sheet,.modal,input,select,textarea,[data-noswipe]');
+  let x0=0,y0=0,t0=0,live=false,drag=false,el=null,dx=0;
+  const skip=e=>!!e.target?.closest?.('.sheet,.modal,input,select,textarea,[data-noswipe]');
+  const nextIdx=d=>{ const j=TABS.indexOf(curTab())+(d<0?1:-1); return (j>=0&&j<TABS.length)?j:-1; };
   addEventListener('touchstart',e=>{
     if(e.touches.length!==1||skip(e)){live=false;return;}
-    x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); live=true;
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); live=true; drag=false; dx=0;
+    el=document.getElementById('view-'+curTab());
   },{passive:true});
-  addEventListener('touchend',e=>{
-    if(!live) return; live=false;
-    const t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
-    // горизонтальний, достатньо довгий, швидкий і явно не вертикальний
-    if(Math.abs(dx)<60 || Math.abs(dx)<Math.abs(dy)*2 || Date.now()-t0>600) return;
-    const i=TABS.indexOf(curTab()), j=i+(dx<0?1:-1);
-    if(j>=0 && j<TABS.length) go(TABS[j]);
+  addEventListener('touchmove',e=>{
+    if(!live||!el) return;
+    const t=e.touches[0]; dx=t.clientX-x0; const dy=t.clientY-y0;
+    if(!drag){
+      if(Math.abs(dy)>14 && Math.abs(dy)>Math.abs(dx)){ live=false; return; }   // це вертикальний скрол
+      if(Math.abs(dx)<14 || Math.abs(dx)<Math.abs(dy)*1.5) return;              // ще не зрозуміло
+      drag=true; el.style.transition='none';
+    }
+    // якщо в цей бік вкладки нема — тягнемо з опором, як iOS на краю
+    const edge=nextIdx(dx)<0 ? 0.15 : 0.75;
+    el.style.transform='translateX('+(dx*edge)+'px)';
+    el.style.opacity=String(Math.max(.55, 1-Math.abs(dx)/700));
+  },{passive:true});
+  addEventListener('touchend',()=>{
+    if(!live||!el){ live=false; return; }
+    live=false;
+    const w=innerWidth, fast=Date.now()-t0<250 && Math.abs(dx)>40;
+    const commit=drag && (Math.abs(dx)>w*0.28 || fast) && nextIdx(dx)>=0;
+    const v=el;
+    if(commit){
+      // доводимо поточний екран за край…
+      v.style.transition='transform .16s ease-out,opacity .16s ease-out';
+      v.style.transform='translateX('+(dx<0?-w:w)+'px)'; v.style.opacity='0';
+      const j=nextIdx(dx);
+      setTimeout(()=>{
+        v.style.transition='none'; v.style.transform=''; v.style.opacity='';
+        go(TABS[j]);
+        // …а новий в'їжджає з протилежного боку
+        const nv=document.getElementById('view-'+TABS[j]);
+        nv.style.transition='none'; nv.style.transform='translateX('+(dx<0?w:-w)*0.35+'px)'; nv.style.opacity='.6';
+        requestAnimationFrame(()=>{ nv.style.transition='transform .2s ease-out,opacity .2s ease-out';
+          nv.style.transform=''; nv.style.opacity='';
+          setTimeout(()=>{ nv.style.transition=''; },220); });
+      },160);
+    }else if(drag){
+      // не дотягнув — пружинимо назад
+      v.style.transition='transform .18s ease-out,opacity .18s ease-out';
+      v.style.transform=''; v.style.opacity='';
+      setTimeout(()=>{ v.style.transition=''; },200);
+    }
+    drag=false; el=null;
   },{passive:true});
 })();
 
@@ -3113,14 +3155,18 @@ function aiSnapshot(){
 const RISK_TXT={conservative:'обережний — головне поступове стабільне зростання, без спекуляцій',
   balanced:'збалансований — помірний ризик заради кращої дохідності',
   aggressive:'готовий до ризику — цікавлять і агресивніші ідеї, свідомий можливих втрат'};
+let _advisorBusy=false;
 async function runAdvisor(){
+  if(_advisorBusy) return;
   if(!aiKey){ alert('Для радника потрібен AI-ключ Anthropic — встав його у «Ще → AI-помічник».'); go('set'); return; }
   if(!navigator.onLine){ alert('Радник гуглить свіжі дані — потрібен інтернет.'); return; }
+  _advisorBusy=true;
   const goal=document.getElementById('aiGoal').value.trim();
   const horizon=document.getElementById('aiHorizon').value, risk=document.getElementById('aiRisk').value;
   const smart=document.getElementById('aiSmart').checked;
   const btn=document.getElementById('aiGoBtn'); btn.disabled=true; btn.textContent='🔮 Думаю… (до хвилини)';
   document.getElementById('aiAdviceBox').innerHTML='<div class="card"><div class="muted">Аналізую портфель, гуглю свіжі курси й дохідності…</div></div>';
+  let text='', usage={in:0,out:0,search:0};   // тут, а не в try — щоб catch бачив часткову відповідь
   try{
     const prompt=`Ти — обережний персональний фінансовий радник. Відповідай УКРАЇНСЬКОЮ, стисло, з конкретними цифрами.
 Профіль ризику користувача: ${RISK_TXT[risk]}.
@@ -3151,8 +3197,11 @@ ${JSON.stringify(aiSnapshot())}`;
       if(/credit balance|insufficient|too low/i.test(m)) throw new Error('Закінчились кошти на API-ключі. Поповни на console.anthropic.com.');
       throw new Error(m); }
     const box=document.getElementById('aiAdviceBox');
-    box.innerHTML='<div class="card"><div class="muted" id="aiLive" style="font-size:14px;line-height:1.5">🔎 шукаю свіжі дані…</div></div>';
-    let text='', usage={in:0,out:0,search:0};
+    // по екранах застосунку під час відповіді ходити МОЖНА (потік живе у фоні й збережеться),
+    // а от згортання застосунку / вимкнення екрана iOS вбиває з'єднання — попереджаємо
+    box.innerHTML=`<div class="card">
+      <div style="font-size:12px;color:var(--red);margin-bottom:8px">⚠️ Не згортай застосунок і не вимикай екран, поки йде відповідь — з'єднання обірветься. Гортати екрани всередині застосунку можна.</div>
+      <div class="muted" id="aiLive" style="font-size:14px;line-height:1.5">🔎 шукаю свіжі дані…</div></div>`;
     const reader=r.body.getReader(), dec=new TextDecoder(); let buf='';
     while(true){
       const {done,value}=await reader.read(); if(done) break;
@@ -3181,8 +3230,14 @@ ${JSON.stringify(aiSnapshot())}`;
     await setMeta('aiAdvice',advice);
     renderAdvisor(advice);
   }catch(e){
-    document.getElementById('aiAdviceBox').innerHTML='<div class="card" style="border-left:4px solid var(--red)">Не вийшло: '+(e&&e.message||e)+'</div>';
-  }finally{ btn.disabled=false; btn.textContent='🔮 Зробити прогноз'; }
+    // якщо частина відповіді ВЖЕ прийшла (обрив через згортання/зник інтернет) — не викидаємо її
+    const partial=(typeof text==='string'&&text.trim()) ? text : '';
+    if(partial){
+      const advice={at:Date.now(),goal,horizon,risk,smart,
+        text:partial+'\n\n---\n⚠️ **Відповідь обірвано** ('+(e&&e.message||e)+'). Вище — те, що встигло прийти; запусти прогноз ще раз для повного звіту.'};
+      await setMeta('aiAdvice',advice); renderAdvisor(advice);
+    } else document.getElementById('aiAdviceBox').innerHTML='<div class="card" style="border-left:4px solid var(--red)">Не вийшло: '+(e&&e.message||e)+'</div>';
+  }finally{ _advisorBusy=false; btn.disabled=false; btn.textContent='🔮 Зробити прогноз'; }
 }
 // markdown-лайт: ## заголовки, **жирний**, - списки
 function mdLite(s){
@@ -3196,6 +3251,7 @@ function mdLite(s){
 }
 async function renderAdvisor(advice){
   const box=document.getElementById('aiAdviceBox'); if(!box) return;
+  if(_advisorBusy && !advice) return;   // йде живий стрім — не затирати його старим звітом при поверненні на екран
   const a=advice||await getMeta('aiAdvice');
   if(!a){ box.innerHTML=''; return; }
   document.getElementById('aiGoal').value=a.goal||'';
