@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.55</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.56</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.55</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.56</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -3293,7 +3293,11 @@ async function migrateCash(){
   await openDB(); await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   updateNet(); go('dash');
-  syncCheck();   // холодний старт: чи не приніс інший пристрій щось новіше в хмару
+  // холодний старт: 1) дожимаємо бекап, що не встиг відлетіти минулого разу
+  // (зміна була, а вивантаження зірвалось/не відбулось — інакше воно чекало б наступної зміни);
+  // 2) потім питаємо хмару, чи нема новішого з іншого пристрою
+  if(autoBackup && backupId && backupPass && lastChangeAt>lastBackupAt){ cloudBackupNow(true).then(()=>syncCheck()); }
+  else syncCheck();
 })();
 
 /* Service Worker — контрольоване оновлення + офлайн (мережа передусім) */
