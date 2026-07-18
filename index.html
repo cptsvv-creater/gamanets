@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.56</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.58</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.56</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.58</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -470,6 +470,23 @@ svg .bar{transition:opacity .2s}
     </div>
 
     <h2 style="cursor:pointer;user-select:none;color:#eab308" onclick="go('ai')">🔮 AI — крок у майбутнє</h2>
+
+    <!-- підпис творців — Гаманець виходить з альфи 🎉 -->
+    <div style="margin:34px 0 10px;text-align:center;user-select:none">
+      <svg viewBox="0 0 24 24" width="26" height="26" style="display:block;margin:0 auto 8px;opacity:.9">
+        <g fill="#D97757"><circle cx="12" cy="12" r="2.6"/>
+          <g stroke="#D97757" stroke-width="2.1" stroke-linecap="round">
+            <line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/>
+            <line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/>
+            <line x1="5.6" y1="5.6" x2="8.5" y2="8.5"/><line x1="15.5" y1="15.5" x2="18.4" y2="18.4"/>
+            <line x1="18.4" y1="5.6" x2="15.5" y2="8.5"/><line x1="8.5" y1="15.5" x2="5.6" y2="18.4"/>
+          </g></g>
+      </svg>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:13.5px;color:var(--muted);line-height:1.6">
+        Proudly designed by <span style="color:#D97757;font-weight:600">Anthropic Claude&nbsp;Code</span><br>
+        under guidance of <span style="white-space:nowrap">Capt.&nbsp;Vitaliy&nbsp;Sivak</span>
+      </div>
+    </div>
 
 
 
@@ -3121,23 +3138,44 @@ async function runAdvisor(){
 
 Фінансовий знімок користувача (суми в ${baseCur}, курси до UAH додано):
 ${JSON.stringify(aiSnapshot())}`;
+    // СТРІМІНГ: Sonnet з пошуком думає 2-5 хв — без стрімінгу з'єднання може відвалитись
+    // по таймауту, а користувач сидить перед мертвим екраном. Тут відповідь тече живцем.
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:smart?'claude-sonnet-4-6':'claude-haiku-4-5-20251001',max_tokens:8000,
+      body:JSON.stringify({model:smart?'claude-sonnet-4-6':'claude-haiku-4-5-20251001',max_tokens:8000,stream:true,
         tools:[{type:smart?'web_search_20260209':'web_search_20250305',name:'web_search',max_uses:6}],
         messages:[{role:'user',content:prompt}]})});
     if(r.status===401) throw new Error('невірний AI-ключ');
-    const d=await r.json();
-    if(d.error){ const m=d.error.message||'AI помилка';
+    if(!r.ok){ let d={}; try{ d=await r.json(); }catch(_){}
+      const m=d.error?.message||('HTTP '+r.status);
       if(/credit balance|insufficient|too low/i.test(m)) throw new Error('Закінчились кошти на API-ключі. Поповни на console.anthropic.com.');
       throw new Error(m); }
-    if(d.usage){ // «розумні» токени (Sonnet) дорожчі — рахуємо окремо
-      if(smart){ aiUsage.sIn=(aiUsage.sIn||0)+(d.usage.input_tokens||0); aiUsage.sOut=(aiUsage.sOut||0)+(d.usage.output_tokens||0); }
-      else { aiUsage.in+=d.usage.input_tokens||0; aiUsage.out+=d.usage.output_tokens||0; }
-      aiUsage.calls+=1;
-      aiUsage.search=(aiUsage.search||0)+(d.usage.server_tool_use?.web_search_requests||0);
-      setMeta('aiUsage',aiUsage); }
-    const text=(d.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
+    const box=document.getElementById('aiAdviceBox');
+    box.innerHTML='<div class="card"><div class="muted" id="aiLive" style="font-size:14px;line-height:1.5">🔎 шукаю свіжі дані…</div></div>';
+    let text='', usage={in:0,out:0,search:0};
+    const reader=r.body.getReader(), dec=new TextDecoder(); let buf='';
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n'); buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith('data:')) continue;
+        let ev; try{ ev=JSON.parse(ln.slice(5)); }catch(_){ continue; }
+        if(ev.type==='content_block_delta' && ev.delta?.type==='text_delta'){
+          text+=ev.delta.text;
+          const el=document.getElementById('aiLive'); if(el){ el.classList.remove('muted'); el.innerHTML=mdLite(text); }
+        }else if(ev.type==='content_block_start' && ev.content_block?.type==='server_tool_use'){
+          const el=document.getElementById('aiLive'); if(el&&!text) el.textContent='🔎 гуглю: пошук №'+(++usage.search)+'…';
+        }else if(ev.type==='message_start'){ usage.in=ev.message?.usage?.input_tokens||0; }
+        else if(ev.type==='message_delta'){ usage.out=ev.usage?.output_tokens||usage.out;
+          if(ev.usage?.server_tool_use?.web_search_requests) usage.search=ev.usage.server_tool_use.web_search_requests; }
+        else if(ev.type==='error'){ throw new Error(ev.error?.message||'помилка стріму'); }
+      }
+    }
+    if(smart){ aiUsage.sIn=(aiUsage.sIn||0)+usage.in; aiUsage.sOut=(aiUsage.sOut||0)+usage.out; }
+    else { aiUsage.in+=usage.in; aiUsage.out+=usage.out; }
+    aiUsage.calls+=1; aiUsage.search=(aiUsage.search||0)+usage.search;
+    setMeta('aiUsage',aiUsage);
     if(!text.trim()) throw new Error('порожня відповідь — спробуй ще раз');
     const advice={at:Date.now(),goal,horizon,risk,smart,text};
     await setMeta('aiAdvice',advice);
