@@ -9,12 +9,16 @@
 :root{
   --bg:#0b1220; --surface:#131c2e; --surface2:#1b2740; --line:#26324e;
   --text:#e6edf7; --muted:#95a3bd; --brand:#14b8a6; --brand-d:#0f766e;
+  --brand-t:#14b8a6;                /* бренд ЯК ТЕКСТ: на темному тлі світлий варіант читається добре */
   --green:#22c55e; --red:#f43f5e; --amber:#f59e0b; --blue:#3b82f6;
   --radius:14px;
 }
 @media (prefers-color-scheme: light){
   :root{--bg:#f2f5fa;--surface:#ffffff;--surface2:#f6f8fc;--line:#e2e8f2;
-    --text:#0f1a2e;--muted:#5b6b86;}
+    --text:#0f1a2e;--muted:#5b6b86;
+    /* #14b8a6 на майже білому дає лише 2.34:1 — на сонці зникає. Темніший дає 5.15:1 (WCAG AA).
+       Заливки (FAB, чіпи) лишаються світлим --brand: там текст темний, контраст і так добрий. */
+    --brand-t:#0f766e;}
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -35,7 +39,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
 header{display:flex;align-items:center;justify-content:space-between;
   gap:10px;margin-bottom:14px}
 header .logo{font-weight:700;font-size:19px;letter-spacing:.2px}
-header .logo b{color:var(--brand)}
+header .logo b{color:var(--brand-t)}
 .pill{background:var(--surface);border:1px solid var(--line);border-radius:999px;
   padding:6px 12px;font-size:13px;color:var(--muted)}
 
@@ -82,8 +86,8 @@ nav.tabbar button{background:none;border:none;flex:1;padding:6px 1px;color:var(-
   display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;white-space:nowrap;
   border-radius:12px;margin:0 2px}
 /* активна вкладка: колір + фон + контур — щоб і у світлій темі було видно з першого погляду */
-nav.tabbar button.active{color:var(--brand);background:var(--surface2);
-  box-shadow:inset 0 0 0 1.5px var(--brand)}
+nav.tabbar button.active{color:var(--brand-t);background:var(--surface2);
+  box-shadow:inset 0 0 0 1.5px var(--brand-t)}
 nav.tabbar .gi{font-size:20px}
 
 /* modal */
@@ -160,11 +164,11 @@ svg .bar{transition:opacity .2s}
   .sidebar{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;
     width:220px;background:var(--surface);border-right:1px solid var(--line);padding:18px 12px;gap:4px;z-index:15}
   .sidebar .brand{font-size:20px;font-weight:700;padding:6px 10px 16px}
-  .sidebar .brand b{color:var(--brand)}
+  .sidebar .brand b{color:var(--brand-t)}
   .sidebar button.navi{display:flex;align-items:center;gap:12px;background:none;border:none;
     color:var(--muted);padding:11px 12px;border-radius:10px;font-size:15px;text-align:left;width:100%}
   .sidebar button.navi:hover{background:var(--surface2)}
-  .sidebar button.navi.active{background:var(--surface2);color:var(--brand);font-weight:600}
+  .sidebar button.navi.active{background:var(--surface2);color:var(--brand-t);font-weight:600}
   .sidebar .navi .gi{font-size:18px;width:22px;text-align:center}
   .sidebar .addbtn{margin-top:14px}
   .sidebar .net{margin-top:auto;font-size:12px;color:var(--muted);padding:8px 12px}
@@ -212,7 +216,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.66</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.67</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -223,7 +227,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.66</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.67</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -509,6 +513,8 @@ svg .bar{transition:opacity .2s}
   </section>
 </div>
 
+<!-- прозорий шар: тап повз меню закриває його (інакше воно висіло поверх таббару) -->
+<div id="fabBackdrop" class="hidden" style="position:fixed;inset:0;z-index:25" onclick="closeFabMenu()"></div>
 <div id="fabMenu" class="fabmenu hidden">
   <button onclick="fabAction('receipt')">📷 Чек</button>
   <button onclick="fabAction('voice')">🎤 Голосом</button>
@@ -3459,9 +3465,12 @@ function startVoice(){
 /* ===== розкладна кнопка ＋ ===== */
 function toggleFabMenu(){
   const m=document.getElementById('fabMenu'), hidden=m.classList.toggle('hidden');
+  document.getElementById('fabBackdrop').classList.toggle('hidden',hidden);
   document.getElementById('fab').classList.toggle('rot',!hidden);
 }
-function closeFabMenu(){const m=document.getElementById('fabMenu');if(m){m.classList.add('hidden');document.getElementById('fab').classList.remove('rot');}}
+function closeFabMenu(){const m=document.getElementById('fabMenu');
+  if(m){m.classList.add('hidden');document.getElementById('fab').classList.remove('rot');
+    document.getElementById('fabBackdrop')?.classList.add('hidden');}}
 function fabAction(a){ closeFabMenu();
   if(a==='manual') openTx();
   else if(a==='voice') startVoice();
