@@ -79,8 +79,11 @@ nav.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);
   border-top:1px solid var(--line);display:flex;justify-content:space-around;
   padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20}
 nav.tabbar button{background:none;border:none;flex:1;padding:6px 1px;color:var(--muted);
-  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;white-space:nowrap}
-nav.tabbar button.active{color:var(--brand)}
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;white-space:nowrap;
+  border-radius:12px;margin:0 2px}
+/* активна вкладка: колір + фон + контур — щоб і у світлій темі було видно з першого погляду */
+nav.tabbar button.active{color:var(--brand);background:var(--surface2);
+  box-shadow:inset 0 0 0 1.5px var(--brand)}
 nav.tabbar .gi{font-size:20px}
 
 /* modal */
@@ -209,7 +212,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.64</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.65</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +223,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.64</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.65</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -266,6 +269,7 @@ svg .bar{transition:opacity .2s}
       <div class="legend">
         <span><i class="dot" style="background:var(--green)"></i>Доходи</span>
         <span><i class="dot" style="background:var(--red)"></i>Витрати</span>
+        <span><i class="dot" style="background:var(--brand)"></i>Сальдо</span>
       </div>
     </div>
 
@@ -1161,7 +1165,8 @@ function renderMonthlyChart(){
     return {m,inc:inc/rate,exp:exp/rate};});
   const max=Math.max(1,...data.map(d=>Math.max(d.inc,d.exp)));
   const W=100/months.length, gap=months.length>18?0.4:2, bw=(W-gap)/2;
-  const baseY=98, scale=90;
+  // свічки живуть над нулем (78), під нулем — стисла зона для від'ємного сальдо лінії
+  const baseY=78, scale=70, negZone=19;
   let bars='';
   data.forEach((d,i)=>{
     const x=i*W+gap/2;
@@ -1169,7 +1174,13 @@ function renderMonthlyChart(){
     bars+=`<rect class="bar" x="${x}%" y="${(baseY-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
     bars+=`<rect class="bar" x="${x+bw}%" y="${(baseY-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
   });
-  const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}</svg>`;
+  // лінія сальдо (доходи − витрати) ПОВЕРХ свічок, крапка на кожен місяць
+  const netY=v=> v>=0 ? baseY - v/max*scale : baseY + Math.min(negZone, (-v)/max*negZone);
+  const pts=data.map((d,i)=>({x:i*W+W/2, y:netY(d.inc-d.exp), net:d.inc-d.exp, m:d.m}));
+  const netLine=`<polyline points="${pts.map(p=>p.x.toFixed(2)+','+p.y.toFixed(2)).join(' ')}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round" opacity=".95"/>`
+    +pts.map(p=>`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="1.5" fill="var(--brand)"><title>${p.m}: сальдо ${p.net>=0?'+':'−'}${fmt(Math.abs(p.net),dispCur)}</title></circle>`).join('');
+  const zero=`<line x1="0" y1="${baseY}" x2="100" y2="${baseY}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".45" vector-effect="non-scaling-stroke"/>`;
+  const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}${zero}${netLine}</svg>`;
   // Підписи: на довгих діапазонах (весь час = 100+ міс) flex-слоти стискались у нечитабельні
   // обрізки. Тепер мітки позиціюються абсолютно; >30 міс — підписуємо лише роки на січнях.
   const n=months.length;
@@ -1504,28 +1515,43 @@ function renderMonthCompare(){
         <span style="white-space:nowrap;color:${r.diff>0?'var(--red)':'var(--green)'}">${r.diff>0?'▲':'▼'}${fmtDisp(Math.abs(r.diff))}</span></div>`;}).join('')}
   </div>`;
 }
-/* ---- 🗓 Хітмап: у які дні місяця горять гроші ---- */
+/* ---- 🗓 Хітмап: у які дні місяця горять (і заходять) гроші ----
+   Один календар: фон клітинки — витрати (червона гама), нижня смужка — доходи (зелена). */
+let hmMonth='';
+function hmShift(d){
+  const [y,m]=(hmMonth||monthKey(todayISO())).split('-').map(Number);
+  hmMonth=ymKey(new Date(y,m-1+d,1)); renderAnalytics();
+}
 function renderHeatmap(){
-  const mk=monthKey(todayISO()), [y,m]=mk.split('-').map(Number);
+  const mk=hmMonth||monthKey(todayISO()), [y,m]=mk.split('-').map(Number);
   const dim=new Date(y,m,0).getDate();
-  const byDay={}; let mx=0,total=0;
-  txs.forEach(t=>{ if(t.type!=='expense'||monthKey(t.date)!==mk) return;
+  const exp={}, inc={}; let mxE=0,mxI=0,tE=0,tI=0;
+  txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
     const d=Number(t.date.slice(8,10)); const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
-    byDay[d]=(byDay[d]||0)+v; total+=v; if(byDay[d]>mx)mx=byDay[d]; });
-  if(!total) return '';
-  const firstDow=(new Date(y,m-1,1).getDay()+6)%7;          // пн=0
+    if(t.type==='expense'){ exp[d]=(exp[d]||0)+v; tE+=v; if(exp[d]>mxE)mxE=exp[d]; }
+    else if(t.type==='income'){ inc[d]=(inc[d]||0)+v; tI+=v; if(inc[d]>mxI)mxI=inc[d]; } });
+  if(!tE && !tI && !hmMonth) return '';                      // поточний місяць порожній і не гортали — ховаємось
+  const firstDow=(new Date(y,m-1,1).getDay()+6)%7;           // пн=0
   let cells='';
   for(let i=0;i<firstDow;i++) cells+='<div></div>';
   for(let d=1;d<=dim;d++){
-    const v=byDay[d]||0, k=v?Math.max(.18,v/mx):0;
-    cells+=`<div title="${d}.${pad2(m)}: ${fmt(v)}" style="aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;
-      background:${v?`rgba(239,68,68,${(k*.85).toFixed(2)})`:'var(--surface2)'};color:${k>.55?'#fff':'var(--muted)'}">${d}</div>`;
+    const e=exp[d]||0, kE=e?Math.max(.18,e/mxE):0;
+    const g=inc[d]||0, kI=g?Math.max(.35,g/mxI):0;
+    cells+=`<div title="${d}.${pad2(m)}: −${fmt(e)}${g?' · +'+fmt(g):''}" style="position:relative;aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;overflow:hidden;
+      background:${e?`rgba(239,68,68,${(kE*.85).toFixed(2)})`:'var(--surface2)'};color:${kE>.55?'#fff':'var(--muted)'}">${d}
+      ${g?`<div style="position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(34,197,94,${(kI*.95).toFixed(2)})"></div>`:''}</div>`;
   }
   return `<div class="card">
-    <div class="row"><h3 style="margin:0">🗓 Дні витрат · <span style="text-transform:capitalize">${monthLabel(mk)}</span></h3>
-      <div class="spacer"></div><span class="muted" style="font-size:11px">пік ${fmtDisp(mx)}</span></div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px;font-size:10px;color:var(--muted);text-align:center">
-      ${['пн','вт','ср','чт','пт','сб','нд'].map(d=>`<div>${d}</div>`).join('')}${cells}</div>
+    <div class="row" style="gap:6px"><h3 style="margin:0;white-space:nowrap">🗓 Дні місяця</h3>
+      <div class="spacer"></div>
+      <button class="btn ghost sm" onclick="hmShift(-1)">‹</button>
+      <span style="font-size:13px;min-width:96px;text-align:center;text-transform:capitalize;white-space:nowrap">${monthLabel(mk)}</span>
+      <button class="btn ghost sm" onclick="hmShift(1)">›</button></div>
+    <div class="row" style="font-size:11px;margin-top:4px"><span class="muted">🟥 витрати · пік ${fmtDisp(mxE)}</span>
+      <div class="spacer"></div><span class="muted">🟩 доходи${tI?' · пік '+fmtDisp(mxI):' — не було'}</span></div>
+    ${(tE||tI)?`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px;font-size:9px;color:var(--muted);text-align:center">
+      ${['пн','вт','ср','чт','пт','сб','нд'].map(d=>`<div>${d}</div>`).join('')}${cells}</div>`
+      :'<div class="empty">Немає операцій цього місяця.</div>'}
   </div>`;
 }
 /* ---- 📅 Підсумок року ---- */
@@ -1683,11 +1709,32 @@ function renderCatAnalysis(){
   </div>`;
 }
 /* ---- Динаміка загального балансу (гроші на рахунках; БЕЗ майна та інвестицій) ---- */
+let btP='24', btFrom='', btTo='';   // період «Динаміки загального балансу»
+function setBt(k,v){ ({p:()=>btP=v, from:()=>btFrom=v, to:()=>btTo=v})[k](); renderAnalytics(); }
+function btMonths(){
+  const now=new Date(), out=[];
+  if(btP==='all'){
+    const first=txs.reduce((m,t)=>{const k=monthKey(t.date); return (k&&(!m||k<m))?k:m;},'');
+    if(!first) return [];
+    let [y,m]=first.split('-').map(Number);
+    const endK=ymKey(now);
+    while(true){ const k=`${y}-${pad2(m)}`; out.push(k); if(k>=endK) break; m++; if(m>12){m=1;y++;} }
+    return out;
+  }
+  if(btP==='custom'){
+    if(!btFrom||!btTo||btFrom>btTo) return [];
+    let [y,m]=btFrom.split('-').map(Number);
+    while(true){ const k=`${y}-${pad2(m)}`; out.push(k); if(k>=btTo) break; m++; if(m>12){m=1;y++;} if(out.length>360) break; }
+    return out;
+  }
+  const n=parseInt(btP)||24;
+  for(let i=n-1;i>=0;i--) out.push(ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
+  return out;
+}
 function balanceSeries(n=24){
   const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
   if(!accs.length) return [];
-  const now=new Date(), months=[];
-  for(let i=n-1;i>=0;i--) months.push(ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
+  const months=Array.isArray(n)?n:(()=>{const now=new Date(),o=[];for(let i=n-1;i>=0;i--)o.push(ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)));return o;})();
   const sorted=txs.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   return months.map(mk=>{
     const end=mk+'-31';                 // рядкове порівняння дат YYYY-MM-DD — кінець місяця
@@ -1708,8 +1755,14 @@ function balanceSeries(n=24){
   });
 }
 function renderBalanceTrend(){
-  const s=balanceSeries(24);
-  if(s.length<2) return '';
+  const s=balanceSeries(btMonths());
+  const chips=[['6','6 міс'],['12','Рік'],['24','2 роки'],['all','Весь час'],['custom','Свій']]
+    .map(([k,l])=>`<span class="chip ${btP===k?'on':''}" onclick="setBt('p','${k}')">${l}</span>`).join('');
+  const custom=btP==='custom'?`<div class="grid cols2" style="margin-top:8px">
+      <div><label>З</label><input type="month" value="${btFrom}" onchange="setBt('from',this.value)"></div>
+      <div><label>По</label><input type="month" value="${btTo}" onchange="setBt('to',this.value)"></div></div>`:'';
+  if(s.length<2) return `<div class="card"><h3 style="margin:0 0 8px">Динаміка загального балансу</h3>
+    <div class="txfilter">${chips}</div>${custom}<div class="empty">Замало даних для цього періоду.</div></div>`;
   const vals=s.map(d=>d.val), cur=vals[vals.length-1], first=vals[0];
   const mx=Math.max(0,...vals), mn=Math.min(0,...vals), span=(mx-mn)||1;
   const Y=v=>6+(mx-v)/span*88, X=i=>i/(s.length-1)*100;
@@ -1725,19 +1778,27 @@ function renderBalanceTrend(){
     } else segs+=line(x0,y0,x1,y1,(v0<0||v1<0),tip);
   }
   const pct = first!==0 ? (cur-first)/Math.abs(first)*100 : null;
+  // дати внизу: як на Огляді — абсолютні мітки; >30 міс → лише роки на січнях
+  const n=s.length, Wm=100/n;
+  let marks;
+  if(n>30) marks=s.map((d,i)=>({i,txt:d.mk.slice(5,7)==='01'?d.mk.slice(0,4):null})).filter(x=>x.txt);
+  else { const step=Math.ceil(n/8);
+    marks=s.map((d,i)=>({i,txt:(i%step)===0?d.mk.slice(5)+'.'+d.mk.slice(2,4):null})).filter(x=>x.txt); }
+  const labels=marks.map(x=>`<span style="position:absolute;left:${((x.i+0.5)*Wm).toFixed(2)}%;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap">${x.txt}</span>`).join('');
   return `<div class="card">
     <h3 style="margin:0 0 2px">Динаміка загального балансу</h3>
-    <div class="muted" style="font-size:11px">Гроші на рахунках і картках. Без майна та інвестицій.</div>
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Гроші на рахунках і картках. Без майна та інвестицій.</div>
+    <div class="txfilter">${chips}</div>${custom}
     <div class="row" style="align-items:baseline;margin-top:6px">
       <span style="font-size:22px;font-weight:700;color:${cur<0?'var(--red)':'inherit'}">${fmtDisp(cur)}</span>
       ${pct!==null?`<span style="font-size:13px;margin-left:8px;color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(0)}%</span>`:''}
-      <div class="spacer"></div><span class="muted" style="font-size:11px">за 24 міс.</span>
+      <div class="spacer"></div><span class="muted" style="font-size:11px">${n} міс.</span>
     </div>
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:110px;display:block;margin-top:6px">
       <line x1="0" y1="${Y(0)}" x2="100" y2="${Y(0)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".5" vector-effect="non-scaling-stroke"/>
       ${segs}
     </svg>
-    <div style="display:flex;margin-top:3px">${s.map((d,i)=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--muted)">${i%4?'':d.mk.slice(5)+'.'+d.mk.slice(2,4)}</div>`).join('')}</div>
+    <div style="position:relative;height:12px;margin-top:3px">${labels}</div>
   </div>`;
 }
 function renderAnalytics(){
