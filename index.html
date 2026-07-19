@@ -10,6 +10,7 @@
   --bg:#0b1220; --surface:#131c2e; --surface2:#1b2740; --line:#26324e;
   --text:#e6edf7; --muted:#95a3bd; --brand:#14b8a6; --brand-d:#0f766e;
   --brand-t:#14b8a6;                /* бренд ЯК ТЕКСТ: на темному тлі світлий варіант читається добре */
+  --net-pos:#34d399; --net-neg:#fb7185;   /* лінія сальдо: на темному тлі — світліша за свічки */
   --green:#22c55e; --red:#f43f5e; --amber:#f59e0b; --blue:#3b82f6;
   --radius:14px;
 }
@@ -18,7 +19,9 @@
     --text:#0f1a2e;--muted:#5b6b86;
     /* #14b8a6 на майже білому дає лише 2.34:1 — на сонці зникає. Темніший дає 5.15:1 (WCAG AA).
        Заливки (FAB, чіпи) лишаються світлим --brand: там текст темний, контраст і так добрий. */
-    --brand-t:#0f766e;}
+    --brand-t:#0f766e;
+    /* на світлому тлі лінія сальдо мусить бути ТЕМНІШОЮ за зелені свічки, інакше зливається */
+    --net-pos:#15803d; --net-neg:#be123c;}
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -216,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.67</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.68</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -227,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.67</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.68</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -273,7 +276,7 @@ svg .bar{transition:opacity .2s}
       <div class="legend">
         <span><i class="dot" style="background:var(--green)"></i>Доходи</span>
         <span><i class="dot" style="background:var(--red)"></i>Витрати</span>
-        <span><i class="dot" style="background:var(--brand)"></i>Сальдо</span>
+        <span><i class="dot" style="background:linear-gradient(90deg,var(--net-pos) 50%,var(--net-neg) 50%)"></i>Сальдо</span>
       </div>
     </div>
 
@@ -1216,8 +1219,19 @@ function renderMonthlyChart(){
   const pts=data.map((d,i)=>({x:i*W+W/2, y:netY(d.inc-d.exp), net:d.inc-d.exp, tip:d.tip}));
   // крапки лише коли їх мало — інакше вони зливаються в «гусеницю»
   // (у SVG з preserveAspectRatio="none" кружечок ще й розтягується в овал)
-  const dots = n<=14 ? pts.map(p=>`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="1.2" fill="var(--brand)"><title>${p.tip}: сальдо ${p.net>=0?'+':'−'}${fmt(Math.abs(p.net),dispCur)}</title></circle>`).join('') : '';
-  const netLine=`<path d="${smoothPath(pts)}" fill="none" stroke="var(--brand)" stroke-width="1.7" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity=".95"/>`+dots;
+  const dots = n<=14 ? pts.map(p=>`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="1.3" fill="${p.net>=0?'var(--net-pos)':'var(--net-neg)'}" stroke="var(--surface)" stroke-width="1" vector-effect="non-scaling-stroke"><title>${p.tip}: сальдо ${p.net>=0?'+':'−'}${fmt(Math.abs(p.net),dispCur)}</title></circle>`).join('') : '';
+  // Градієнт по вертикалі з РІЗКИМ переходом рівно на нулі: вище — зелена, нижче — червона.
+  // gradientUnits="userSpaceOnUse" обов'язково — objectBoundingBox прив'язався б до меж самої
+  // кривої, і поріг «нуля» їхав би разом з нею.
+  const d0=(baseY/100).toFixed(4);
+  const grad=`<defs><linearGradient id="netGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100">
+      <stop offset="${d0}" style="stop-color:var(--net-pos)"/><stop offset="${d0}" style="stop-color:var(--net-neg)"/>
+    </linearGradient></defs>`;
+  const path=smoothPath(pts);
+  // подвійне обведення: спершу товста лінія кольором картки (щоб не зливалась зі свічками), потім сама крива
+  const netLine=grad
+    +`<path d="${path}" fill="none" stroke="var(--surface)" stroke-width="4" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`
+    +`<path d="${path}" fill="none" stroke="url(#netGrad)" stroke-width="2.1" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`+dots;
   const zero=`<line x1="0" y1="${baseY}" x2="100" y2="${baseY}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".45" vector-effect="non-scaling-stroke"/>`;
   const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}${zero}${netLine}</svg>`;
   // підписи: скільки влазить за фактичною довжиною мітки («2017» вужче за «02.26»)
