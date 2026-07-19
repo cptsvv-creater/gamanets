@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.61</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.62</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.61</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.62</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -2505,8 +2505,37 @@ const TABS=['dash','acc','invest','analytics','set'];
 const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.contains('hidden'))||'dash';
 (function initSwipe(){
   let x0=0,y0=0,t0=0,live=false,drag=false,el=null,dx=0;
-  const skip=e=>!!e.target?.closest?.('.sheet,.modal,input,select,textarea,[data-noswipe]');
+  let nb=null,nbTab='',nbSign=0,layTop=0;      // сусідня сторінка, що їде під пальцем
+  const skip=e=>{
+    let n=e.target;
+    if(!n||!n.closest) return true;
+    if(n.closest('.sheet,.modal,input,select,textarea,[data-noswipe]')) return true;
+    // палець на елементі з власним горизонтальним скролом (валюти, фільтри) — скрол головніший за свайп
+    for(;n&&n!==document.body;n=n.parentElement){
+      if(n.scrollWidth>n.clientWidth+4){ const o=getComputedStyle(n).overflowX; if(o==='auto'||o==='scroll') return true; }
+    }
+    return false;
+  };
   const nextIdx=d=>{ const j=TABS.indexOf(curTab())+(d<0?1:-1); return (j>=0&&j<TABS.length)?j:-1; };
+  const renderTab=t=>{ try{ ({dash:renderDash,acc:renderAccounts,invest:renderInvest,analytics:renderAnalytics,
+      set:()=>{renderSettings();renderCurrencySettings();}})[t](); }catch(_){}}
+  function nbSetup(sign){
+    const j=nextIdx(sign); nbTeardown();
+    if(j<0) return;
+    nbTab=TABS[j]; nbSign=sign; nb=document.getElementById('view-'+nbTab);
+    renderTab(nbTab);                                     // свіжий вміст прев'ю
+    layTop=Math.max(0, el.getBoundingClientRect().top);   // рівняємо по верху поточного екрана
+    nb.classList.remove('hidden');
+    Object.assign(nb.style,{position:'fixed',top:layTop+'px',left:'0',width:'100vw',bottom:'0',
+      overflow:'hidden',background:'var(--bg)',zIndex:'8',transition:'none',
+      transform:'translateX('+(sign<0?innerWidth:-innerWidth)+'px)',padding:'0 16px'});
+  }
+  function nbTeardown(hide=true){
+    if(!nb) return;
+    nb.style.cssText='';
+    if(hide) nb.classList.add('hidden');
+    nb=null; nbTab=''; nbSign=0;
+  }
   addEventListener('touchstart',e=>{
     if(e.touches.length!==1||skip(e)){live=false;return;}
     x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now(); live=true; drag=false; dx=0;
@@ -2516,42 +2545,40 @@ const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.cont
     if(!live||!el) return;
     const t=e.touches[0]; dx=t.clientX-x0; const dy=t.clientY-y0;
     if(!drag){
-      if(Math.abs(dy)>14 && Math.abs(dy)>Math.abs(dx)){ live=false; return; }   // це вертикальний скрол
-      if(Math.abs(dx)<14 || Math.abs(dx)<Math.abs(dy)*1.5) return;              // ще не зрозуміло
+      if(Math.abs(dy)>14 && Math.abs(dy)>Math.abs(dx)){ live=false; return; }   // вертикальний скрол
+      if(Math.abs(dx)<14 || Math.abs(dx)<Math.abs(dy)*1.5) return;
       drag=true; el.style.transition='none';
+      nbSetup(Math.sign(dx));
     }
-    // якщо в цей бік вкладки нема — тягнемо з опором, як iOS на краю
-    const edge=nextIdx(dx)<0 ? 0.15 : 0.75;
-    el.style.transform='translateX('+(dx*edge)+'px)';
-    el.style.opacity=String(Math.max(.55, 1-Math.abs(dx)/700));
+    if(drag && nb && Math.sign(dx)!==nbSign && dx!==0){ nbSetup(Math.sign(dx)); }  // передумав — тягне в інший бік
+    if(nextIdx(dx)<0 || !nb){                             // край: опір, сусіда нема
+      el.style.transform='translateX('+(dx*0.15)+'px)';
+    }else{
+      el.style.transform='translateX('+dx+'px)';          // сторінки їдуть 1:1 за пальцем
+      nb.style.transform='translateX('+((dx<0?innerWidth:-innerWidth)+dx)+'px)';
+    }
   },{passive:true});
   addEventListener('touchend',()=>{
     if(!live||!el){ live=false; return; }
     live=false;
     const w=innerWidth, fast=Date.now()-t0<250 && Math.abs(dx)>40;
-    const commit=drag && (Math.abs(dx)>w*0.28 || fast) && nextIdx(dx)>=0;
-    const v=el;
+    const commit=drag && nb && (Math.abs(dx)>w*0.28 || fast) && Math.sign(dx)===nbSign;
+    const v=el, n=nb, tab=nbTab;
     if(commit){
-      // доводимо поточний екран за край…
-      v.style.transition='transform .16s ease-out,opacity .16s ease-out';
-      v.style.transform='translateX('+(dx<0?-w:w)+'px)'; v.style.opacity='0';
-      const j=nextIdx(dx);
+      const ms=180;
+      v.style.transition='transform .18s ease-out'; v.style.transform='translateX('+(dx<0?-w:w)+'px)';
+      n.style.transition='transform .18s ease-out'; n.style.transform='translateX(0)';
+      nb=null; nbTab=''; nbSign=0;                        // глобалки звільняємо одразу, прибирає таймер
       setTimeout(()=>{
-        v.style.transition='none'; v.style.transform=''; v.style.opacity='';
-        go(TABS[j]);
-        // …а новий в'їжджає з протилежного боку
-        const nv=document.getElementById('view-'+TABS[j]);
-        nv.style.transition='none'; nv.style.transform='translateX('+(dx<0?w:-w)*0.35+'px)'; nv.style.opacity='.6';
-        requestAnimationFrame(()=>{ nv.style.transition='transform .2s ease-out,opacity .2s ease-out';
-          nv.style.transform=''; nv.style.opacity='';
-          setTimeout(()=>{ nv.style.transition=''; },220); });
-      },160);
+        v.style.transition='none'; v.style.transform='';
+        n.style.cssText='';                               // стилі прев'ю знято, view лишається видимим
+        go(tab);                                          // фіналізуємо перехід (та сама сторінка — без стрибка)
+      },ms);
     }else if(drag){
-      // не дотягнув — пружинимо назад
-      v.style.transition='transform .18s ease-out,opacity .18s ease-out';
-      v.style.transform=''; v.style.opacity='';
-      setTimeout(()=>{ v.style.transition=''; },200);
-    }
+      v.style.transition='transform .18s ease-out'; v.style.transform='';
+      if(n){ n.style.transition='transform .18s ease-out'; n.style.transform='translateX('+(nbSign<0?w:-w)+'px)'; }
+      setTimeout(()=>{ v.style.transition=''; nbTeardown(); },200);
+    }else nbTeardown();
     drag=false; el=null;
   },{passive:true});
 })();
