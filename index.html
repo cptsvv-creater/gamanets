@@ -209,7 +209,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.62</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.64</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.62</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.64</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -287,8 +287,10 @@ svg .bar{transition:opacity .2s}
     <div class="card">
       <h3 style="margin-bottom:8px">Останні операції</h3>
       <div class="txfilter" id="dashTxFilter"></div>
-      <div id="txSearchBox" class="hidden" style="margin-bottom:8px">
-        <input id="txSearchInput" placeholder="🔍 нотатка, категорія, рахунок, сума…" oninput="txSearch=this.value;txShowAll=true;renderDashOps()" style="width:100%"></div>
+      <div id="txSearchBox" class="hidden" style="margin-bottom:8px;position:relative">
+        <input id="txSearchInput" placeholder="🔍 нотатка, категорія, рахунок, сума…" oninput="txSearch=this.value;txShowAll=true;renderDashOps()" style="width:100%;padding-right:40px">
+        <button onclick="clearTxSearch()" title="очистити"
+          style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:var(--surface2);color:var(--muted);width:28px;height:28px;border-radius:50%;font-size:14px;cursor:pointer">✕</button></div>
       <div id="recentTx"></div>
     </div>
   </section>
@@ -1167,15 +1169,17 @@ function renderMonthlyChart(){
     bars+=`<rect class="bar" x="${x}%" y="${(baseY-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
     bars+=`<rect class="bar" x="${x+bw}%" y="${(baseY-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
   });
-  const step=Math.ceil(months.length/12);
   const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}</svg>`;
-  const labels=months.map((m,i)=>{
-    const [y,mo]=m.split('-');
-    const show=(i%step)===0;
-    return `<div style="flex:1;text-align:center;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden">${show?mo+'.'+y.slice(2):''}</div>`;
-  }).join('');
+  // Підписи: на довгих діапазонах (весь час = 100+ міс) flex-слоти стискались у нечитабельні
+  // обрізки. Тепер мітки позиціюються абсолютно; >30 міс — підписуємо лише роки на січнях.
+  const n=months.length;
+  let marks;
+  if(n>30) marks=months.map((m,i)=>({i,txt:m.slice(5,7)==='01'?m.slice(0,4):null})).filter(x=>x.txt);
+  else { const step=Math.ceil(n/12);
+    marks=months.map((m,i)=>({i,txt:(i%step)===0?m.slice(5,7)+'.'+m.slice(2,4):null})).filter(x=>x.txt); }
+  const labels=marks.map(x=>`<span style="position:absolute;left:${((x.i+0.5)*W).toFixed(2)}%;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap">${x.txt}</span>`).join('');
   document.getElementById('chartMonthly').innerHTML=
-    svg+`<div style="display:flex;margin-top:5px">${labels}</div>`;
+    svg+`<div style="position:relative;height:14px;margin-top:5px">${labels}</div>`;
 }
 
 function monthLabel(mk){const [y,m]=mk.split('-').map(Number);
@@ -1244,6 +1248,13 @@ function toggleTxSearch(){
   const b=document.getElementById('txSearchBox'), open=b.classList.toggle('hidden');
   if(open){ txSearch=''; document.getElementById('txSearchInput').value=''; txShowAll=false; renderDashOps(); }
   else document.getElementById('txSearchInput').focus();
+}
+// ✕ у полі: чистить пошук, ховає поле і повертає стандартний список
+function clearTxSearch(){
+  txSearch=''; txShowAll=false;
+  document.getElementById('txSearchInput').value='';
+  document.getElementById('txSearchBox').classList.add('hidden');
+  renderDashOps();
 }
 /* ========================= INVESTMENTS ========================= */
 const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨',crypto:'🪙',futures:'📊'};
@@ -2486,7 +2497,8 @@ function toast(msg){let t=document.getElementById('toast');
 
 /* ========================= NAV ========================= */
 function go(tab){
-  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  // страховка від обірваних свайпів: прибираємо будь-які залишкові inline-стилі прев'ю
+  document.querySelectorAll('.view').forEach(v=>{ v.classList.add('hidden'); if(v.style.cssText) v.style.cssText=''; });
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   const hideFab = tab==='set'||tab==='invest'||tab==='analytics'||tab==='ai';
@@ -2558,11 +2570,11 @@ const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.cont
       nb.style.transform='translateX('+((dx<0?innerWidth:-innerWidth)+dx)+'px)';
     }
   },{passive:true});
-  addEventListener('touchend',()=>{
+  function endGesture(cancelled){
     if(!live||!el){ live=false; return; }
     live=false;
     const w=innerWidth, fast=Date.now()-t0<250 && Math.abs(dx)>40;
-    const commit=drag && nb && (Math.abs(dx)>w*0.28 || fast) && Math.sign(dx)===nbSign;
+    const commit=!cancelled && drag && nb && (Math.abs(dx)>w*0.28 || fast) && Math.sign(dx)===nbSign;
     const v=el, n=nb, tab=nbTab;
     if(commit){
       const ms=180;
@@ -2580,7 +2592,11 @@ const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.cont
       setTimeout(()=>{ v.style.transition=''; nbTeardown(); },200);
     }else nbTeardown();
     drag=false; el=null;
-  },{passive:true});
+  }
+  addEventListener('touchend',()=>endGesture(false),{passive:true});
+  // iOS перехоплює жест (шторка, край екрана, дзвінок) → touchcancel: прибираємо все як «недотяг»,
+  // інакше прев'ю сусідньої сторінки лишалось висіти поверх екрана
+  addEventListener('touchcancel',()=>endGesture(true),{passive:true});
 })();
 
 /* ========================= TX MODAL ========================= */
@@ -2973,6 +2989,10 @@ async function importData(ev){
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
  }finally{ _restoring=false; }
+ // імпорт файлу = локальна зміна, яку треба вивантажити (під час імпорту автобекап заглушений,
+ // тож без цього десктоп після імпорту мовчав і телефон не отримував нову базу)
+ lastChangeAt=Date.now(); await setMeta('lastChangeAt',lastChangeAt);
+ if(autoBackup&&backupId&&backupPass) cloudBackupNow(true);
  go('dash');alert('Готово! Дані імпортовано.');
 }
 async function wipeData(){
