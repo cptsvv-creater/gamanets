@@ -212,7 +212,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.65</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.66</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -223,7 +223,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.65</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.66</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1157,38 +1157,68 @@ function renderDashOps(){
   document.getElementById('recentTx').innerHTML=html;
 }
 
+/* Укрупнення періоду: помісячно все, що коротше ~1.5 року; далі квартали, далі роки.
+   Інакше на «весь час» (100+ міс) свічки стають волосинками, а лінія — їжаком. */
+function groupPeriods(data){
+  if(data.length<=18) return data.map(d=>({...d,lab:d.m.slice(5)+'.'+d.m.slice(2,4),tip:monthLabel(d.m)}));
+  const byYear=data.length>48;
+  const map=new Map();
+  data.forEach(d=>{
+    const y=d.m.slice(0,4), mo=Number(d.m.slice(5,7));
+    const key=byYear?y:`${y}-${Math.ceil(mo/3)}`;
+    const r=map.get(key)||{m:key,inc:0,exp:0,
+      lab: byYear? y : 'Q'+Math.ceil(mo/3)+"'"+y.slice(2),
+      tip: byYear? (y+' рік') : (Math.ceil(mo/3)+'-й квартал '+y)};
+    r.inc+=d.inc; r.exp+=d.exp; map.set(key,r);
+  });
+  return [...map.values()];
+}
+/* Плавна крива через точки (Catmull-Rom → кубічні Безьє). Натяг 0.18 —
+   достатньо м'яко, але без «розгойдування» на різких стрибках. */
+function smoothPath(pts){
+  if(pts.length<2) return '';
+  const F=v=>v.toFixed(2);
+  if(pts.length===2) return `M${F(pts[0].x)},${F(pts[0].y)} L${F(pts[1].x)},${F(pts[1].y)}`;
+  let d=`M${F(pts[0].x)},${F(pts[0].y)}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2, t=0.18;
+    d+=` C${F(p1.x+(p2.x-p0.x)*t)},${F(p1.y+(p2.y-p0.y)*t)} ${F(p2.x-(p3.x-p1.x)*t)},${F(p2.y-(p3.y-p1.y)*t)} ${F(p2.x)},${F(p2.y)}`;
+  }
+  return d;
+}
 function renderMonthlyChart(){
   const months=monthsForRange(), rate=rates[dispCur]||1;
-  const data=months.map(m=>{let inc=0,exp=0;
+  const raw=months.map(m=>{let inc=0,exp=0;
     txs.forEach(t=>{if(monthKey(t.date)!==m)return;const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||PIVOT);
       if(t.type==='income')inc+=v;if(t.type==='expense')exp+=v;});
     return {m,inc:inc/rate,exp:exp/rate};});
+  const data=groupPeriods(raw);
+  const n=data.length;
   const max=Math.max(1,...data.map(d=>Math.max(d.inc,d.exp)));
-  const W=100/months.length, gap=months.length>18?0.4:2, bw=(W-gap)/2;
+  const W=100/n, gap=n>18?0.5:2, bw=(W-gap)/2;
   // свічки живуть над нулем (78), під нулем — стисла зона для від'ємного сальдо лінії
   const baseY=78, scale=70, negZone=19;
   let bars='';
   data.forEach((d,i)=>{
     const x=i*W+gap/2;
     const hi=d.inc/max*scale, he=d.exp/max*scale;
-    bars+=`<rect class="bar" x="${x}%" y="${(baseY-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.m}: +${fmt(d.inc,dispCur)}</title></rect>`;
-    bars+=`<rect class="bar" x="${x+bw}%" y="${(baseY-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.m}: −${fmt(d.exp,dispCur)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x}%" y="${(baseY-hi)}%" width="${bw}%" height="${hi}%" rx="1" fill="var(--green)"><title>${d.tip}: +${fmt(d.inc,dispCur)}</title></rect>`;
+    bars+=`<rect class="bar" x="${x+bw}%" y="${(baseY-he)}%" width="${bw}%" height="${he}%" rx="1" fill="var(--red)"><title>${d.tip}: −${fmt(d.exp,dispCur)}</title></rect>`;
   });
-  // лінія сальдо (доходи − витрати) ПОВЕРХ свічок, крапка на кожен місяць
+  // лінія сальдо (доходи − витрати) ПОВЕРХ свічок
   const netY=v=> v>=0 ? baseY - v/max*scale : baseY + Math.min(negZone, (-v)/max*negZone);
-  const pts=data.map((d,i)=>({x:i*W+W/2, y:netY(d.inc-d.exp), net:d.inc-d.exp, m:d.m}));
-  const netLine=`<polyline points="${pts.map(p=>p.x.toFixed(2)+','+p.y.toFixed(2)).join(' ')}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round" opacity=".95"/>`
-    +pts.map(p=>`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="1.5" fill="var(--brand)"><title>${p.m}: сальдо ${p.net>=0?'+':'−'}${fmt(Math.abs(p.net),dispCur)}</title></circle>`).join('');
+  const pts=data.map((d,i)=>({x:i*W+W/2, y:netY(d.inc-d.exp), net:d.inc-d.exp, tip:d.tip}));
+  // крапки лише коли їх мало — інакше вони зливаються в «гусеницю»
+  // (у SVG з preserveAspectRatio="none" кружечок ще й розтягується в овал)
+  const dots = n<=14 ? pts.map(p=>`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="1.2" fill="var(--brand)"><title>${p.tip}: сальдо ${p.net>=0?'+':'−'}${fmt(Math.abs(p.net),dispCur)}</title></circle>`).join('') : '';
+  const netLine=`<path d="${smoothPath(pts)}" fill="none" stroke="var(--brand)" stroke-width="1.7" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity=".95"/>`+dots;
   const zero=`<line x1="0" y1="${baseY}" x2="100" y2="${baseY}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".45" vector-effect="non-scaling-stroke"/>`;
   const svg=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;display:block">${bars}${zero}${netLine}</svg>`;
-  // Підписи: на довгих діапазонах (весь час = 100+ міс) flex-слоти стискались у нечитабельні
-  // обрізки. Тепер мітки позиціюються абсолютно; >30 міс — підписуємо лише роки на січнях.
-  const n=months.length;
-  let marks;
-  if(n>30) marks=months.map((m,i)=>({i,txt:m.slice(5,7)==='01'?m.slice(0,4):null})).filter(x=>x.txt);
-  else { const step=Math.ceil(n/12);
-    marks=months.map((m,i)=>({i,txt:(i%step)===0?m.slice(5,7)+'.'+m.slice(2,4):null})).filter(x=>x.txt); }
-  const labels=marks.map(x=>`<span style="position:absolute;left:${((x.i+0.5)*W).toFixed(2)}%;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap">${x.txt}</span>`).join('');
+  // підписи: скільки влазить за фактичною довжиною мітки («2017» вужче за «02.26»)
+  const labW=Math.max(...data.map(d=>d.lab.length))*5.6+6;
+  const step=Math.max(1,Math.ceil(n/Math.max(3,Math.floor((innerWidth-64)/labW))));
+  const labels=data.map((d,i)=>(i%step)?'':
+    `<span style="position:absolute;left:${((i+0.5)*W).toFixed(2)}%;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap">${d.lab}</span>`).join('');
   document.getElementById('chartMonthly').innerHTML=
     svg+`<div style="position:relative;height:14px;margin-top:5px">${labels}</div>`;
 }
