@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.70</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.71</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.70</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.71</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -485,8 +485,10 @@ svg .bar{transition:opacity .2s}
       <div class="row wrap" style="margin-top:6px">
         <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Монобанк (.csv)</button>
         <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
+        <button class="btn ghost sm" onclick="document.getElementById('ffFile').click()">⬆ Freedom24 (виписка .json)</button>
+        <input type="file" id="ffFile" accept=".json,application/json" class="hidden" onchange="onFreedomFile(event)">
       </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Експортуй виписку в застосунку Монобанк (CSV) і завантаж сюди. Твої категорії не постраждають — обереш «без категорій» або AI-розкладку.</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Монобанк: CSV з застосунку — твої категорії не постраждають (обереш «без категорій» або AI). Freedom24: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
       <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
@@ -645,6 +647,18 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <!-- Monobank import modal -->
+<div class="modal" id="ffModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Імпорт Freedom24</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('ffModal')">✕</button></div>
+    <div class="muted" id="ffInfo" style="font-size:12px;margin-bottom:10px"></div>
+    <div><label>Який майданчик оновити</label><select id="ffVenue" onchange="renderFreedomPreview()"></select></div>
+    <div id="ffPreview" style="margin-top:12px"></div>
+    <div class="muted" style="font-size:11px;margin-top:8px">Ціни й вартості беруться з виписки. Твої дивіденди-доходи не чіпаються — готівка лише вирівнюється коригуванням. Комісії показані для інформації, окремо не записуються.</div>
+    <div class="row" style="margin-top:16px"><div class="spacer"></div>
+      <button class="btn" id="ffGoBtn" onclick="runFreedomImport()">Застосувати</button></div>
+  </div>
+</div>
 <div class="modal" id="monoModal">
   <div class="sheet">
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Імпорт Монобанк</h3>
@@ -1454,8 +1468,8 @@ function renderBudgetCard(){
     ${ub.total>0?`<div class="row" style="margin-top:10px;font-size:13px;gap:8px">
         <span onclick="toggleUnbudgeted()" style="cursor:pointer;white-space:nowrap">
           <span style="color:var(--muted)">${unbudgetedOpen?'▾':'▸'}</span> Витрати поза бюджетом</span>
-        <div class="spacer"></div><b style="white-space:nowrap">${fmt(ub.total)}</b></div>
-      <div class="muted" style="font-size:10px;margin-top:2px">Категорії без ліміту — не входять у розрахунок вище</div>
+        <div class="spacer"></div><b style="white-space:nowrap;color:${(spent+ub.total)>budget?'var(--red)':'inherit'}">${fmt(ub.total)}</b></div>
+      <div class="muted" style="font-size:10px;margin-top:2px">Категорії без ліміту — не входять у розрахунок вище${(spent+ub.total)>budget?`. <span style="color:var(--red)">⚠️ Разом за місяць ${fmt(spent+ub.total)} — понад бюджет</span>`:''}</div>
       ${unbudgetedOpen?ub.rows.map(([cid,v])=>{const c=catById(cid);
         return `<div class="row" style="font-size:12px;margin-top:6px;gap:6px"><span style="white-space:nowrap">${c?.icon||'📦'} ${c?catFullName(cid):'Без категорії'}</span>
           <div class="spacer"></div><span style="white-space:nowrap">${fmt(v)}</span></div>`;}).join(''):''}`:''}
@@ -3343,6 +3357,82 @@ function monoDate(s){
   const [H,Mi,S]=((t||'0:0:0').split(':')).map(Number);
   if(!yy||!mm||!dd) return {iso:'',ts:0};
   return {iso:`${yy}-${pad2(mm)}-${pad2(dd)}`, ts:new Date(yy,mm-1,dd,H||0,Mi||0,S||0).getTime()};
+}
+/* ===== Імпорт виписки Freedom24 (JSON зі стану рахунку) =====
+   Джерело: account_at_end — авторитетні поточні позиції (без делістингів),
+   готівка по валютах і комісії за період. Дивіденди НЕ створюємо — лише коригуємо готівку. */
+async function onFreedomFile(ev){
+  const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
+  let d; try{ d=JSON.parse(await file.text()); }catch(e){ alert('Не вдалося прочитати JSON'); return; }
+  const ps=d?.account_at_end?.account?.positions_from_ts?.ps;
+  if(!ps||!Array.isArray(ps.pos)){ alert('Це не схоже на виписку стану рахунку Freedom24 (немає account_at_end).'); return; }
+  const positions=ps.pos.map(p=>({ticker:p.i, qty:Number(p.q)||0, invested:+Number(p.open_bal||0).toFixed(2),
+    buyPrice:+Number(p.bal_price_a||0).toFixed(4), curPrice:+Number(p.p||p.mkt_price||0).toFixed(4),
+    curValue:+Number(p.mval??p.market_value??0).toFixed(2), currency:p.curr||'USD',
+    name:(p.name||p.i)})).filter(p=>p.qty>0);
+  const cashUSD = Number((ps.acc||[]).find(a=>a.curr==='USD')?.s || 0);
+  const comm = d?.commissions?.total || {};
+  window._ffData={positions, cashUSD, comm, period:[d.date_start,d.date_end]};
+  // майданчики (invest); підказуємо той, де вже є ці тикери
+  const venues=accounts.filter(a=>a.type==='invest'&&!a.archived);
+  const sel=document.getElementById('ffVenue');
+  sel.innerHTML=venues.map(v=>`<option value="${v.id}">${v.icon||''} ${v.name} (${v.currency})</option>`).join('');
+  const tset=new Set(positions.map(p=>p.ticker));
+  const guess=venues.find(v=>venueHoldings(v.id).some(h=>tset.has(h.name)||tset.has(h.ticker)));
+  if(guess) sel.value=guess.id;
+  document.getElementById('ffInfo').textContent=`Виписка за ${(''+d.date_end).slice(0,10)}: позицій ${positions.length}, готівка $${cashUSD.toFixed(2)}${comm.USD?`, комісії $${comm.USD}`:''}.`;
+  renderFreedomPreview();
+  openModal('ffModal');
+}
+function ffMatch(h,ticker){ return h.name===ticker || h.ticker===ticker; }
+function renderFreedomPreview(){
+  const box=document.getElementById('ffPreview'); const D=window._ffData; if(!box||!D) return;
+  const vid=document.getElementById('ffVenue').value;
+  const have=venueHoldings(vid);
+  const inFile=new Set(D.positions.map(p=>p.ticker));
+  const rows=[];
+  D.positions.forEach(p=>{
+    const h=have.find(x=>ffMatch(x,p.ticker));
+    if(!h) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span style="color:var(--green)">➕ ${p.ticker}</span><div class="spacer"></div><span>${p.qty} шт · ${fmt(p.curValue,p.currency)}</span></div>`);
+    else if((h.qty||0)!==p.qty) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>✏️ ${p.ticker}</span><div class="spacer"></div><span class="muted">${h.qty}→</span><b>${p.qty} шт</b></div>`);
+  });
+  have.filter(h=>!inFile.has(h.name)&&!inFile.has(h.ticker)).forEach(h=>
+    rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span style="color:var(--red)">🗑 ${h.name}</span><div class="spacer"></div><span class="muted">продано — прибрати</span></div>`));
+  const v=accById(vid), curBal=v?accBalance(v):0, cashDelta=+(D.cashUSD-curBal).toFixed(2);
+  const priceOnly=D.positions.length-rows.filter(r=>r.includes('➕')||r.includes('✏️')).length;
+  box.innerHTML=(rows.length?rows.join(''):'<div class="muted" style="font-size:13px">Кількості вже збігаються.</div>')
+    +`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px">
+        <div class="row" style="margin:4px 0"><span>💵 Готівка майданчика</span><div class="spacer"></div>
+          <span class="muted">${fmt(curBal,v?.currency||'USD')}→</span><b style="margin-left:4px">${fmt(D.cashUSD,'USD')}</b>
+          ${Math.abs(cashDelta)>=0.01?`<span class="muted" style="margin-left:6px">(${cashDelta>0?'+':''}${cashDelta})</span>`:''}</div>
+        <div class="muted" style="font-size:11px">Оновлю ціни/вартості всіх ${D.positions.length} позицій.${D.comm.USD?` Комісії за період: $${D.comm.USD} (інформативно).`:''}</div>
+      </div>`;
+}
+async function runFreedomImport(){
+  const D=window._ffData; if(!D){ closeModal('ffModal'); return; }
+  const btn=document.getElementById('ffGoBtn'); btn.disabled=true;
+  try{
+    const vid=document.getElementById('ffVenue').value; const v=accById(vid);
+    const have=venueHoldings(vid);
+    const inFile=new Set(D.positions.map(p=>p.ticker));
+    let add=0,upd=0,rem=0;
+    // 1) оновити/додати позиції
+    for(const p of D.positions){
+      const h=have.find(x=>ffMatch(x,p.ticker));
+      if(h){ Object.assign(h,{qty:p.qty,invested:p.invested,buyPrice:p.buyPrice,curPrice:p.curPrice,curValue:p.curValue,currency:p.currency});
+        await put('holdings',h); upd++; }
+      else { await put('holdings',{id:uid(),venue:vid,kind:'stock',name:p.ticker,ticker:p.ticker,quoteSym:'',
+        currency:p.currency,qty:p.qty,buyPrice:p.buyPrice,curPrice:p.curPrice,invested:p.invested,curValue:p.curValue,note:''}); add++; }
+    }
+    // 2) прибрати продані
+    for(const h of have) if(!inFile.has(h.name)&&!inFile.has(h.ticker)){ await del('holdings',h.id); rem++; }
+    // 3) готівка — лише коригування (не дохід), щоб не подвоювати ручні дивіденди
+    const curBal=accBalance(v), delta=+(D.cashUSD-curBal).toFixed(2);
+    if(Math.abs(delta)>=0.01) await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:vid,note:'Freedom24: коригування готівки',createdAt:Date.now()});
+    await loadAll(); closeModal('ffModal'); go('invest');
+    toast(`✓ Freedom24: +${add} / оновлено ${upd} / прибрано ${rem}`);
+  }catch(e){ alert('Не вдалося імпортувати:\n'+(e&&e.message||e)); }
+  finally{ btn.disabled=false; }
 }
 async function onMonoFile(ev){
   const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
