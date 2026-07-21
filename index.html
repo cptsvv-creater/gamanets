@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.68</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.70</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.68</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.70</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -272,7 +272,7 @@ svg .bar{transition:opacity .2s}
         <input type="month" id="rangeTo" style="flex:1">
         <button class="btn sm" onclick="applyCustomRange()">OK</button>
       </div>
-      <div id="chartMonthly"></div>
+      <div id="chartMonthly" data-noswipe></div>
       <div class="legend">
         <span><i class="dot" style="background:var(--green)"></i>Доходи</span>
         <span><i class="dot" style="background:var(--red)"></i>Витрати</span>
@@ -509,6 +509,7 @@ svg .bar{transition:opacity .2s}
         Proudly designed by <span style="color:#D97757;font-weight:600">Anthropic Claude&nbsp;Code</span><br>
         under guidance of <span style="white-space:nowrap">Capt.&nbsp;Vitaliy&nbsp;Sivak</span>
       </div>
+      <a href="mailto:cpt.svv@gmail.com?subject=Гаманець%20—%20підтримка" style="display:inline-block;margin-top:12px;font-size:13px;color:var(--brand-t);text-decoration:none">✉️ Підтримка / повідомити про проблему</a>
     </div>
 
 
@@ -615,7 +616,8 @@ svg .bar{transition:opacity .2s}
     </div>
     <div style="margin-top:10px"><label>Колір картки</label><div class="colorrow" id="accColorRow"></div></div>
     <div style="margin-top:10px"><label>Іконка</label>
-      <input id="accIconPreview" readonly style="width:64px;text-align:center;font-size:20px" value="💳">
+      <input id="accIconPreview" style="width:64px;text-align:center;font-size:20px" value="💳" oninput="typeAccIcon(this.value)">
+      <div class="muted" style="font-size:11px;margin:4px 0 6px">Обери зі списку або встав <b>будь-яке</b> емодзі сюди ↑ (клавіатура айфона → 😀).</div>
       <div class="iconpicker" id="accIconGrid"></div></div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="accDelBtn" onclick="deleteAccount()">Видалити</button>
@@ -1441,7 +1443,7 @@ function renderBudgetCard(){
     <div class="row" style="align-items:baseline;gap:8px">
       <span style="font-size:22px;font-weight:700;white-space:nowrap;color:${over?'var(--red)':'inherit'}">${fmt(spent)}</span>
       <div class="spacer"></div>
-      <span class="muted" style="font-size:12px;white-space:nowrap">${left>=0?'доступно':'перевитрата'} ${fmt(Math.abs(left))} / ${fmt(budget)}</span>
+      <span style="font-size:12px;white-space:nowrap;font-weight:${over?'700':'400'};color:${over?'var(--red)':'var(--muted)'}">${left>=0?'доступно':'⚠️ перевитрата'} ${fmt(Math.abs(left))} / ${fmt(budget)}</span>
     </div>
     <div style="position:relative;height:10px;background:var(--surface2);border-radius:6px;margin-top:8px">
       <div style="width:${pct}%;height:100%;background:${col};border-radius:6px"></div>
@@ -1567,11 +1569,12 @@ function renderMonthCompare(){
 }
 /* ---- 🗓 Хітмап: у які дні місяця горять (і заходять) гроші ----
    Один календар: фон клітинки — витрати (червона гама), нижня смужка — доходи (зелена). */
-let hmMonth='';
+let hmMonth='', hmDay=0;
 function hmShift(d){
   const [y,m]=(hmMonth||monthKey(todayISO())).split('-').map(Number);
-  hmMonth=ymKey(new Date(y,m-1+d,1)); renderAnalytics();
+  hmMonth=ymKey(new Date(y,m-1+d,1)); hmDay=0; renderAnalytics();
 }
+function hmSelectDay(d){ hmDay=(hmDay===d?0:d); renderAnalytics(); }   // тап по дню → деталі, тап ще раз → сховати
 function renderHeatmap(){
   const mk=hmMonth||monthKey(todayISO()), [y,m]=mk.split('-').map(Number);
   const dim=new Date(y,m,0).getDate();
@@ -1587,9 +1590,26 @@ function renderHeatmap(){
   for(let d=1;d<=dim;d++){
     const e=exp[d]||0, kE=e?Math.max(.18,e/mxE):0;
     const g=inc[d]||0, kI=g?Math.max(.35,g/mxI):0;
-    cells+=`<div title="${d}.${pad2(m)}: −${fmt(e)}${g?' · +'+fmt(g):''}" style="position:relative;aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;overflow:hidden;
-      background:${e?`rgba(239,68,68,${(kE*.85).toFixed(2)})`:'var(--surface2)'};color:${kE>.55?'#fff':'var(--muted)'}">${d}
+    const sel=hmDay===d;
+    cells+=`<div onclick="hmSelectDay(${d})" title="${d}.${pad2(m)}: −${fmt(e)}${g?' · +'+fmt(g):''}" style="position:relative;aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;overflow:hidden;cursor:pointer;
+      background:${e?`rgba(239,68,68,${(kE*.85).toFixed(2)})`:'var(--surface2)'};color:${kE>.55?'#fff':'var(--muted)'};${sel?'box-shadow:inset 0 0 0 2px var(--brand-t)':''}">${d}
       ${g?`<div style="position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(34,197,94,${(kI*.95).toFixed(2)})"></div>`:''}</div>`;
+  }
+  // деталі обраного дня — під календарем
+  let dayBox='';
+  if(hmDay){
+    const dstr=`${y}-${pad2(m)}-${pad2(hmDay)}`;
+    const ops=txs.filter(t=>t.date===dstr && (t.type==='expense'||t.type==='income'))
+      .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const de=ops.filter(t=>t.type==='expense').reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
+    const di=ops.filter(t=>t.type==='income').reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
+    dayBox=`<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--line)">
+      <div class="row" style="font-size:13px"><b>${hmDay} ${monthLabel(mk).split(' ')[0]}</b>
+        <div class="spacer"></div>
+        ${di?`<span style="color:var(--green);white-space:nowrap">+${fmtDisp(di)}</span>`:''}
+        ${de?`<span style="color:var(--red);white-space:nowrap;margin-left:8px">−${fmtDisp(de)}</span>`:''}
+        <span onclick="hmSelectDay(${hmDay})" style="cursor:pointer;color:var(--muted);margin-left:10px">✕</span></div>
+      ${ops.length?ops.map(txRow).join(''):'<div class="empty">Немає операцій цього дня.</div>'}</div>`;
   }
   return `<div class="card">
     <div class="row" style="gap:6px"><h3 style="margin:0;white-space:nowrap">🗓 Дні місяця</h3>
@@ -1602,6 +1622,7 @@ function renderHeatmap(){
     ${(tE||tI)?`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px;font-size:9px;color:var(--muted);text-align:center">
       ${['пн','вт','ср','чт','пт','сб','нд'].map(d=>`<div>${d}</div>`).join('')}${cells}</div>`
       :'<div class="empty">Немає операцій цього місяця.</div>'}
+    ${dayBox}
   </div>`;
 }
 /* ---- 📅 Підсумок року ---- */
@@ -2709,6 +2730,22 @@ const curTab=()=>TABS.find(t=>!document.getElementById('view-'+t).classList.cont
   // інакше прев'ю сусідньої сторінки лишалось висіти поверх екрана
   addEventListener('touchcancel',()=>endGesture(true),{passive:true});
 })();
+/* Свайп по самому графіку Огляд/Динаміка перемикає період (6м↔Рік↔Весь час).
+   #chartMonthly має data-noswipe, тож свайп сторінки тут не спрацьовує — конфлікту нема. */
+(function initChartSwipe(){
+  let x0=0,y0=0,on=false;
+  const inChart=t=>!!(t&&t.closest&&t.closest('#chartMonthly'));
+  addEventListener('touchstart',e=>{ if(e.touches.length!==1||!inChart(e.target)){on=false;return;}
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; on=true; },{passive:true});
+  addEventListener('touchend',e=>{ if(!on) return; on=false;
+    const t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Math.abs(dx)<40 || Math.abs(dx)<Math.abs(dy)*1.5) return;   // не горизонтальний
+    const order=['6m','12m','all'];
+    let i=order.indexOf(chartRange); if(i<0) i=(chartRange==='custom'?order.length-1:0);
+    i=Math.max(0,Math.min(order.length-1, i+(dx<0?1:-1)));         // вліво = довший період
+    if(order[i]!==chartRange){ chartRange=order[i]; renderRangeSel(); renderMonthlyChart(); }
+  },{passive:true});
+})();
 
 /* ========================= TX MODAL ========================= */
 let txKind='expense', editingTx=null;
@@ -2821,6 +2858,12 @@ function renderAccIconPicker(){
     `<button type="button" class="${e===pickedAccIcon?'on':''}" onclick="pickAccIcon('${e}')">${e}</button>`).join('');
 }
 function pickAccIcon(e){pickedAccIcon=e;document.getElementById('accIconPreview').value=e;renderAccIconPicker();}
+// дозволяємо вписати/вставити будь-яке емодзі (як у категоріях) — і для рахунків, і для майданчиків
+function typeAccIcon(v){
+  const s=[...String(v||'').trim()];        // по символах, щоб не різати емодзі навпіл
+  pickedAccIcon = s.length? s.slice(0,3).join('') : '💳';
+  renderAccIconPicker();
+}
 function toggleCreditWrap(){
   const t=document.getElementById('accType').value;
   document.getElementById('accCreditWrap').style.display= t==='credit'?'':'none';
@@ -3533,6 +3576,15 @@ function aiSnapshot(){
   // інакше потрапляли в знімок і збивали радника з пантелику
   const now=new Date(), cashflow={};
   for(let i=11;i>=0;i--){ const mk=ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)); if(byM[mk]) cashflow[mk]=byM[mk]; }
+  // + УВЕСЬ період обліку по роках (компактно) — щоб радник бачив усі 9 років, а не лише 12 міс
+  const byY={};
+  txs.forEach(t=>{ const y=String(t.date||'').slice(0,4); if(y.length!==4) return;
+    const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
+    const r=byY[y]=byY[y]||{income:0,expense:0};
+    if(t.type==='income') r.income+=v; else if(t.type==='expense') r.expense+=v; });
+  const cashflowByYear={};
+  Object.keys(byY).sort().forEach(y=>{const r=byY[y];
+    cashflowByYear[y]={income:Math.round(r.income),expense:Math.round(r.expense),net:Math.round(r.income-r.expense)};});
   const used=[...new Set(acc.map(a=>a.currency).concat(hold.map(h=>h.currency)))];
   const rt={}; used.forEach(c=>{ if(rates[c]) rt[c]=rates[c]; });
   // ГОТОВІ підсумки по класах активів — рахує застосунок, а не модель
@@ -3550,7 +3602,8 @@ function aiSnapshot(){
   let net=0; Object.values(sums).forEach(v=>net+=v);
   totals.NET_WORTH={UAH:+net.toFixed(0),USD:toUSD(net)};
   return {date:todayISO(), baseCurrency:baseCur, ratesToUAH:rt,
-    totalsByClass_PRECOMPUTED:totals, accounts:acc, investments:hold, cashflow12m:cashflow};
+    totalsByClass_PRECOMPUTED:totals, accounts:acc, investments:hold,
+    cashflowByYear, cashflow12m:cashflow};
 }
 const RISK_TXT={conservative:'обережний — головне поступове стабільне зростання, без спекуляцій',
   balanced:'збалансований — помірний ризик заради кращої дохідності',
@@ -3573,6 +3626,7 @@ async function runAdvisor(){
 Горизонт планування: ${horizon} р. ${goal?('Мета користувача: «'+goal+'»'):'Окремої мети немає — зроби загальний план зростання капіталу.'}
 
 Скористайся веб-пошуком (українською та англійською) щоб дізнатись АКТУАЛЬНІ: дохідність ОВДП і депозитів в Україні, курс і прогноз USD/UAH, інфляцію в Україні, стан ринків США/ЄС і згадані у портфелі активи. Не вигадуй цифр — бери зі снапшота або з пошуку, вказуй що звідки.
+ПЕРІОД АНАЛІЗУ: у знімку є cashflowByYear (УВЕСЬ період обліку по роках) і cashflow12m (деталізація останніх 12 міс). За замовчуванням аналізуй ВЕСЬ доступний період — не обмежуйся двома роками. Якщо ж користувач у своєму запиті просить обмежитись (напр. «лише останній рік», «останні 5 років») — тоді бери саме той період.
 ЗАЛІЗНІ ПРАВИЛА: 0) Підсумки по класах активів УЖЕ ПОРАХОВАНІ застосунком у totalsByClass_PRECOMPUTED (UAH і USD) — використовуй САМЕ ЇХ, не перераховуй суми позицій сам. 1) Використовуй ЛИШЕ точні назви рахунків/банків зі снапшота — НЕ вигадуй назв. 2) Усі підсумки й прогнози рахуй В ОДНІЙ валюті — USD (конвертуй за курсом зі снапшота), поруч можеш дублювати в UAH. 3) Для ключових розрахунків коротко показуй формулу (напр. 720К грн/рік × 10 р. × 1.16^n → …). 4) Будь стислим, щоб відповідь ПОМІСТИЛАСЬ ПОВНІСТЮ — краще коротші розділи, ніж обірваний звіт. 5) УЗГОДЖЕНІСТЬ: суму щорічних заощаджень для ВСІХ сценаріїв виводь ТІЛЬКИ з кешфлоу знімка (обережний = нижня межа реального, оптимістичний = не більше ніж +30% до реального) — НЕ вигадуй сум, яких не видно в даних; перед видачею перевір, що цифра заощаджень у сценаріях збігається з висновком розділу «Кешфлоу». 6) Податки на іноземні активи (дивіденди США, курсові прибутки в Україні) не стверджуй з пам'яті — перевір пошуком або познач як «уточнити». 7) Не вставляй у відповідь обірваних таблиць чи повторів.
 
 Дай відповідь за структурою (заголовки ##):
