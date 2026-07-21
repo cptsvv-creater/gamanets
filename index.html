@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.71</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.72</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.71</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.72</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -654,7 +654,7 @@ svg .bar{transition:opacity .2s}
     <div class="muted" id="ffInfo" style="font-size:12px;margin-bottom:10px"></div>
     <div><label>Який майданчик оновити</label><select id="ffVenue" onchange="renderFreedomPreview()"></select></div>
     <div id="ffPreview" style="margin-top:12px"></div>
-    <div class="muted" style="font-size:11px;margin-top:8px">Ціни й вартості беруться з виписки. Твої дивіденди-доходи не чіпаються — готівка лише вирівнюється коригуванням. Комісії показані для інформації, окремо не записуються.</div>
+    <div class="muted" style="font-size:11px;margin-top:8px">Ціни й вартості беруться з виписки. Твої дивіденди-доходи не чіпаються — готівка лише вирівнюється коригуванням. Комісії записуються витратою в «Інвестиції (комісії)», щоб їх було видно у статистиці (баланс від цього не двоїться).</div>
     <div class="row" style="margin-top:16px"><div class="spacer"></div>
       <button class="btn" id="ffGoBtn" onclick="runFreedomImport()">Застосувати</button></div>
   </div>
@@ -3405,7 +3405,7 @@ function renderFreedomPreview(){
         <div class="row" style="margin:4px 0"><span>💵 Готівка майданчика</span><div class="spacer"></div>
           <span class="muted">${fmt(curBal,v?.currency||'USD')}→</span><b style="margin-left:4px">${fmt(D.cashUSD,'USD')}</b>
           ${Math.abs(cashDelta)>=0.01?`<span class="muted" style="margin-left:6px">(${cashDelta>0?'+':''}${cashDelta})</span>`:''}</div>
-        <div class="muted" style="font-size:11px">Оновлю ціни/вартості всіх ${D.positions.length} позицій.${D.comm.USD?` Комісії за період: $${D.comm.USD} (інформативно).`:''}</div>
+        <div class="muted" style="font-size:11px">Оновлю ціни/вартості всіх ${D.positions.length} позицій.${D.comm.USD?` Комісії $${D.comm.USD} → запишу витратою в «Інвестиції (комісії)».`:''}</div>
       </div>`;
 }
 async function runFreedomImport(){
@@ -3426,11 +3426,24 @@ async function runFreedomImport(){
     }
     // 2) прибрати продані
     for(const h of have) if(!inFile.has(h.name)&&!inFile.has(h.ticker)){ await del('holdings',h.id); rem++; }
-    // 3) готівка — лише коригування (не дохід), щоб не подвоювати ручні дивіденди
-    const curBal=accBalance(v), delta=+(D.cashUSD-curBal).toFixed(2);
-    if(Math.abs(delta)>=0.01) await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:vid,note:'Freedom24: коригування готівки',createdAt:Date.now()});
+    // 3) комісії — реальною витратою (щоб їх було ВИДНО у статистиці), дедуп по періоду
+    const commUSD=Number(D.comm?.USD)||0;
+    const endDate=(''+(D.period?.[1]||todayISO())).slice(0,10);
+    const commKey='ffcomm:'+vid+':'+endDate;
+    const commDone=txs.some(t=>t.impKey===commKey);
+    const addComm=commUSD>0 && !commDone;
+    if(addComm){
+      const commCat=cats.find(c=>c.type==='expense'&&/коміс/i.test(c.name||''))
+        || cats.find(c=>c.type==='expense'&&/інвест/i.test(c.name||''));
+      await put('tx',{id:uid(),type:'expense',amount:commUSD,date:endDate,account:vid,
+        category:commCat?.id||'',note:'Freedom24 комісії',impKey:commKey,createdAt:Date.now()});
+    }
+    // 4) готівка — коригування (НЕ дохід), яке ВРАХОВУЄ щойно списану комісію, щоб баланс лишився точним
+    const curBal=accBalance(v);
+    const delta=+(D.cashUSD-curBal+(addComm?commUSD:0)).toFixed(2);
+    if(Math.abs(delta)>=0.01) await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:vid,note:'Freedom24: коригування готівки',createdAt:Date.now()+1});
     await loadAll(); closeModal('ffModal'); go('invest');
-    toast(`✓ Freedom24: +${add} / оновлено ${upd} / прибрано ${rem}`);
+    toast(`✓ Freedom24: +${add} / оновлено ${upd} / прибрано ${rem}${addComm?` · комісії $${commUSD}`:''}`);
   }catch(e){ alert('Не вдалося імпортувати:\n'+(e&&e.message||e)); }
   finally{ btn.disabled=false; }
 }
