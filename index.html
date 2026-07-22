@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.80</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.84</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.80</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.84</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -739,6 +739,9 @@ svg .bar{transition:opacity .2s}
       </div>
       <datalist id="coinList"></datalist>
       <div id="quoteSymWrap" style="margin-top:10px"><label>Символ для авто-ціни (для не-US бірж)</label><input id="hQuoteSym" placeholder="FMP: MHPC.L, EMIM.AS · Twelve Data: MHPC:XLON"></div>
+      <div id="fundWrap" class="hidden" style="margin-top:10px"><label>Авто-ціна Inzhur (вартість паю з inzhur.reit)</label>
+        <select id="hInzhurSlug"></select>
+        <div class="muted" style="font-size:11px;margin-top:4px">Обери фонд — і кнопка «↻ Оновити ціни» тягнутиме NAV паю. Потрібен доступ з України (гео-блок; VPN підійде).</div></div>
       <div class="grid cols2" style="margin-top:10px">
         <div><label id="hQtyLabel">Кількість (шт / паї / облігації)</label><input id="hQty" type="number" step="any" inputmode="decimal" placeholder="напр. 5" oninput="recalcHolding()"></div>
         <div></div>
@@ -781,6 +784,32 @@ svg .bar{transition:opacity .2s}
       <button class="btn ghost sm hidden" id="holdTradeBtn" onclick="futuresTrade()">📊 Угода</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveHolding()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Capital flow modal (заведення/виводи для TWRR/MWRR) -->
+<div class="modal" id="flowModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="flowModalTitle">Потік капіталу</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('flowModal')">✕</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Заведення/виводи грошей у портфель — щоб рахувати справжню дохідність (TWRR/MWRR). Дивіденди й купони сюди НЕ пиши — це дохід, а не потік.</div>
+    <div class="seg" style="margin-bottom:10px">
+      <button type="button" data-k="in" class="on" onclick="setFlowDir('in')">➕ Завів</button>
+      <button type="button" data-k="out" onclick="setFlowDir('out')">➖ Вивів</button>
+    </div>
+    <div class="grid cols2">
+      <div><label>Сума</label><input id="flAmt" type="number" step="any" inputmode="decimal" placeholder="0.00"></div>
+      <div><label>Валюта</label><select id="flCur"></select></div>
+    </div>
+    <div class="grid cols2" style="margin-top:10px">
+      <div><label>Дата</label><input id="flDate" type="date"></div>
+      <div><label>Нотатка</label><input id="flNote" placeholder="необов'язково"></div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn danger sm hidden" id="flowDelBtn" onclick="delFlow()">Видалити</button>
+      <div class="spacer"></div>
+      <button class="btn" onclick="saveFlow()">Зберегти</button>
     </div>
   </div>
 </div>
@@ -936,6 +965,7 @@ async function loadAll(){
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
   lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
   goalTargetUSD=await getMeta('goalTargetUSD')||0; goalDate=await getMeta('goalDate')||'';
+  pfFlows=await getMeta('pfFlows')||[];
   coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
@@ -1216,17 +1246,21 @@ function renderDashOps(){
   if(!list.length){document.getElementById('recentTx').innerHTML=q
     ?'<div class="empty">Нічого не знайдено за «'+q+'».</div>'
     :'<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';return;}
-  let html, footer='';
+  let html, footer='', header='';
   if(txShowAll || q){                                  // пошук або «показати всі» — повний список
     const CAP=200; html=list.slice(0,CAP).map(txRow).join('');
     if(list.length>CAP) html+=`<div class="muted" style="font-size:12px;text-align:center;margin-top:8px">…і ще ${list.length-CAP}. Звузь пошуком 🔍</div>`;
-    if(!q) footer=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=false;renderDashOps()">▴ Тільки сьогодні</button>`;
+    if(!q){
+      // липка кнопка-згортання зверху — щоб не скролити тисячі рядків назад
+      header=`<button class="btn ghost sm" style="position:sticky;top:6px;z-index:6;width:100%;margin-bottom:10px;background:var(--surface);box-shadow:0 4px 12px rgba(0,0,0,.25)" onclick="txShowAll=false;renderDashOps()">▴ Тільки сьогодні · показано ${Math.min(list.length,CAP)} з ${list.length}</button>`;
+      footer=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=false;scrollTo(0,0);renderDashOps()">▴ Згорнути ↑</button>`;
+    }
   } else {                                             // за замовчуванням — лише сьогоднішні
     const today=todayISO(), todayList=list.filter(t=>t.date===today);
     html=todayList.length?todayList.map(txRow).join(''):'<div class="empty">Сьогодні операцій ще немає.</div>';
     footer=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=true;renderDashOps()">Показати всі (${list.length})</button>`;
   }
-  document.getElementById('recentTx').innerHTML=html+footer;
+  document.getElementById('recentTx').innerHTML=header+html+footer;
 }
 
 /* Укрупнення періоду: помісячно все, що коротше ~1.5 року; далі квартали, далі роки.
@@ -1388,7 +1422,34 @@ const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
 const hInv=h=>h.invested||0;
 // вартість позиції: якщо ринкової ціни нема (ОВДП, монета без курсу) — беремо вкладене,
 // інакше позиція мовчки зникала б із Чистого капіталу. Для ф'ючерсів 0 = справді нульовий баланс.
-function hVal(h){ if(h.curValue>0) return h.curValue; if(h.kind==='futures') return h.curValue||0; return h.invested||0; }
+const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+/* Вартість ОВДП рахується математично: номінал + накопичений купон (dirty price для тримання до погашення).
+   Росте щодня від номіналу до номінал+купон, потім виплата — і знову. Джерело — графік НБУ (h.payments) або ставка. */
+function bondAccruedValue(h){
+  const qty=h.qty||0; if(qty<=0) return h.curValue>0?h.curValue:(h.invested||0);
+  const nominal=h.nominal||1000, today=todayISO();
+  if(!h.maturityDate) return h.curValue>0?h.curValue:(h.invested||0);   // нема даних — як було
+  if(today>=h.maturityDate) return qty*nominal;                         // після погашення — номінал (якщо ще тримається)
+  let coupons=null;
+  if(Array.isArray(h.payments)&&h.payments.length)
+    coupons=h.payments.filter(p=>String(p.pay_type)==='1').map(p=>({date:p.pay_date,val:+p.pay_val||0})).sort((a,b)=>a.date.localeCompare(b.date));
+  else if(h.couponRate&&h.couponFreq){ const per=nominal*(h.couponRate/100)/h.couponFreq;
+    coupons=couponDates(h.maturityDate,h.couponFreq,h.buyDate).map(d=>({date:ymd(d),val:per})); }
+  if(!coupons||!coupons.length) return qty*nominal;
+  let prev=null,next=null;
+  for(const c of coupons){ if(c.date<=today) prev=c; else { next=c; break; } }
+  let accrued=0;
+  if(next){
+    let periodDays,elapsed;
+    if(prev){ periodDays=daysBetween(prev.date,next.date); elapsed=daysBetween(prev.date,today); }
+    else { periodDays=Math.round(365/(h.couponFreq||2)); elapsed=periodDays-daysBetween(today,next.date); }
+    accrued=(next.val||0)*Math.max(0,Math.min(1,elapsed/Math.max(1,periodDays)));
+  }
+  return qty*(nominal+accrued);
+}
+function hVal(h){
+  if(h.kind==='bond') return bondAccruedValue(h);
+  if(h.curValue>0) return h.curValue; if(h.kind==='futures') return h.curValue||0; return h.invested||0; }
 function portfolioTotals(){
   const venues=accounts.filter(a=>a.type==='invest'&&!a.archived);
   let cash=0,posVal=0,inv=0;
@@ -2009,12 +2070,13 @@ function renderAnalytics(){
 /* ---- 📈 Історія вартості портфеля: тихий щоденний знімок одного числа.
    Сьогодні нічого не видно, а за місяць — графік, як працюють реінвести. ---- */
 let pfHist=[];
+let pfFlows=[];   // журнал заведень/виводів капіталу: {id,d,amt,cur,dir:'in'|'out',base,note}
 async function pfSnapshot(){
   pfHist=await getMeta('pfHist')||[];
-  const d=todayISO(), v=+(portfolioTotals().value||0).toFixed(2);
+  const pt=portfolioTotals(), d=todayISO(), v=+(pt.value||0).toFixed(2), inv=+(pt.inv||0).toFixed(2);
   const last=pfHist[pfHist.length-1];
-  if(last&&last.d===d){ if(Math.abs(last.v-v)>0.01){ last.v=v; await setMeta('pfHist',pfHist); } return; }
-  pfHist.push({d,v});
+  if(last&&last.d===d){ let ch=false; if(Math.abs(last.v-v)>0.01){last.v=v;ch=true;} if(Math.abs((last.inv||0)-inv)>0.01){last.inv=inv;ch=true;} if(ch) await setMeta('pfHist',pfHist); return; }
+  pfHist.push({d,v,inv});
   if(pfHist.length>400) pfHist=pfHist.slice(-400);
   await setMeta('pfHist',pfHist);
 }
@@ -2022,19 +2084,32 @@ function pfHistSvg(){
   // менше 2 крапок — лінію не намалюєш; але не лишаємо порожнечу, а пояснюємо
   if(pfHist.length<2) return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
     📈 Історія портфеля почалась ${pfHist[0]?'сьогодні':'щойно'} — крива з'явиться завтра й ростиме щодня.</div>`;
-  const vals=pfHist.map(p=>p.v);
-  const mx=Math.max(...vals), mn=Math.min(...vals), span=(mx-mn)||1;
+  // масштаб по обох кривих (вартість і вкладено), щоб жодна не вилазила
+  const allV=pfHist.flatMap(p=>[p.v, ...(p.inv!=null?[p.inv]:[])]);
+  const mx=Math.max(...allV), mn=Math.min(...allV), span=(mx-mn)||1;
   const X=i=>i/(pfHist.length-1)*100, Y=v=>8+(mx-v)/span*84;
-  const pts=pfHist.map((p,i)=>`${X(i).toFixed(2)},${Y(p.v).toFixed(2)}`).join(' ');
+  const valPts=pfHist.map((p,i)=>`${X(i).toFixed(2)},${Y(p.v).toFixed(2)}`).join(' ');
+  // «вкладено» — лише де є дані (бекфіл value-only не має inv); пунктиром
+  const invSeg=[]; let cur=[];
+  pfHist.forEach((p,i)=>{ if(p.inv!=null){ cur.push(`${X(i).toFixed(2)},${Y(p.inv).toFixed(2)}`); } else if(cur.length){ invSeg.push(cur); cur=[]; } });
+  if(cur.length) invSeg.push(cur);
+  const invLines=invSeg.filter(s=>s.length>1).map(s=>`<polyline points="${s.join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" opacity=".8"/>`).join('');
   const d0=pfHist[0], dN=pfHist[pfHist.length-1], diff=dN.v-d0.v;
   const col=diff>=0?'var(--green)':'var(--red)';
+  const gain=dN.inv!=null?dN.v-dN.inv:null;   // поточний прибуток = вартість − вкладено
   return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
     <div class="row" style="font-size:11px;color:var(--muted)"><span>динаміка з ${d0.d.slice(8,10)}.${d0.d.slice(5,7)}</span>
       <div class="spacer"></div><span style="color:${col}">${diff>=0?'+':'−'}${fmtDisp(Math.abs(diff))}</span>
       <span onclick="resetPfHist()" title="почати історію заново" style="cursor:pointer;margin-left:10px">🗑</span></div>
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:56px;display:block;margin-top:4px">
-      <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
-    </svg></div>`;
+      ${invLines}
+      <polyline points="${valPts}" fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <div class="row" style="font-size:10px;color:var(--muted);margin-top:2px;gap:12px">
+      <span><i style="display:inline-block;width:10px;height:2px;background:${col};vertical-align:middle;margin-right:3px"></i>вартість</span>
+      <span><i style="display:inline-block;width:10px;height:0;border-top:2px dashed var(--muted);vertical-align:middle;margin-right:3px"></i>вкладено</span>
+      ${gain!=null?`<div class="spacer"></div><span style="color:${gain>=0?'var(--green)':'var(--red)'}">прибуток ${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))}</span>`:''}</div>
+  </div>`;
 }
 // скинути історію портфеля — почати з чистого аркуша (напр. після виправлення ручних цін)
 async function resetPfHist(){
@@ -2043,6 +2118,109 @@ async function resetPfHist(){
   await pfSnapshot();                 // одразу ставимо чисту сьогоднішню крапку з поточною вартістю
   renderInvest();
   toast('Історію портфеля скинуто — рахуємо заново');
+}
+/* ===== Дохідність портфеля: TWRR (часозважена, «сам портфель») + MWRR (грошозважена, «твій тайминг») =====
+   Джерела: pfFlows (датовані заведення/виводи в базовій валюті) + pfHist (денна вартість) + поточна вартість. */
+let editingFlow=null, flowDir='in', flowsListOpen=false;
+const flowsSorted=()=>pfFlows.slice().sort((a,b)=>a.d.localeCompare(b.d));
+function pfValAt(d){ let v=null; for(const p of pfHist){ if(p.d<=d) v=p.v; else break; } return v; }
+function computeReturns(){
+  const fl=flowsSorted().filter(f=>f.base>0);
+  const endVal=portfolioTotals().value;
+  if(fl.length<1 || endVal<=0) return {ok:false};
+  const today=todayISO();
+  // MWRR = річний IRR: завів → −base, вивів → +base, наприкінці +поточна вартість
+  const cf=fl.map(f=>({d:f.d,a:(f.dir==='out'?1:-1)*f.base}));
+  cf.push({d:today,a:endVal});
+  const t0=cf[0].d, yrs=d=>(new Date(d)-new Date(t0))/(365*864e5);
+  const npv=r=>cf.reduce((s,c)=>s+c.a/Math.pow(1+r,yrs(c.d)),0);
+  let mwrr=null, lo=-0.9999, hi=100;
+  if(npv(lo)>0!==npv(hi)>0){ for(let i=0;i<200;i++){ const m=(lo+hi)/2; if(npv(m)>0) lo=m; else hi=m; } mwrr=(lo+hi)/2; }
+  // TWRR по pfHist: у день потоку прибираємо сам потік, ланцюжимо піврперіодні дохідності
+  let twrr=null, since=null;
+  const firstHist=pfHist.length?pfHist[0].d:null;
+  if(firstHist){
+    const byDate={}; fl.forEach(f=>{ byDate[f.d]=(byDate[f.d]||0)+(f.dir==='out'?-f.base:f.base); });
+    const fds=Object.keys(byDate).filter(d=>d>=firstHist).sort();
+    if(fds.length){
+      since=fds[0]; let chain=1, ok=true;
+      for(let i=1;i<fds.length;i++){
+        const d=fds[i], vAfter=pfValAt(d), vStart=pfValAt(fds[i-1]);
+        if(vAfter==null||!(vStart>0)){ ok=false; break; }
+        chain*=(vAfter-byDate[d])/vStart;              // вартість ДО потоку ÷ старт періоду
+      }
+      const lastD=fds[fds.length-1], vLast=pfValAt(lastD);
+      if(ok && vLast>0){
+        chain*=endVal/vLast;                            // фінальний відрізок до сьогодні
+        const days=Math.max(1,(new Date(today)-new Date(since))/864e5);
+        twrr=Math.pow(chain,365/days)-1;
+      } else twrr=null;
+    }
+  }
+  const invIn=fl.filter(f=>f.dir!=='out').reduce((s,f)=>s+f.base,0);
+  const invOut=fl.filter(f=>f.dir==='out').reduce((s,f)=>s+f.base,0);
+  return {ok:true,mwrr,twrr,since,invIn,invOut,endVal,nFlows:fl.length};
+}
+function renderReturnsCard(){
+  const r=computeReturns();
+  const head=`<div class="row"><b>📈 Дохідність</b><div class="spacer"></div>
+    <button class="btn sm" onclick="openFlow()">+ Потік</button></div>`;
+  if(!r.ok) return `<div class="card">${head}
+    <div class="muted" style="font-size:12px;margin-top:8px">Додай заведення/виводи капіталу (кнопка «+ Потік») — і тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div></div>`;
+  const pct=v=>v==null?'—':((v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%');
+  const col=v=>v==null?'var(--muted)':(v>=0?'var(--green)':'var(--red)');
+  const netIn=r.invIn-r.invOut, invBase=portfolioTotals().inv;
+  const warn=(invBase>0 && netIn/invBase<0.6)?`<div style="font-size:11px;margin-top:8px;color:var(--red)">⚠️ Внесених потоків (${fmtDisp(netIn)}) помітно менше за вкладене (${fmtDisp(invBase)}) — щоб цифри були точними, додай решту заведень.</div>`:'';
+  return `<div class="card">${head}
+    <div class="grid cols2" style="margin-top:10px;gap:10px">
+      <div><div style="font-size:22px;font-weight:700;color:${col(r.twrr)}">${pct(r.twrr)}</div>
+        <div class="muted" style="font-size:11px">TWRR річних · сам портфель${r.since?` (з ${r.since.slice(8,10)}.${r.since.slice(5,7)})`:''}</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:${col(r.mwrr)}">${pct(r.mwrr)}</div>
+        <div class="muted" style="font-size:11px">MWRR річних · твій тайминг</div></div>
+    </div>${warn}
+    <div style="margin-top:10px"><span onclick="toggleFlowsList()" style="cursor:pointer;font-size:12px;color:var(--brand)">${flowsListOpen?'▾ Сховати потоки':`▸ Потоки капіталу (${pfFlows.length})`}</span></div>
+    ${flowsListOpen?renderFlowsList():''}</div>`;
+}
+function renderFlowsList(){
+  if(!pfFlows.length) return `<div class="muted" style="font-size:12px;margin-top:8px">Ще немає потоків. Додай перше заведення.</div>`;
+  return `<div style="margin-top:8px">`+flowsSorted().map(f=>`
+    <div class="tx" onclick="openFlow('${f.id}')" style="cursor:pointer">
+      <div class="ic">${f.dir==='out'?'➖':'➕'}</div>
+      <div class="mid"><div class="t">${fmt(f.amt,f.cur)}</div>
+        <div class="s">${f.d}${f.note?' · '+f.note:''}</div></div>
+      <div style="text-align:right"><div class="amt" style="color:var(--muted)">${fmtDisp(f.base)}</div></div>
+    </div>`).join('')+`</div>`;
+}
+function toggleFlowsList(){ flowsListOpen=!flowsListOpen; renderInvest(); }
+function setFlowDir(d){ flowDir=d; document.querySelectorAll('#flowModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===d)); }
+function openFlow(id){
+  editingFlow=id?pfFlows.find(f=>f.id===id):null;
+  document.getElementById('flowModalTitle').textContent=id?'Редагувати потік':'Потік капіталу';
+  document.getElementById('flowDelBtn').classList.toggle('hidden',!id);
+  document.getElementById('flCur').innerHTML=curOptionsHtml();
+  document.getElementById('flCur').value=editingFlow?.cur||baseCur;
+  document.getElementById('flAmt').value=editingFlow?.amt||'';
+  document.getElementById('flDate').value=editingFlow?.d||todayISO();
+  document.getElementById('flNote').value=editingFlow?.note||'';
+  setFlowDir(editingFlow?.dir||'in');
+  openModal('flowModal');
+}
+async function saveFlow(){
+  const amt=parseFloat(document.getElementById('flAmt').value)||0;
+  const cur=document.getElementById('flCur').value;
+  const d=document.getElementById('flDate').value||todayISO();
+  if(amt<=0){alert('Введи суму більше 0');return;}
+  const rec={id:editingFlow?.id||uid(),d,amt,cur,dir:flowDir,base:+toBase(amt,cur).toFixed(2),note:document.getElementById('flNote').value.trim()};
+  if(editingFlow){ const i=pfFlows.findIndex(f=>f.id===rec.id); if(i>=0) pfFlows[i]=rec; } else pfFlows.push(rec);
+  await setMeta('pfFlows',pfFlows); closeModal('flowModal'); renderInvest();
+  if(typeof scheduleBackup==='function') scheduleBackup();
+}
+async function delFlow(){
+  if(!editingFlow) return;
+  if(!confirm('Видалити цей потік?')) return;
+  pfFlows=pfFlows.filter(f=>f.id!==editingFlow.id);
+  await setMeta('pfFlows',pfFlows); closeModal('flowModal'); renderInvest();
+  if(typeof scheduleBackup==='function') scheduleBackup();
 }
 function renderInvest(){
   const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
@@ -2057,7 +2235,8 @@ function renderInvest(){
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
     ${pfHistSvg()}
   </div>
-  ${holdings.some(h=>(h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
+  ${renderReturnsCard()}
+  ${holdings.some(h=>((h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))||(h.kind==='fund'&&h.inzhurSlug))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
@@ -2118,7 +2297,8 @@ function toggleBondFields(){
   document.getElementById('hInvLabel').textContent = fut?'Заведено (усього)':'Вкладено (усього)';
   document.getElementById('hValLabel').textContent = fut?'Баланс зараз':'Поточна вартість (усього)';
   // монета: тикер = символ монети, «символ для авто-ціни» не потрібен
-  document.getElementById('quoteSymWrap').classList.toggle('hidden',fut||cry);
+  document.getElementById('quoteSymWrap').classList.toggle('hidden',fut||cry||k==='fund');
+  document.getElementById('fundWrap').classList.toggle('hidden',k!=='fund');
   document.getElementById('hTickerLabel').textContent = cry?'Монета (BTC, ETH, SOL…)':'Тикер (необов\'язково)';
   document.getElementById('hTicker').placeholder = cry?'BTC':'AAPL';
   document.getElementById('hQtyLabel').textContent = cry?'Кількість монет':'Кількість (шт / паї / облігації)';
@@ -2126,6 +2306,21 @@ function toggleBondFields(){
     ? 'Впиши, скільки всього завів на ф\'ючерси і скільки там зараз. Далі користуйся кнопкою «Угода» — вона змінює баланс. Прибуток = баланс − заведено.'
     : cry ? 'Кількість може бути дробова (напр. 0.0234). Ціна — з CoinGecko за символом: підійде будь-яка монета (PEPE, FET, ARB…), у списку лише популярні.'
     : 'Впиши кількість і ціни — суми порахуються самі. Прибуток = вартість − вкладено. Для машини/квартири краще заведи окремий рахунок типу «Майно».';
+}
+// Фонди Inzhur (slug → назва) для авто-ціни через /_api/assets
+const INZHUR_FUNDS=[['inzhur-reit','Inzhur REIT'],['inzhur-energy','Inzhur Energy'],['ocean-plaza','Inzhur Ocean'],['zhytniy','Inzhur Житній']];
+let _inzhurCache=null, _inzhurCacheAt=0;
+// мапа slug→NAV(грн) з живого ендпоінта; кеш 5 хв
+async function inzhurNavMap(){
+  if(_inzhurCache && Date.now()-_inzhurCacheAt<3e5) return _inzhurCache;
+  const r=await fetch('https://www.inzhur.reit/_api/assets');
+  if(!r.ok) throw new Error('Inzhur HTTP '+r.status);
+  const d=await r.json();
+  const m={};
+  for(const a of d){ if(a.type!=='fund'||!a.slug) continue;
+    const nav=a.assetDetails&&a.assetDetails.prices&&a.assetDetails.prices.nav;
+    if(nav!=null && (!(a.slug in m) || a.status==='active')) m[a.slug]=nav; }
+  _inzhurCache=m; _inzhurCacheAt=Date.now(); return m;
 }
 let ovdpCache=null;
 async function fetchOvdpList(){
@@ -2171,6 +2366,8 @@ function openHolding(vid,hid){
   document.getElementById('hName').value=editingHold?.name||'';
   document.getElementById('hTicker').value=editingHold?.ticker||'';
   document.getElementById('hQuoteSym').value=editingHold?.quoteSym||'';
+  document.getElementById('hInzhurSlug').innerHTML='<option value="">— вручну —</option>'+INZHUR_FUNDS.map(([s,n])=>`<option value="${s}">${n}</option>`).join('');
+  document.getElementById('hInzhurSlug').value=editingHold?.inzhurSlug||'';
   document.getElementById('hCur').innerHTML=curOptionsHtml();
   document.getElementById('hCur').value=editingHold?.currency||v?.currency||baseCur;
   document.getElementById('hQty').value=editingHold?.qty||'';
@@ -2200,6 +2397,7 @@ async function saveHolding(){
     buyPrice:gv('hBuyPrice'), curPrice:gv('hCurPrice'),
     invested:parseFloat(document.getElementById('hInvested').value)||0,
     curValue:parseFloat(document.getElementById('hCurValue').value)||0,
+    inzhurSlug:document.getElementById('hInzhurSlug').value||'',
     note:document.getElementById('hNote').value.trim()};
   if(rec.kind==='bond'){
     rec.nominal=parseFloat(document.getElementById('hNominal').value)||1000;
@@ -2543,12 +2741,22 @@ async function updatePrices(){
   if(!navigator.onLine){alert('Потрібен інтернет для оновлення цін');return;}
   const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
   const coins=holdings.filter(h=>h.kind==='crypto'&&h.ticker&&h.ticker.trim());
-  if(!stocks.length && !coins.length){alert('Немає акцій чи монет з тикерами для оновлення');return;}
+  const funds=holdings.filter(h=>h.kind==='fund'&&h.inzhurSlug);
+  if(!stocks.length && !coins.length && !funds.length){alert('Немає акцій, монет чи фондів Inzhur для оновлення');return;}
   if(stocks.length && !fhKey && !tdKey && !fmpKey && !activeProxy()){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
-  toast('Оновлюю ціни ('+(stocks.length+coins.length)+')…');
+  toast('Оновлюю ціни ('+(stocks.length+coins.length+funds.length)+')…');
   let updated=0; const failed=[]; const skipped=[]; const tdErr=[]; const curWarn=[];
   try{
     if(coins.length){ const c=await updateCryptoPrices(); updated+=c.updated; failed.push(...c.failed); }
+    if(funds.length){
+      try{
+        const nm=await inzhurNavMap();
+        for(const h of funds){ const nav=nm[h.inzhurSlug];
+          if(nav>0){ h.curPrice=+nav; h.curValue=+(nav*(h.qty||0)).toFixed(2); await put('holdings',h); updated++; }
+          else failed.push((h.name||h.inzhurSlug)+' (Inzhur: нема NAV)'); }
+      }catch(e){ const m=String(e&&e.message||e);
+        failed.push('Inzhur ('+(/region|block|Failed to fetch|HTTP/i.test(m)?'гео-блок або нема доступу — потрібен VPN/Україна':m)+')'); }
+    }
     for(const h of stocks){
       const raw=(h.ticker||'').trim().toUpperCase();
       const suf = raw.includes('.') ? raw.split('.').pop() : '';
@@ -3234,7 +3442,7 @@ async function fetchRates(){
 async function exportData(){
   const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,goalTargetUSD,goalDate};   // історія портфеля й ціль тепер теж у бекапі (синхронізуються й переживають відновлення)
+    pfHist,pfFlows,goalTargetUSD,goalDate};   // історія портфеля, потоки капіталу й ціль теж у бекапі (синхронізуються й переживають відновлення)
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='gamanets-'+todayISO()+'.json';a.click();
@@ -3254,6 +3462,7 @@ async function importData(ev){
   if(data.rates)await setMeta('rates',data.rates);
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
+  if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
@@ -3323,7 +3532,7 @@ const bkUrl = (q) => activeProxy().replace(/\/+$/,'')+'/backup?'+q;
 function bkPayload(){
   return JSON.stringify({app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,goalTargetUSD,goalDate});
+    pfHist,pfFlows,goalTargetUSD,goalDate});
 }
 async function cloudBackupNow(silent){
   if(!backupId||!backupPass){ if(!silent){alert('Спершу увімкни хмарний бекап у «Ще»');go('set');} return false; }
@@ -3375,6 +3584,7 @@ async function applyBackupData(data){
   if(data.rates)await setMeta('rates',data.rates);
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
+  if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await normalizeOrder();
