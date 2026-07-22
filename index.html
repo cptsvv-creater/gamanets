@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.85</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.87</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.85</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.87</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -793,7 +793,7 @@ svg .bar{transition:opacity .2s}
   <div class="sheet">
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="flowModalTitle">Потік капіталу</h3>
       <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('flowModal')">✕</button></div>
-    <div class="muted" style="font-size:12px;margin-bottom:10px">Заведення/виводи грошей у портфель — щоб рахувати справжню дохідність (TWRR/MWRR). Дивіденди й купони сюди НЕ пиши — це дохід, а не потік.</div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Тільки для грошей, заведених/виведених <b>без переказу в застосунку</b> (напр. поповнив брокера банком напряму). Перекази картка↔майданчик тут враховуються <b>самі</b> — двічі писати не треба. Дивіденди й купони — це дохід, а не потік, сюди НЕ пиши.</div>
     <div class="seg" style="margin-bottom:10px">
       <button type="button" data-k="in" class="on" onclick="setFlowDir('in')">➕ Завів</button>
       <button type="button" data-k="out" onclick="setFlowDir('out')">➖ Вивів</button>
@@ -2122,13 +2122,29 @@ async function resetPfHist(){
 /* ===== Дохідність портфеля: TWRR (часозважена, «сам портфель») + MWRR (грошозважена, «твій тайминг») =====
    Джерела: pfFlows (датовані заведення/виводи в базовій валюті) + pfHist (денна вартість) + поточна вартість. */
 let editingFlow=null, flowDir='in', flowsListOpen=false;
-const flowsSorted=()=>pfFlows.slice().sort((a,b)=>a.d.localeCompare(b.d));
+// Авто-потоки: перекази картка/готівка ↔ інвест-майданчик перехоплюються самі (без ручного «+ Потік»).
+function autoFlows(){
+  const isInv=id=>accById(id)?.type==='invest', out=[];
+  for(const t of txs){
+    if(t.type!=='transfer') continue;
+    const fromInv=isInv(t.account), toInv=isInv(t.to);
+    if(fromInv===toInv) continue;                       // обидва або жоден майданчики → внутрішнє/не стосується
+    if(toInv){ const v=accById(t.to);                   // ззовні → на майданчик = завів
+      out.push({id:'tx:'+t.id,d:t.date,dir:'in',base:+toBase(Number(t.amountTo??t.amount)||0,v.currency).toFixed(2),auto:true,note:`${accById(t.account)?.name||'?'} → ${v.name}`});
+    }else{ const v=accById(t.account);                  // з майданчика → назовні = вивів
+      out.push({id:'tx:'+t.id,d:t.date,dir:'out',base:+toBase(Number(t.amount)||0,v.currency).toFixed(2),auto:true,note:`${v.name} → ${accById(t.to)?.name||'?'}`});
+    }
+  }
+  return out;
+}
+// Усі потоки = ручні (pfFlows, зовнішні заведення) + авто (з переказів). Джерела не перетинаються.
+const allFlows=()=>[...pfFlows.map(f=>({...f,auto:false})),...autoFlows()].filter(f=>f.base>0).sort((a,b)=>a.d.localeCompare(b.d));
 function pfValAt(d){ let v=null; for(const p of pfHist){ if(p.d<=d) v=p.v; else break; } return v; }
 function computeReturns(){
   // Модель «портфель уже існував»: стартова вартість pfHist[0] = початковий внесок.
   // Тому НЕ треба знати кожне історичне заведення — стартовий баланс їх вбирає,
-  // а pfFlows — лише приріст/виводи ПІСЛЯ старту виміру.
-  const fl=flowsSorted().filter(f=>f.base>0);
+  // а потоки — лише приріст/виводи ПІСЛЯ старту виміру (ручні + авто з переказів).
+  const fl=allFlows();
   const endVal=portfolioTotals().value;
   if(!pfHist.length || endVal<=0) return {ok:false};
   const today=todayISO(), D0=pfHist[0].d, V0=pfHist[0].v;
@@ -2159,10 +2175,9 @@ function computeReturns(){
 }
 function renderReturnsCard(){
   const r=computeReturns();
-  const head=`<div class="row"><b>📈 Дохідність</b><div class="spacer"></div>
-    <button class="btn sm" onclick="openFlow()">+ Потік</button></div>`;
+  const head=`<div class="row"><b>📈 Дохідність</b></div>`;
   if(!r.ok) return `<div class="card">${head}
-    <div class="muted" style="font-size:12px;margin-top:8px">Додай заведення/виводи капіталу (кнопка «+ Потік») — і тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div></div>`;
+    <div class="muted" style="font-size:12px;margin-top:8px">Щойно почнеться історія вартості й перший переказ на майданчик — тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div></div>`;
   const pct=v=>v==null?'—':((v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%');
   const col=v=>v==null?'var(--muted)':(v>=0?'var(--green)':'var(--red)');
   const hint=r.nFlows?'':`<div class="muted" style="font-size:11px;margin-top:8px">Рахується від стартової вартості (${fmtDisp(r.openBal)}). Додавай заведення/виводи капіталу — і цифри враховуватимуть їх точно.</div>`;
@@ -2173,18 +2188,20 @@ function renderReturnsCard(){
       <div><div style="font-size:22px;font-weight:700;color:${col(r.mwrr)}">${pct(r.mwrr)}</div>
         <div class="muted" style="font-size:11px">MWRR річних · твій тайминг</div></div>
     </div>${hint}
-    <div style="margin-top:10px"><span onclick="toggleFlowsList()" style="cursor:pointer;font-size:12px;color:var(--brand)">${flowsListOpen?'▾ Сховати потоки':`▸ Потоки капіталу (${pfFlows.length})`}</span></div>
+    <div style="margin-top:10px"><span onclick="toggleFlowsList()" style="cursor:pointer;font-size:12px;color:var(--brand)">${flowsListOpen?'▾ Сховати потоки':`▸ Потоки капіталу (${allFlows().length})`}</span></div>
     ${flowsListOpen?renderFlowsList():''}</div>`;
 }
 function renderFlowsList(){
-  if(!pfFlows.length) return `<div class="muted" style="font-size:12px;margin-top:8px">Ще немає потоків. Додай перше заведення.</div>`;
-  return `<div style="margin-top:8px">`+flowsSorted().map(f=>`
-    <div class="tx" onclick="openFlow('${f.id}')" style="cursor:pointer">
+  const list=allFlows();
+  const manualAdd=`<div style="margin-top:8px"><span onclick="openFlow()" style="cursor:pointer;font-size:11px;color:var(--muted)">+ завести вручну — лише якщо гроші зайшли без переказу в застосунку</span></div>`;
+  if(!list.length) return `<div class="muted" style="font-size:12px;margin-top:8px">Ще немає потоків. Перекази картка↔майданчик враховуються самі.</div>${manualAdd}`;
+  return `<div style="margin-top:8px">`+list.map(f=>`
+    <div class="tx" ${f.auto?'':`onclick="openFlow('${f.id}')" style="cursor:pointer"`}>
       <div class="ic">${f.dir==='out'?'➖':'➕'}</div>
-      <div class="mid"><div class="t">${fmt(f.amt,f.cur)}</div>
+      <div class="mid"><div class="t">${f.auto?fmtDisp(f.base):fmt(f.amt,f.cur)}${f.auto?' <span style="font-size:10px;color:var(--muted)">↔ переказ</span>':''}</div>
         <div class="s">${f.d}${f.note?' · '+f.note:''}</div></div>
       <div style="text-align:right"><div class="amt" style="color:var(--muted)">${fmtDisp(f.base)}</div></div>
-    </div>`).join('')+`</div>`;
+    </div>`).join('')+`</div>`+manualAdd;
 }
 function toggleFlowsList(){ flowsListOpen=!flowsListOpen; renderInvest(); }
 function setFlowDir(d){ flowDir=d; document.querySelectorAll('#flowModal .seg button').forEach(b=>b.classList.toggle('on',b.dataset.k===d)); }
