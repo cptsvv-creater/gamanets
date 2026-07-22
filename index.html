@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.72</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.74</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.72</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.74</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1875,7 +1875,7 @@ function renderBalanceTrend(){
     <div class="muted" style="font-size:11px;margin-bottom:6px">Гроші на рахунках і картках. Без майна та інвестицій.</div>
     <div class="txfilter">${chips}</div>${custom}
     <div class="row" style="align-items:baseline;margin-top:6px">
-      <span style="font-size:22px;font-weight:700;color:${cur<0?'var(--red)':'inherit'}">${fmtDisp(cur)}</span>
+      <span style="font-size:22px;font-weight:700;color:${cur<-0.005?'var(--red)':'inherit'}">${fmtDisp(cur)}</span>
       ${pct!==null?`<span style="font-size:13px;margin-left:8px;color:${pct>=0?'var(--green)':'var(--red)'}">${pct>=0?'+':''}${pct.toFixed(0)}%</span>`:''}
       <div class="spacer"></div><span class="muted" style="font-size:11px">${n} міс.</span>
     </div>
@@ -1920,7 +1920,7 @@ function renderAnalytics(){
     html+=`<div class="card"><div class="row"><h3 style="margin:0">Чистий капітал</h3><div class="spacer"></div><b>${fmtDisp(netWorth)}</b></div>
       <div class="muted" style="font-size:11px;margin:2px 0 6px">Живі гроші + інвестиції + майно. Майно не входить у «Загальний баланс» на Огляді.</div>`+
       kt.map(([k,v])=>{const pct=v>0?v/ktotal*100:0;
-        return `<div style="margin:8px 0"><div class="row" style="font-size:13px;gap:6px"><span style="white-space:nowrap">${kindLabels[k]||k}</span><div class="spacer"></div><b style="white-space:nowrap;color:${v<0?'var(--red)':'inherit'}">${fmtDisp(v)}</b><span class="muted" style="white-space:nowrap">${pct.toFixed(0)}%</span></div>
+        return `<div style="margin:8px 0"><div class="row" style="font-size:13px;gap:6px"><span style="white-space:nowrap">${kindLabels[k]||k}</span><div class="spacer"></div><b style="white-space:nowrap;color:${v<-0.005?'var(--red)':'inherit'}">${fmtDisp(v)}</b><span class="muted" style="white-space:nowrap">${pct.toFixed(0)}%</span></div>
           <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${palette[k]||'#888'}"></div></div></div>`;}).join('')+
       (moneyAccs===0?`<div class="muted" style="font-size:11px;margin-top:6px">Немає жодного грошового рахунку — додай їх у «Рахунки», щоб бачити живі гроші тут.</div>`
         :neg?`<div class="muted" style="font-size:11px;margin-top:6px">Мінус означає, що по рахунку списань більше, ніж надходжень. Відкрий рахунок і тисни «⚖️ Коригувати баланс», вписавши фактичний залишок.</div>`:'')+`</div>`;
@@ -2518,7 +2518,7 @@ function renderAccounts(){
   const cardHtml=a=>{
     const bal=accBalance(a);
     const col=a.color||'var(--brand)';
-    const balCol=bal<0?'var(--red)':'var(--text)';
+    const balCol=bal<-0.005?'var(--red)':'var(--text)';   // −0.000001 через float — це «0,00», не мінус
     let sub='';
     if(a.type==='credit'){
       if(bal<0){const used=-bal, avail=(a.creditLimit||0)+bal;
@@ -3373,12 +3373,16 @@ async function onFreedomFile(ev){
   const cashUSD = Number((ps.acc||[]).find(a=>a.curr==='USD')?.s || 0);
   const comm = d?.commissions?.total || {};
   window._ffData={positions, cashUSD, comm, period:[d.date_start,d.date_end]};
-  // майданчики (invest); підказуємо той, де вже є ці тикери
+  // майданчики (invest)
   const venues=accounts.filter(a=>a.type==='invest'&&!a.archived);
+  if(!venues.length){ alert('Спершу створи інвестиційний майданчик для Freedom24 (Інвестиції → + Майданчик), тоді імпортуй.'); return; }
   const sel=document.getElementById('ffVenue');
   sel.innerHTML=venues.map(v=>`<option value="${v.id}">${v.icon||''} ${v.name} (${v.currency})</option>`).join('');
+  // авто-вибір: 1) де вже є ці тикери → 2) назва містить «freedom» → 3) єдиний майданчик (новачок)
   const tset=new Set(positions.map(p=>p.ticker));
-  const guess=venues.find(v=>venueHoldings(v.id).some(h=>tset.has(h.name)||tset.has(h.ticker)));
+  const guess=venues.find(v=>venueHoldings(v.id).some(h=>tset.has(h.name)||tset.has(h.ticker)))
+    || venues.find(v=>/freedom/i.test(v.name||''))
+    || (venues.length===1 ? venues[0] : null);
   if(guess) sel.value=guess.id;
   document.getElementById('ffInfo').textContent=`Виписка за ${(''+d.date_end).slice(0,10)}: позицій ${positions.length}, готівка $${cashUSD.toFixed(2)}${comm.USD?`, комісії $${comm.USD}`:''}.`;
   renderFreedomPreview();
@@ -3406,6 +3410,7 @@ function renderFreedomPreview(){
           <span class="muted">${fmt(curBal,v?.currency||'USD')}→</span><b style="margin-left:4px">${fmt(D.cashUSD,'USD')}</b>
           ${Math.abs(cashDelta)>=0.01?`<span class="muted" style="margin-left:6px">(${cashDelta>0?'+':''}${cashDelta})</span>`:''}</div>
         <div class="muted" style="font-size:11px">Оновлю ціни/вартості всіх ${D.positions.length} позицій.${D.comm.USD?` Комісії $${D.comm.USD} → запишу витратою в «Інвестиції (комісії)».`:''}</div>
+        ${v&&v.currency!=='USD'?`<div style="font-size:11px;color:var(--amber);margin-top:4px">⚠️ Майданчик у ${v.currency}, а виписка Freedom24 у USD. Готівка виставиться як число $${D.cashUSD.toFixed(2)} у валюті майданчика — для точності зроби майданчик у USD.</div>`:''}
       </div>`;
 }
 async function runFreedomImport(){
