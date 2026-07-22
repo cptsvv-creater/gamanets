@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.74</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.75</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.74</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.75</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -3438,10 +3438,13 @@ async function runFreedomImport(){
     const commDone=txs.some(t=>t.impKey===commKey);
     const addComm=commUSD>0 && !commDone;
     if(addComm){
-      const commCat=cats.find(c=>c.type==='expense'&&/коміс/i.test(c.name||''))
+      let commCat=cats.find(c=>c.type==='expense'&&/коміс/i.test(c.name||''))
         || cats.find(c=>c.type==='expense'&&/інвест/i.test(c.name||''));
+      // немає відповідної категорії (напр. у нового користувача) — створюємо, щоб комісії мали дім і звітувались
+      if(!commCat){ commCat={id:uid(),name:'Комісія брокера',icon:'💸',color:CAT_COLORS[19],type:'expense',parent:null};
+        await put('categories',commCat); }
       await put('tx',{id:uid(),type:'expense',amount:commUSD,date:endDate,account:vid,
-        category:commCat?.id||'',note:'Freedom24 комісії',impKey:commKey,createdAt:Date.now()});
+        category:commCat.id,note:'Freedom24 комісії',impKey:commKey,createdAt:Date.now()});
     }
     // 4) готівка — коригування (НЕ дохід), яке ВРАХОВУЄ щойно списану комісію, щоб баланс лишився точним
     const curBal=accBalance(v);
