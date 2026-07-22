@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.78</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.79</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.78</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.79</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -2012,7 +2012,9 @@ async function pfSnapshot(){
   await setMeta('pfHist',pfHist);
 }
 function pfHistSvg(){
-  if(pfHist.length<2) return '';
+  // менше 2 крапок — лінію не намалюєш; але не лишаємо порожнечу, а пояснюємо
+  if(pfHist.length<2) return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+    📈 Історія портфеля почалась ${pfHist[0]?'сьогодні':'щойно'} — крива з'явиться завтра й ростиме щодня.</div>`;
   const vals=pfHist.map(p=>p.v);
   const mx=Math.max(...vals), mn=Math.min(...vals), span=(mx-mn)||1;
   const X=i=>i/(pfHist.length-1)*100, Y=v=>8+(mx-v)/span*84;
