@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.84</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.85</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.84</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.85</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1591,8 +1591,8 @@ function renderBudgetCard(){
       <div style="width:${pct}%;height:100%;background:${col};border-radius:6px"></div>
       <div style="position:absolute;top:-3px;left:${pace}%;width:2px;height:16px;background:var(--muted);opacity:.75"></div>
     </div>
-    <div class="row" style="margin-top:8px;font-size:12px;gap:8px"><span style="color:${col};white-space:nowrap">${status}</span>
-      <div class="spacer"></div><span class="muted" style="font-size:10px;white-space:nowrap">риска — темп на сьогодні</span></div>
+    <div class="row" style="margin-top:8px;font-size:12px;gap:8px;flex-wrap:wrap"><span style="color:${col}">${status}</span>
+      <div class="spacer"></div><span class="muted" style="font-size:10px">риска — темп на сьогодні</span></div>
     ${ub.total>0?`<div class="row" style="margin-top:10px;font-size:13px;gap:8px">
         <span onclick="toggleUnbudgeted()" style="cursor:pointer;white-space:nowrap">
           <span style="color:var(--muted)">${unbudgetedOpen?'▾':'▸'}</span> Витрати поза бюджетом</span>
@@ -2125,41 +2125,37 @@ let editingFlow=null, flowDir='in', flowsListOpen=false;
 const flowsSorted=()=>pfFlows.slice().sort((a,b)=>a.d.localeCompare(b.d));
 function pfValAt(d){ let v=null; for(const p of pfHist){ if(p.d<=d) v=p.v; else break; } return v; }
 function computeReturns(){
+  // Модель «портфель уже існував»: стартова вартість pfHist[0] = початковий внесок.
+  // Тому НЕ треба знати кожне історичне заведення — стартовий баланс їх вбирає,
+  // а pfFlows — лише приріст/виводи ПІСЛЯ старту виміру.
   const fl=flowsSorted().filter(f=>f.base>0);
   const endVal=portfolioTotals().value;
-  if(fl.length<1 || endVal<=0) return {ok:false};
-  const today=todayISO();
-  // MWRR = річний IRR: завів → −base, вивів → +base, наприкінці +поточна вартість
-  const cf=fl.map(f=>({d:f.d,a:(f.dir==='out'?1:-1)*f.base}));
-  cf.push({d:today,a:endVal});
-  const t0=cf[0].d, yrs=d=>(new Date(d)-new Date(t0))/(365*864e5);
+  if(!pfHist.length || endVal<=0) return {ok:false};
+  const today=todayISO(), D0=pfHist[0].d, V0=pfHist[0].v;
+  if(!(V0>0)) return {ok:false};
+  const flows=fl.filter(f=>f.d>D0);                    // потоки після старту (до D0 включно — частина V0)
+  // --- MWRR (річний IRR): −V0 на старті, знакові потоки, +поточна вартість наприкінці ---
+  const cf=[{d:D0,a:-V0}].concat(flows.map(f=>({d:f.d,a:(f.dir==='out'?1:-1)*f.base})),[{d:today,a:endVal}]);
+  const yrs=d=>(new Date(d)-new Date(D0))/(365*864e5);
   const npv=r=>cf.reduce((s,c)=>s+c.a/Math.pow(1+r,yrs(c.d)),0);
   let mwrr=null, lo=-0.9999, hi=100;
-  if(npv(lo)>0!==npv(hi)>0){ for(let i=0;i<200;i++){ const m=(lo+hi)/2; if(npv(m)>0) lo=m; else hi=m; } mwrr=(lo+hi)/2; }
-  // TWRR по pfHist: у день потоку прибираємо сам потік, ланцюжимо піврперіодні дохідності
-  let twrr=null, since=null;
-  const firstHist=pfHist.length?pfHist[0].d:null;
-  if(firstHist){
-    const byDate={}; fl.forEach(f=>{ byDate[f.d]=(byDate[f.d]||0)+(f.dir==='out'?-f.base:f.base); });
-    const fds=Object.keys(byDate).filter(d=>d>=firstHist).sort();
-    if(fds.length){
-      since=fds[0]; let chain=1, ok=true;
-      for(let i=1;i<fds.length;i++){
-        const d=fds[i], vAfter=pfValAt(d), vStart=pfValAt(fds[i-1]);
-        if(vAfter==null||!(vStart>0)){ ok=false; break; }
-        chain*=(vAfter-byDate[d])/vStart;              // вартість ДО потоку ÷ старт періоду
-      }
-      const lastD=fds[fds.length-1], vLast=pfValAt(lastD);
-      if(ok && vLast>0){
-        chain*=endVal/vLast;                            // фінальний відрізок до сьогодні
-        const days=Math.max(1,(new Date(today)-new Date(since))/864e5);
-        twrr=Math.pow(chain,365/days)-1;
-      } else twrr=null;
-    }
+  if((npv(lo)>0)!==(npv(hi)>0)){ for(let i=0;i<200;i++){ const m=(lo+hi)/2; if(npv(m)>0) lo=m; else hi=m; } mwrr=(lo+hi)/2; }
+  // --- TWRR: ланцюжок по межах [D0, дати потоків, сьогодні], прибираючи потік дня ---
+  const byDate={}; flows.forEach(f=>{ byDate[f.d]=(byDate[f.d]||0)+(f.dir==='out'?-f.base:f.base); });
+  const mid=Object.keys(byDate).filter(d=>d>D0&&d<today).sort();
+  const bnds=[D0,...mid,today];
+  let chain=1, ok=true;
+  for(let i=1;i<bnds.length;i++){
+    const d=bnds[i], inflow=byDate[d]||0;
+    const vEnd=(d===today)?endVal:pfValAt(d);
+    const vStart=pfValAt(bnds[i-1]);
+    if(vEnd==null||!(vStart>0)){ ok=false; break; }
+    chain*=(vEnd-inflow)/vStart;                        // вартість ДО потоку ÷ старт відрізка
   }
-  const invIn=fl.filter(f=>f.dir!=='out').reduce((s,f)=>s+f.base,0);
-  const invOut=fl.filter(f=>f.dir==='out').reduce((s,f)=>s+f.base,0);
-  return {ok:true,mwrr,twrr,since,invIn,invOut,endVal,nFlows:fl.length};
+  let twrr=null;
+  if(ok){ const days=Math.max(1,(new Date(today)-new Date(D0))/864e5); twrr=Math.pow(chain,365/days)-1; }
+  const netIn=flows.reduce((s,f)=>s+(f.dir==='out'?-f.base:f.base),0);
+  return {ok:true,mwrr,twrr,since:D0,openBal:V0,netIn,endVal,nFlows:fl.length};
 }
 function renderReturnsCard(){
   const r=computeReturns();
@@ -2169,15 +2165,14 @@ function renderReturnsCard(){
     <div class="muted" style="font-size:12px;margin-top:8px">Додай заведення/виводи капіталу (кнопка «+ Потік») — і тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div></div>`;
   const pct=v=>v==null?'—':((v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%');
   const col=v=>v==null?'var(--muted)':(v>=0?'var(--green)':'var(--red)');
-  const netIn=r.invIn-r.invOut, invBase=portfolioTotals().inv;
-  const warn=(invBase>0 && netIn/invBase<0.6)?`<div style="font-size:11px;margin-top:8px;color:var(--red)">⚠️ Внесених потоків (${fmtDisp(netIn)}) помітно менше за вкладене (${fmtDisp(invBase)}) — щоб цифри були точними, додай решту заведень.</div>`:'';
+  const hint=r.nFlows?'':`<div class="muted" style="font-size:11px;margin-top:8px">Рахується від стартової вартості (${fmtDisp(r.openBal)}). Додавай заведення/виводи капіталу — і цифри враховуватимуть їх точно.</div>`;
   return `<div class="card">${head}
     <div class="grid cols2" style="margin-top:10px;gap:10px">
       <div><div style="font-size:22px;font-weight:700;color:${col(r.twrr)}">${pct(r.twrr)}</div>
         <div class="muted" style="font-size:11px">TWRR річних · сам портфель${r.since?` (з ${r.since.slice(8,10)}.${r.since.slice(5,7)})`:''}</div></div>
       <div><div style="font-size:22px;font-weight:700;color:${col(r.mwrr)}">${pct(r.mwrr)}</div>
         <div class="muted" style="font-size:11px">MWRR річних · твій тайминг</div></div>
-    </div>${warn}
+    </div>${hint}
     <div style="margin-top:10px"><span onclick="toggleFlowsList()" style="cursor:pointer;font-size:12px;color:var(--brand)">${flowsListOpen?'▾ Сховати потоки':`▸ Потоки капіталу (${pfFlows.length})`}</span></div>
     ${flowsListOpen?renderFlowsList():''}</div>`;
 }
