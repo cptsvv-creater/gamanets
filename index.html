@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.77</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.78</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.77</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.78</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -353,9 +353,15 @@ svg .bar{transition:opacity .2s}
             <option value="aggressive">🔥 Ризикований — вищі ставки</option>
           </select></div>
       </div>
-      <div style="margin-top:10px"><label>🏁 Ціль капіталу для прогрес-бару на Огляді, $ (необов'язково)</label>
-        <input id="aiTarget" type="number" inputmode="numeric" placeholder="напр. 240000"
-          onchange="goalTargetUSD=parseFloat(this.value)||0;setMeta('goalTargetUSD',goalTargetUSD);toast(goalTargetUSD?'✓ Ціль: $'+goalTargetUSD.toLocaleString('uk-UA'):'Ціль прибрано')"></div>
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label>🏁 Ціль капіталу, $ (необов'язково)</label>
+          <input id="aiTarget" type="number" inputmode="numeric" placeholder="напр. 240000"
+            onchange="goalTargetUSD=parseFloat(this.value)||0;setMeta('goalTargetUSD',goalTargetUSD);renderDash&&0;toast(goalTargetUSD?'✓ Ціль: $'+goalTargetUSD.toLocaleString('uk-UA'):'Ціль прибрано')"></div>
+        <div><label>📅 Досягти до (необов'язково)</label>
+          <input id="aiGoalDate" type="month"
+            onchange="goalDate=this.value||'';setMeta('goalDate',goalDate);toast(goalDate?'✓ Дата цілі: '+goalDate:'Дату прибрано')"></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Ціль і дата показуються на Огляді у плашці «До цілі капіталу»: скільки лишилось і чи встигаєш за темпом заощаджень.</div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
         <input type="checkbox" id="aiSmart"> 🎯 Точніший аналіз — розумніша модель, краща математика (≈ ×3 ціни)</label>
       <button class="btn" style="width:100%;margin-top:12px" id="aiGoBtn" onclick="runAdvisor()">🔮 Зробити прогноз</button>
@@ -917,7 +923,7 @@ let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
 let lastChangeAt=0, lastCloudVer='', syncDismissedVer='';   // синхронізація: остання локальна зміна / остання відома версія у хмарі
-let goalTargetUSD=0, txSearch='';   // ціль капіталу для прогрес-бару; пошук по операціях
+let goalTargetUSD=0, goalDate='', txSearch='';   // ціль капіталу + бажана дата; пошук по операціях
 let coinIdCache={};   // символ монети → id CoinGecko (щоб не шукати щоразу)
 let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, venueOpen={}, aiKey='', aiUsage={in:0,out:0,calls:0};
 
@@ -929,7 +935,7 @@ async function loadAll(){
   backupId=await getMeta('backupId')||''; backupPass=await getMeta('backupPass')||''; backupSalt=await getMeta('backupSalt')||'';
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
   lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
-  goalTargetUSD=await getMeta('goalTargetUSD')||0;
+  goalTargetUSD=await getMeta('goalTargetUSD')||0; goalDate=await getMeta('goalDate')||'';
   coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
@@ -1105,11 +1111,24 @@ function renderDash(){
     const gc=P.gain>=0?'var(--green)':'var(--red)';
     document.getElementById('invSub').innerHTML=`<span class="muted">вкл. ${fmtDisp(P.inv)}</span><br><span style="color:${gc}">${P.gain>=0?'+':'−'}${fmtDisp(Math.abs(P.gain))} · ${P.gainPct.toFixed(1)}%</span>`;
   }else tile.classList.add('hidden');
-  renderPace(exp); renderGoal(total,P);
+  renderPace(exp,total); renderGoal(total,P);
   renderMonthlyChart(); renderCatChart(); renderRatesCard(); renderDashOps();
 }
 /* ---- Темп витрат: скільки можна витрачати щодня до кінця місяця ---- */
-function renderPace(spent){
+/* Середні за останні 12 міс — ділимо на кількість місяців З ДАНИМИ.
+   12 місяців навмисно: охоплюють повний цикл «контракт у морі / берег без зарплатні»,
+   тож середнє не завищується вдалою половиною. */
+function avgMonthly(){
+  const now=new Date(); const set=new Set();
+  for(let i=1;i<=12;i++) set.add(ymKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
+  let inc=0,exp=0; const has=new Set();
+  txs.forEach(t=>{ const mk=monthKey(t.date); if(!set.has(mk))return; has.add(mk);
+    const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
+    if(t.type==='income')inc+=v; else if(t.type==='expense')exp+=v; });
+  const n=Math.max(1,has.size);
+  return {inc:inc/n, exp:exp/n, net:(inc-exp)/n, months:has.size};
+}
+function renderPace(spent,moneyTotal){
   const box=document.getElementById('dashPace'); if(!box) return;
   const now=new Date(), day=now.getDate(), dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
   const left=dim-day;                                  // повних днів попереду (сьогодні вже рахуємо витраченим)
@@ -1140,6 +1159,13 @@ function renderPace(spent){
       left<=0 ? 'Останній день місяця.' :
       rest>0 ? 'Щоб вкластися — до <b>'+fmtDisp(perDay)+'</b>/день ще '+left+' дн.'
              : 'Орієнтир уже перевищено на '+fmtDisp(-rest)+'.'}</div>
+    ${(()=>{ // 🛟 запас ходу: на скільки місяців вистачить живих грошей за середніми витратами (якщо дохід спиниться)
+      const a=avgMonthly(); if(!(moneyTotal>0)||!(a.exp>0)) return '';
+      const m=moneyTotal/a.exp; const d=new Date(); d.setMonth(d.getMonth()+Math.floor(m));
+      const until=d.toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(/\s*р\.\s*$/,'');
+      return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12px">
+        🛟 <b>Запас ходу:</b> живих грошей вистачить на <b>${m<1?'<1':Math.floor(m)}</b> міс витрат${m>=1?` — до <b style="text-transform:capitalize">${until}</b>`:''}
+        <div class="muted" style="font-size:11px;margin-top:2px">якби дохід спинився зараз, за середніми витратами ${fmtDisp(a.exp)}/міс</div></div>`;})()}
   </div>`;
 }
 /* ---- Прогрес до цілі капіталу (ціль задається на екрані AI-радника) ---- */
@@ -1157,6 +1183,20 @@ function renderGoal(moneyTotal,P){
     <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:6px;overflow:hidden">
       <div style="width:${pct}%;height:100%;background:#eab308"></div></div>
     <div class="muted" style="font-size:11px;margin-top:4px">${pct.toFixed(1)}% · ліквідний капітал без майна · ціль міняється на екрані 🔮</div>
+    ${(()=>{ // 🔮 прогноз: за поточним темпом заощаджень — коли досягнеш; і чи встигаєш до бажаної дати
+      const remain=t-liquid; if(remain<=0) return `<div style="font-size:12px;margin-top:6px;color:var(--green)">🎉 Ціль досягнута!</div>`;
+      const net=avgMonthly().net/usd;                   // середній місячний приріст (дохід−витрати) у $
+      let out='';
+      if(net>0){ const months=Math.ceil(remain/net); const d=new Date(); d.setMonth(d.getMonth()+months);
+        out+=`<div style="font-size:12px;margin-top:6px">🔮 За темпом заощаджень (~$${Math.round(net)}/міс) — досягнеш <b style="text-transform:capitalize">${d.toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(/\s*р\.\s*$/,'')}</b></div>`;
+      } else out+=`<div style="font-size:12px;margin-top:6px;color:var(--muted)">🔮 Зараз середній місяць у мінус — ціль не наближається. Потрібні заощадження.</div>`;
+      if(goalDate){ const [gy,gm]=goalDate.split('-').map(Number); const now=new Date();
+        const monthsTo=(gy-now.getFullYear())*12+(gm-1-now.getMonth());
+        if(monthsTo>0){ const need=remain/monthsTo;
+          const ok=net>=need;
+          out+=`<div style="font-size:12px;margin-top:4px;color:${ok?'var(--green)':'var(--red)'}">📅 Щоб встигнути до ${goalDate}: відкладати <b>$${Math.round(need)}/міс</b> ${ok?'✓ встигаєш':'— зараз '+(net>0?'$'+Math.round(net):'0')+'/міс'}</div>`;
+        }}
+      return out;})()}
   </div>`;
 }
 function renderDashOps(){
@@ -1376,6 +1416,26 @@ function bondPayments(){
     }
   });
   return out.sort((a,b)=>a.date.localeCompare(b.date)||(a.kind<b.kind?1:-1));
+}
+/* 🔮 Очікуваний дохід наперед (12 міс): ОВДП — певні виплати (купони+погашення),
+   регулярні надходження (оренда, дивіденди) — проекція за виявленим патерном. */
+function renderPassiveIncome(){
+  const now=new Date(), in12=new Date(now.getFullYear()+1,now.getMonth(),now.getDate());
+  const pays=bondPayments().filter(p=>new Date(p.date)<in12);
+  const ovdp=pays.reduce((s,p)=>s+p.amount*(rates[p.currency]||1),0);
+  const recInc=recurringGroups().filter(r=>r.type==='income');
+  const recAnnual=recInc.reduce((s,r)=>s+r.perMonth*12,0);
+  if(ovdp<=0 && recAnnual<=0) return '';
+  const total=ovdp+recAnnual;
+  const rows=[];
+  if(ovdp>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>📜 ОВДП — купони й погашення</span><div class="spacer"></div><b style="color:var(--green);white-space:nowrap">+${fmtDisp(ovdp)}</b></div>`);
+  recInc.slice(0,6).forEach(r=>{const c=catById(r.catId);
+    rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>${c?.icon||'💰'} ${r.note||c?.name||'дохід'}</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(r.perMonth*12)}</span></div>`);});
+  return `<div class="card">
+    <div class="row"><h3 style="margin:0">🔮 Дохід наперед · 12 міс</h3><div class="spacer"></div>
+      <b style="color:var(--green);white-space:nowrap">+${fmtDisp(total)}</b></div>
+    <div class="muted" style="font-size:11px;margin:2px 0 6px">≈${fmtDisp(total/12)}/міс пасивно. ОВДП — певні дати; регулярні — проекція за патерном.</div>
+    ${rows.join('')}</div>`;
 }
 function renderBondCalendar(){
   const pays=bondPayments();
@@ -1934,6 +1994,7 @@ function renderAnalytics(){
   html+=renderCatAnalysis();
   html+=renderHeatmap();
   html+=renderBalanceTrend();
+  html+=renderPassiveIncome();
   html+=renderBondCalendar();
   html+=renderYearReport();
   document.getElementById('analyticsBody').innerHTML=html||'<div class="card"><div class="empty">Немає даних для аналітики.</div></div>';
@@ -3164,7 +3225,7 @@ async function fetchRates(){
 async function exportData(){
   const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,goalTargetUSD};   // історія портфеля й ціль тепер теж у бекапі (синхронізуються й переживають відновлення)
+    pfHist,goalTargetUSD,goalDate};   // історія портфеля й ціль тепер теж у бекапі (синхронізуються й переживають відновлення)
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='gamanets-'+todayISO()+'.json';a.click();
@@ -3185,6 +3246,7 @@ async function importData(ev){
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
+  if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
  }finally{ _restoring=false; }
  // імпорт файлу = локальна зміна, яку треба вивантажити (під час імпорту автобекап заглушений,
@@ -3252,7 +3314,7 @@ const bkUrl = (q) => activeProxy().replace(/\/+$/,'')+'/backup?'+q;
 function bkPayload(){
   return JSON.stringify({app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,goalTargetUSD});
+    pfHist,goalTargetUSD,goalDate});
 }
 async function cloudBackupNow(silent){
   if(!backupId||!backupPass){ if(!silent){alert('Спершу увімкни хмарний бекап у «Ще»');go('set');} return false; }
@@ -3305,6 +3367,7 @@ async function applyBackupData(data){
   if(data.currencies&&data.currencies.UAH){ CUR=data.currencies; await saveCurrencies(); }
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
+  if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await normalizeOrder();
  }finally{ _restoring=false; }
 }
@@ -3851,6 +3914,7 @@ async function renderAdvisor(advice){
   const box=document.getElementById('aiAdviceBox'); if(!box) return;
   if(_advisorBusy && !advice) return;   // йде живий стрім — не затирати його старим звітом при поверненні на екран
   const tg=document.getElementById('aiTarget'); if(tg&&!tg.matches(':focus')) tg.value=goalTargetUSD||'';
+  const gd=document.getElementById('aiGoalDate'); if(gd&&!gd.matches(':focus')) gd.value=goalDate||'';
   const a=advice||await getMeta('aiAdvice');
   if(!a){ box.innerHTML=''; return; }
   document.getElementById('aiGoal').value=a.goal||'';
