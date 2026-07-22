@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.79</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.80</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.79</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.80</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -1216,10 +1216,17 @@ function renderDashOps(){
   if(!list.length){document.getElementById('recentTx').innerHTML=q
     ?'<div class="empty">Нічого не знайдено за «'+q+'».</div>'
     :'<div class="empty">Ще немає операцій. Натисни + щоб додати.</div>';return;}
-  const cap=txShowAll?list.length:15;
-  let html=list.slice(0,cap).map(txRow).join('');
-  if(list.length>cap) html+=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=true;renderDashOps()">Показати всі (${list.length})</button>`;
-  document.getElementById('recentTx').innerHTML=html;
+  let html, footer='';
+  if(txShowAll || q){                                  // пошук або «показати всі» — повний список
+    const CAP=200; html=list.slice(0,CAP).map(txRow).join('');
+    if(list.length>CAP) html+=`<div class="muted" style="font-size:12px;text-align:center;margin-top:8px">…і ще ${list.length-CAP}. Звузь пошуком 🔍</div>`;
+    if(!q) footer=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=false;renderDashOps()">▴ Тільки сьогодні</button>`;
+  } else {                                             // за замовчуванням — лише сьогоднішні
+    const today=todayISO(), todayList=list.filter(t=>t.date===today);
+    html=todayList.length?todayList.map(txRow).join(''):'<div class="empty">Сьогодні операцій ще немає.</div>';
+    footer=`<button class="btn ghost sm" style="margin-top:10px;width:100%" onclick="txShowAll=true;renderDashOps()">Показати всі (${list.length})</button>`;
+  }
+  document.getElementById('recentTx').innerHTML=html+footer;
 }
 
 /* Укрупнення періоду: помісячно все, що коротше ~1.5 року; далі квартали, далі роки.
