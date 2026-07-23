@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.97</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.98</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.97</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.98</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -1902,13 +1902,13 @@ function renderHeatmap(){
   }
   const onToday = !hmMonth && hmDay===Number(todayISO().slice(8,10));
   return `<div class="card">
-    <div class="row" style="gap:6px;flex-wrap:wrap"><h3 style="margin:0;white-space:nowrap">🗓 Дні місяця</h3>
+    <div class="row" style="gap:6px"><h3 style="margin:0;white-space:nowrap">🗓 Дні місяця</h3>
       <div class="spacer"></div>
-      ${onToday?'':`<button class="btn ghost sm" onclick="hmToday()">Сьогодні</button>`}
       <span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
         <button class="btn ghost sm" onclick="hmShift(-1)">‹</button>
         <span style="font-size:13px;min-width:80px;text-align:center;text-transform:capitalize">${monthLabel(mk)}</span>
         <button class="btn ghost sm" onclick="hmShift(1)">›</button></span></div>
+    ${onToday?'':`<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" onclick="hmToday()">Сьогодні</button></div>`}
     <div class="row" style="font-size:11px;margin-top:4px"><span class="muted">🟥 витрати · пік ${fmtDisp(mxE)}</span>
       <div class="spacer"></div><span class="muted">🟩 доходи${tI?' · пік '+fmtDisp(mxI):' — не було'}</span></div>
     ${(tE||tI)?`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px;font-size:9px;color:var(--muted);text-align:center">
