@@ -116,7 +116,8 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
   border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25}
 
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
-  border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;margin:0 6px 6px 0}
+  border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;margin:0 6px 6px 0;cursor:pointer}
+.chip.on{background:var(--brand);color:#04211d;border-color:var(--brand)}
 .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--muted)}
 svg .bar{transition:opacity .2s}
 .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px}
@@ -219,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.90</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.91</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.90</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.91</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -854,7 +855,6 @@ svg .bar{transition:opacity .2s}
   <div class="sheet">
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0">📊 Аналітика портфеля</h3>
       <div class="spacer"></div>
-      <span onclick="resetPfHist()" title="почати історію заново" style="cursor:pointer;margin-right:12px;font-size:15px">🗑</span>
       <button class="btn ghost sm" onclick="closeModal('pfDetailModal')">✕</button></div>
     <div id="pfDetailBody"></div>
   </div>
@@ -2237,7 +2237,8 @@ function renderPfDetail(){
       ${stat('за сьогодні',s.tD,s.tP)}${stat('за період',s.aD,s.aP)}
       ${gain!=null?`<div><div class="muted" style="font-size:11px">прибуток зараз</div><div style="font-size:16px;font-weight:700;color:${sc(gain)}">${sg(gain)}${fmtDisp(Math.abs(gain))}</div><div style="font-size:12px;color:var(--muted)">вартість − вкладено</div></div>`:''}
     </div>
-    <div class="muted" style="font-size:11px;margin-top:14px">«за період» — зміна вартості на обраному відрізку. Пунктир «вкладено» росте там, де є дані.</div>`;
+    <div class="muted" style="font-size:11px;margin-top:14px">«за період» — зміна вартості на обраному відрізку. Пунктир «вкладено» росте там, де є дані.</div>
+    <div style="margin-top:16px;text-align:center"><span onclick="resetPfHist()" style="cursor:pointer;font-size:11px;color:var(--muted)">🗑 скинути лише криву історії (рахунки й позиції не чіпаються)</span></div>`;
 }
 /* ===== Дохідність портфеля: TWRR (часозважена, «сам портфель») + MWRR (грошозважена, «твій тайминг») =====
    Джерела: pfFlows (датовані заведення/виводи в базовій валюті) + pfHist (денна вартість) + поточна вартість. */
