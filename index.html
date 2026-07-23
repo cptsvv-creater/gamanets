@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.91</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.94</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.91</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.94</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -248,6 +248,7 @@ svg .bar{transition:opacity .2s}
         <div class="k">Інвестиції</div><div class="v" id="invValue">—</div>
         <div id="invSub" style="font-size:12px;margin-top:3px"></div></div>
     </div>
+    <div id="dueReminders"></div>
     <div id="dashPace"></div>
     <div id="dashGoal"></div>
 
@@ -826,6 +827,18 @@ svg .bar{transition:opacity .2s}
   </div>
 </div>
 
+<!-- Reminder action modal -->
+<div class="modal" id="remindModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">🔔 Нагадування</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('remindModal')">✕</button></div>
+    <div id="remindText" class="muted" style="margin-bottom:14px"></div>
+    <button class="btn ghost" style="width:100%;margin-bottom:8px;justify-content:flex-start" onclick="remindPick('ack')">✓ Побачив — сховати до наступної дати</button>
+    <button class="btn ghost" style="width:100%;justify-content:flex-start" onclick="remindPick('off')">🔕 Більше не нагадувати про це</button>
+    <div class="muted" style="font-size:11px;margin-top:10px">«Побачив» — зникне зараз і повернеться наступного циклу. «Більше не нагадувати» — назавжди (напр. відписався від підписки).</div>
+  </div>
+</div>
+
 <!-- Category rule modal -->
 <div class="modal" id="ruleModal">
   <div class="sheet">
@@ -1014,6 +1027,7 @@ async function loadAll(){
   pfFlows=await getMeta('pfFlows')||[];
   catRules=await getMeta('catRules')||[];
   ruleDismiss=await getMeta('ruleDismiss')||[];
+  remindState=await getMeta('remindState')||{};
   coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
@@ -1189,6 +1203,7 @@ function renderDash(){
     const gc=P.gain>=0?'var(--green)':'var(--red)';
     document.getElementById('invSub').innerHTML=`<span class="muted">вкл. ${fmtDisp(P.inv)}</span><br><span style="color:${gc}">${P.gain>=0?'+':'−'}${fmtDisp(Math.abs(P.gain))} · ${P.gainPct.toFixed(1)}%</span>`;
   }else tile.classList.add('hidden');
+  document.getElementById('dueReminders').innerHTML=renderDueReminders();
   renderPace(exp,total); renderGoal(total,P);
   renderMonthlyChart(); renderCatChart(); renderRatesCard(); renderDashOps();
 }
@@ -1681,6 +1696,67 @@ function budgetRowsHtml(roots){
 /* ---- 🔁 Регулярні платежі й очікувані надходження ----
    Шукаємо операції, що повторюються ≥3 різних місяців за останні 6 (та сама категорія+нотатка),
    зі стабільною сумою. Це підписки, комуналка, оренда, дивіденди — «прихований бюджет». */
+/* 🔔 Локальні нагадування: регулярні платежі, що настали/прострочені й ще не сплачені цього місяця.
+   Виявлені з історії → якщо платіж припинився (давно не було), сам зникає, не нагадує вічно. */
+const reminderKey=r=>r.type+'|'+(r.catId||'')+'|'+String(r.note||'').trim().toLowerCase().slice(0,24);
+function dueReminders(){
+  const today=todayISO(), curMk=monthKey(today), todayDay=Number(today.slice(8,10));
+  const prevMk=ymKey(new Date(new Date().getFullYear(),new Date().getMonth()-1,1));
+  const out=[];
+  for(const r of recurringGroups()){                       // і витрати, і доходи
+    if(r.lastMk<prevMk) continue;                          // давно не було → вважаємо припиненим
+    const key=reminderKey(r);
+    const st=remindState[key];
+    if(st==='off') continue;                               // «більше не нагадувати» — назавжди
+    if(st===curMk) continue;                               // «побачив» — сховано до наступного циклу
+    const done=txs.some(t=>t.type===r.type && monthKey(t.date)===curMk
+      && reminderKey({type:t.type,catId:t.category,note:t.note})===key);
+    if(done) continue;                                     // цього місяця вже було (сплачено/надійшло)
+    const diff=todayDay-r.day;
+    if(diff<-3) continue;                                  // майбутнє — лише за 3 дні; ПРОСТРОЧЕНЕ показуємо завжди
+    out.push({r,key,status:diff>0?'overdue':diff===0?'today':'soon',diff});
+  }
+  return out.sort((a,b)=>b.diff-a.diff);                   // прострочене (найдовше) — зверху
+}
+function renderDueReminders(){
+  const list=dueReminders(); window._dueList=list; if(!list.length) return '';
+  const item=({r,status,diff},i)=>{
+    const c=catById(r.catId), isInc=r.type==='income';
+    let lab;
+    if(status==='today') lab=isInc?'сьогодні очікується':'сьогодні';
+    else if(status==='overdue') lab=isInc?('мало надійти '+diff+' дн. тому'):('прострочено '+diff+' дн.');
+    else lab='через '+(-diff)+' дн.';
+    const col=status==='soon'?'var(--muted)':(isInc?'var(--green)':'var(--amber)');
+    return `<div class="row" style="font-size:13px;margin:6px 0;gap:8px;cursor:pointer" onclick="remindAsk(${i})">
+      <span>${c?.icon||(isInc?'💰':'📦')}</span>
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note||c?.name||(isInc?'Надходження':'Платіж')}</span>
+      <div class="spacer"></div>
+      <span style="font-size:11px;color:${col};white-space:nowrap">${lab}</span>
+      <b style="white-space:nowrap;color:${isInc?'var(--green)':'inherit'}">${isInc?'+':''}${fmtDisp(r.perMonth)}</b></div>`;
+  };
+  return `<div class="card" style="border-left:4px solid var(--amber)">
+    <div class="row"><h3 style="margin:0">🔔 Нагадування</h3></div>
+    ${list.map(item).join('')}
+    <div class="muted" style="font-size:11px;margin-top:6px">Прострочене видно, поки не відмітиш. Тап по рядку — сховати до наступної дати або вимкнути зовсім.</div>
+  </div>`;
+}
+let _remindKey='';
+function remindAsk(i){
+  const it=(window._dueList||[])[i]; if(!it) return;
+  _remindKey=it.key;
+  const c=catById(it.r.catId);
+  const lab=it.status==='today'?'сьогодні':it.status==='overdue'?(it.r.type==='income'?('мало надійти '+it.diff+' дн. тому'):('прострочено '+it.diff+' дн.')):('через '+(-it.diff)+' дн.');
+  document.getElementById('remindText').innerHTML=`«${it.r.note||c?.name||'—'}» — <b>${lab}</b>`;
+  openModal('remindModal');
+}
+async function remindPick(mode){
+  if(!_remindKey) return;
+  remindState[_remindKey]= mode==='off'?'off':monthKey(todayISO());
+  await setMeta('remindState',remindState);
+  closeModal('remindModal'); renderDash();
+  toast(mode==='off'?'🔕 Більше не нагадуватиму про це':'✓ Сховано до наступної дати');
+  if(typeof scheduleBackup==='function') scheduleBackup();
+}
 function recurringGroups(){
   const now=new Date(), from=ymKey(new Date(now.getFullYear(),now.getMonth()-5,1));
   const map={};
@@ -2124,6 +2200,7 @@ let pfHist=[];
 let pfFlows=[];   // журнал заведень/виводів капіталу: {id,d,amt,cur,dir:'in'|'out',base,note}
 let catRules=[];  // правила категорій: {id,match:'contains'|'equals',text,action:'category'|'transfer',category,toAcc}
 let ruleDismiss=[]; // описи, для яких авто-підказку відхилили (не питати)
+let remindState={}; // нагадування: {ключ: 'off' (ніколи) | 'YYYY-MM' (сховано на цей місяць)}
 async function pfSnapshot(){
   pfHist=await getMeta('pfHist')||[];
   const pt=portfolioTotals(), d=todayISO(), v=+(pt.value||0).toFixed(2), inv=+(pt.inv||0).toFixed(2);
@@ -3669,7 +3746,7 @@ async function fetchRates(){
 async function exportData(){
   const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,pfFlows,catRules,goalTargetUSD,goalDate};   // історія портфеля, потоки капіталу, правила категорій і ціль теж у бекапі
+    pfHist,pfFlows,catRules,remindState,goalTargetUSD,goalDate};   // історія портфеля, потоки, правила, стан нагадувань і ціль у бекапі
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='gamanets-'+todayISO()+'.json';a.click();
@@ -3691,6 +3768,7 @@ async function importData(ev){
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
   if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(Array.isArray(data.catRules)){ catRules=data.catRules; await setMeta('catRules',catRules); }
+  if(data.remindState&&typeof data.remindState==='object'){ remindState=data.remindState; await setMeta('remindState',remindState); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
@@ -3760,7 +3838,7 @@ const bkUrl = (q) => activeProxy().replace(/\/+$/,'')+'/backup?'+q;
 function bkPayload(){
   return JSON.stringify({app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,pfFlows,catRules,goalTargetUSD,goalDate});
+    pfHist,pfFlows,catRules,remindState,goalTargetUSD,goalDate});
 }
 async function cloudBackupNow(silent){
   if(!backupId||!backupPass){ if(!silent){alert('Спершу увімкни хмарний бекап у «Ще»');go('set');} return false; }
@@ -3814,6 +3892,7 @@ async function applyBackupData(data){
   if(Array.isArray(data.pfHist)){ pfHist=data.pfHist; await setMeta('pfHist',pfHist); }
   if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(Array.isArray(data.catRules)){ catRules=data.catRules; await setMeta('catRules',catRules); }
+  if(data.remindState&&typeof data.remindState==='object'){ remindState=data.remindState; await setMeta('remindState',remindState); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await normalizeOrder();
