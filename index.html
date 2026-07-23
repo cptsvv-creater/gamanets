@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.98</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.99</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.98</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.99</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -2473,7 +2473,7 @@ function renderInvest(){
     ${pfHistSvg()}
   </div>
   ${renderReturnsCard()}
-  ${holdings.some(h=>((h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))||(h.kind==='fund'&&h.inzhurSlug))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
+  ${holdings.some(h=>((h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))||(h.kind==='fund'&&h.inzhurSlug)||(h.kind==='bond'&&h.isin&&h.isin.trim()))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
     <button class="btn sm" onclick="openVenue()">+ Майданчик</button></div>`;
@@ -2564,6 +2564,24 @@ async function fetchOvdpList(){
   if(ovdpCache) return ovdpCache;
   const r=await fetch('https://bank.gov.ua/depo_securities?json');
   ovdpCache=await r.json(); return ovdpCache;
+}
+// масове оновлення ОВДП з НБУ: графік/номінал/купон/дата погашення для всіх облігацій з ISIN
+async function refreshOvdpFromNBU(bonds){
+  let updated=0; const failed=[];
+  const list=await fetchOvdpList();
+  for(const h of bonds){
+    const isin=(h.isin||'').trim().toUpperCase();
+    const b=list.find(x=>(x.cpcode||'').toUpperCase()===isin);
+    if(!b){ failed.push((h.name||isin)+' (нема в реєстрі НБУ)'); continue; }
+    if(b.nominal) h.nominal=b.nominal;
+    if(b.auk_proc!=null) h.couponRate=b.auk_proc;
+    const freq=b.pay_period?Math.max(1,Math.round(365/b.pay_period)):(h.couponFreq||2);
+    h.couponFreq=[1,2,4,12].includes(freq)?freq:(h.couponFreq||2);
+    if(b.pgs_date) h.maturityDate=b.pgs_date;
+    if(Array.isArray(b.payments)&&b.payments.length) h.payments=b.payments;
+    await put('holdings',h); updated++;
+  }
+  return {updated,failed};
 }
 async function ovdpAutofill(){
   const isin=(document.getElementById('hIsin').value||'').trim().toUpperCase();
@@ -3063,11 +3081,16 @@ async function updatePrices(){
   const stocks=holdings.filter(h=>h.kind==='stock'&&((h.ticker&&h.ticker.trim())||(h.quoteSym&&h.quoteSym.trim())));
   const coins=holdings.filter(h=>h.kind==='crypto'&&h.ticker&&h.ticker.trim());
   const funds=holdings.filter(h=>h.kind==='fund'&&h.inzhurSlug);
-  if(!stocks.length && !coins.length && !funds.length){alert('Немає акцій, монет чи фондів Inzhur для оновлення');return;}
+  const bonds=holdings.filter(h=>h.kind==='bond'&&h.isin&&h.isin.trim());
+  if(!stocks.length && !coins.length && !funds.length && !bonds.length){alert('Немає акцій, монет, фондів Inzhur чи ОВДП (з ISIN) для оновлення');return;}
   if(stocks.length && !fhKey && !tdKey && !fmpKey && !activeProxy()){alert('Спершу встав API-ключ (Finnhub / FMP / Twelve Data) або адресу проксі у розділі «Ще»');go('set');return;}
-  toast('Оновлюю ціни ('+(stocks.length+coins.length+funds.length)+')…');
+  toast('Оновлюю ('+(stocks.length+coins.length+funds.length+bonds.length)+')…');
   let updated=0; const failed=[]; const skipped=[]; const tdErr=[]; const curWarn=[];
   try{
+    if(bonds.length){                                        // ОВДП гуртом: графік/номінал/купон з НБУ (вартість порахує bondAccruedValue)
+      try{ const b=await refreshOvdpFromNBU(bonds); updated+=b.updated; failed.push(...b.failed); }
+      catch(e){ failed.push('ОВДП НБУ: '+(e&&e.message||e)); }
+    }
     if(coins.length){ const c=await updateCryptoPrices(); updated+=c.updated; failed.push(...c.failed); }
     if(funds.length){
       try{
