@@ -219,7 +219,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.87</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.88</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -230,7 +230,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.87</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.88</span></div>
     <div class="row">
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -811,6 +811,17 @@ svg .bar{transition:opacity .2s}
       <div class="spacer"></div>
       <button class="btn" onclick="saveFlow()">Зберегти</button>
     </div>
+  </div>
+</div>
+
+<!-- Portfolio detail modal (Детальніше) -->
+<div class="modal" id="pfDetailModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">📊 Аналітика портфеля</h3>
+      <div class="spacer"></div>
+      <span onclick="resetPfHist()" title="почати історію заново" style="cursor:pointer;margin-right:12px;font-size:15px">🗑</span>
+      <button class="btn ghost sm" onclick="closeModal('pfDetailModal')">✕</button></div>
+    <div id="pfDetailBody"></div>
   </div>
 </div>
 
@@ -2080,35 +2091,67 @@ async function pfSnapshot(){
   if(pfHist.length>400) pfHist=pfHist.slice(-400);
   await setMeta('pfHist',pfHist);
 }
+// зміни: за сьогодні (остання vs попередня крапка) + за весь час (остання vs перша)
+function pfStats(pts){
+  if(!pts||pts.length<1) return null;
+  const last=pts[pts.length-1], first=pts[0], prev=pts.length>=2?pts[pts.length-2]:null;
+  const tD=prev?last.v-prev.v:0, tP=prev&&prev.v?tD/prev.v*100:0;
+  const aD=last.v-first.v, aP=first.v?aD/first.v*100:0;
+  return {tD,tP,aD,aP};
+}
+// мітки місяців уздовж осі X (проріджуємо до ~7)
+function pfMonthTicks(pts){
+  const n=pts.length; if(n<2) return [];
+  const t=[]; let lm='';
+  pts.forEach((p,i)=>{ const m=p.d.slice(0,7); if(m!==lm){ lm=m; t.push({x:+(i/(n-1)*100).toFixed(2),lab:p.d.slice(5,7)+'.'+p.d.slice(2,4)}); } });
+  const step=Math.ceil(t.length/7);
+  return step>1?t.filter((_,i)=>i%step===0):t;
+}
+function pfAxisHtml(pts){
+  const ticks=pfMonthTicks(pts); if(!ticks.length) return '';
+  return `<div style="position:relative;height:12px;margin-top:2px">`+ticks.map(t=>{
+    const pos=t.x<6?'left:0':t.x>94?'right:0':`left:${t.x}%;transform:translateX(-50%)`;
+    return `<span style="position:absolute;${pos};font-size:9px;color:var(--muted);white-space:nowrap">${t.lab}</span>`;
+  }).join('')+`</div>`;
+}
+// універсальний SVG портфеля: лінія вартості (+ заливка) + пунктир «вкладено» (+ сітка місяців)
+function pfChartSvg(pts,opts){
+  const {height=56,fill=false,grid=false}=opts||{}, n=pts.length;
+  const allV=pts.flatMap(p=>[p.v,...(p.inv!=null?[p.inv]:[])]);
+  const mx=Math.max(...allV), mn=Math.min(...allV), span=(mx-mn)||1;
+  const X=i=>i/(n-1)*100, Y=v=>6+(mx-v)/span*88;
+  const valPts=pts.map((p,i)=>`${X(i).toFixed(2)},${Y(p.v).toFixed(2)}`);
+  const col=(pts[n-1].v-pts[0].v)>=0?'var(--green)':'var(--red)';
+  const invSeg=[]; let curS=[];
+  pts.forEach((p,i)=>{ if(p.inv!=null) curS.push(`${X(i).toFixed(2)},${Y(p.inv).toFixed(2)}`); else if(curS.length){ invSeg.push(curS); curS=[]; } });
+  if(curS.length) invSeg.push(curS);
+  const invLines=invSeg.filter(s=>s.length>1).map(s=>`<polyline points="${s.join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" opacity=".8"/>`).join('');
+  const area=fill?`<polygon points="0,100 ${valPts.join(' ')} 100,100" fill="${col}" opacity="0.10"/>`:'';
+  let grids='';
+  if(grid) pfMonthTicks(pts).forEach(t=>{ grids+=`<line x1="${t.x}" y1="0" x2="${t.x}" y2="100" stroke="var(--line)" stroke-width="0.5" vector-effect="non-scaling-stroke" opacity="0.5"/>`; });
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:${height}px;display:block">
+    ${grids}${area}${invLines}
+    <polyline points="${valPts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
 function pfHistSvg(){
   // менше 2 крапок — лінію не намалюєш; але не лишаємо порожнечу, а пояснюємо
   if(pfHist.length<2) return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
     📈 Історія портфеля почалась ${pfHist[0]?'сьогодні':'щойно'} — крива з'явиться завтра й ростиме щодня.</div>`;
-  // масштаб по обох кривих (вартість і вкладено), щоб жодна не вилазила
-  const allV=pfHist.flatMap(p=>[p.v, ...(p.inv!=null?[p.inv]:[])]);
-  const mx=Math.max(...allV), mn=Math.min(...allV), span=(mx-mn)||1;
-  const X=i=>i/(pfHist.length-1)*100, Y=v=>8+(mx-v)/span*84;
-  const valPts=pfHist.map((p,i)=>`${X(i).toFixed(2)},${Y(p.v).toFixed(2)}`).join(' ');
-  // «вкладено» — лише де є дані (бекфіл value-only не має inv); пунктиром
-  const invSeg=[]; let cur=[];
-  pfHist.forEach((p,i)=>{ if(p.inv!=null){ cur.push(`${X(i).toFixed(2)},${Y(p.inv).toFixed(2)}`); } else if(cur.length){ invSeg.push(cur); cur=[]; } });
-  if(cur.length) invSeg.push(cur);
-  const invLines=invSeg.filter(s=>s.length>1).map(s=>`<polyline points="${s.join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" opacity=".8"/>`).join('');
-  const d0=pfHist[0], dN=pfHist[pfHist.length-1], diff=dN.v-d0.v;
-  const col=diff>=0?'var(--green)':'var(--red)';
-  const gain=dN.inv!=null?dN.v-dN.inv:null;   // поточний прибуток = вартість − вкладено
+  const s=pfStats(pfHist), dN=pfHist[pfHist.length-1];
+  const gain=dN.inv!=null?dN.v-dN.inv:null;
+  const sg=v=>v>=0?'+':'−', sc=v=>v>=0?'var(--green)':'var(--red)';
+  const stat=(lab,d,p)=>`<span class="muted" style="font-size:11px">${lab}<br><span style="font-size:13px;color:${sc(d)}">${sg(d)}${fmtDisp(Math.abs(d))} <span style="font-size:11px">(${sg(p)}${Math.abs(p).toFixed(2)}%)</span></span></span>`;
   return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
-    <div class="row" style="font-size:11px;color:var(--muted)"><span>динаміка з ${d0.d.slice(8,10)}.${d0.d.slice(5,7)}</span>
-      <div class="spacer"></div><span style="color:${col}">${diff>=0?'+':'−'}${fmtDisp(Math.abs(diff))}</span>
-      <span onclick="resetPfHist()" title="почати історію заново" style="cursor:pointer;margin-left:10px">🗑</span></div>
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:56px;display:block;margin-top:4px">
-      ${invLines}
-      <polyline points="${valPts}" fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
-    </svg>
-    <div class="row" style="font-size:10px;color:var(--muted);margin-top:2px;gap:12px">
-      <span><i style="display:inline-block;width:10px;height:2px;background:${col};vertical-align:middle;margin-right:3px"></i>вартість</span>
+    <div class="row" style="gap:16px;align-items:flex-start;flex-wrap:wrap">
+      ${stat('за сьогодні',s.tD,s.tP)}${stat('за весь час',s.aD,s.aP)}
+      <div class="spacer"></div><span onclick="openPfDetail()" style="cursor:pointer;color:var(--brand);font-size:12px;align-self:center;white-space:nowrap">Детальніше ›</span></div>
+    <div onclick="openPfDetail()" style="cursor:pointer;margin-top:6px">${pfChartSvg(pfHist,{height:56,grid:true})}</div>
+    ${pfAxisHtml(pfHist)}
+    <div class="row" style="font-size:10px;color:var(--muted);margin-top:4px;gap:12px">
+      <span><i style="display:inline-block;width:10px;height:2px;background:${sc(dN.v-pfHist[0].v)};vertical-align:middle;margin-right:3px"></i>вартість</span>
       <span><i style="display:inline-block;width:10px;height:0;border-top:2px dashed var(--muted);vertical-align:middle;margin-right:3px"></i>вкладено</span>
-      ${gain!=null?`<div class="spacer"></div><span style="color:${gain>=0?'var(--green)':'var(--red)'}">прибуток ${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))}</span>`:''}</div>
+      ${gain!=null?`<div class="spacer"></div><span style="color:${sc(gain)}">прибуток ${sg(gain)}${fmtDisp(Math.abs(gain))}</span>`:''}</div>
   </div>`;
 }
 // скинути історію портфеля — почати з чистого аркуша (напр. після виправлення ручних цін)
@@ -2117,7 +2160,42 @@ async function resetPfHist(){
   pfHist=[]; await setMeta('pfHist',pfHist);
   await pfSnapshot();                 // одразу ставимо чисту сьогоднішню крапку з поточною вартістю
   renderInvest();
+  if(document.getElementById('pfDetailModal').classList.contains('open')) renderPfDetail();
   toast('Історію портфеля скинуто — рахуємо заново');
+}
+// Повний екран «Детальніше»: великий графік із заливкою, перемикачі періоду, вісь, стати.
+let pfDetailPeriod='all';
+const PF_PERIODS=[['1m','1М',30],['3m','3М',90],['6m','6М',180],['1y','рік',365],['all','весь',0]];
+function pfPeriodPts(){
+  if(pfDetailPeriod==='all') return pfHist;
+  const days=(PF_PERIODS.find(p=>p[0]===pfDetailPeriod)||[])[2]||0;
+  if(!days) return pfHist;
+  const cut=new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+  const sub=pfHist.filter(p=>p.d>=cut);
+  return sub.length>=2?sub:pfHist.slice(-2);
+}
+function setPfPeriod(k){ pfDetailPeriod=k; renderPfDetail(); }
+function openPfDetail(){ if(pfHist.length<2){toast('Крива з\'явиться, коли назбирається історія');return;} renderPfDetail(); openModal('pfDetailModal'); }
+function renderPfDetail(){
+  const pts=pfPeriodPts(), s=pfStats(pts), dN=pfHist[pfHist.length-1];
+  const gain=dN.inv!=null?dN.v-dN.inv:null;
+  const sg=v=>v>=0?'+':'−', sc=v=>v>=0?'var(--green)':'var(--red)';
+  const seg=PF_PERIODS.map(([k,l])=>`<button type="button" class="chip ${pfDetailPeriod===k?'on':''}" onclick="setPfPeriod('${k}')">${l}</button>`).join('');
+  const stat=(lab,d,p)=>`<div><div class="muted" style="font-size:11px">${lab}</div><div style="font-size:16px;font-weight:700;color:${sc(d)}">${sg(d)}${fmtDisp(Math.abs(d))}</div><div style="font-size:12px;color:${sc(p)}">${sg(p)}${Math.abs(p).toFixed(2)}%</div></div>`;
+  document.getElementById('pfDetailBody').innerHTML=`
+    <div style="font-size:12px;color:var(--muted)">чисті активи</div>
+    <div style="font-size:24px;font-weight:700;margin-bottom:10px">${fmtDisp(dN.v)}</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">${seg}</div>
+    ${pfChartSvg(pts,{height:160,fill:true,grid:true})}
+    ${pfAxisHtml(pts)}
+    <div class="row" style="font-size:11px;color:var(--muted);margin-top:6px;gap:14px">
+      <span><i style="display:inline-block;width:12px;height:2px;background:${sc(pts[pts.length-1].v-pts[0].v)};vertical-align:middle;margin-right:4px"></i>вартість</span>
+      <span><i style="display:inline-block;width:12px;height:0;border-top:2px dashed var(--muted);vertical-align:middle;margin-right:4px"></i>вкладено</span></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:16px">
+      ${stat('за сьогодні',s.tD,s.tP)}${stat('за період',s.aD,s.aP)}
+      ${gain!=null?`<div><div class="muted" style="font-size:11px">прибуток зараз</div><div style="font-size:16px;font-weight:700;color:${sc(gain)}">${sg(gain)}${fmtDisp(Math.abs(gain))}</div><div style="font-size:12px;color:var(--muted)">вартість − вкладено</div></div>`:''}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:14px">«за період» — зміна вартості на обраному відрізку. Пунктир «вкладено» росте там, де є дані.</div>`;
 }
 /* ===== Дохідність портфеля: TWRR (часозважена, «сам портфель») + MWRR (грошозважена, «твій тайминг») =====
    Джерела: pfFlows (датовані заведення/виводи в базовій валюті) + pfHist (денна вартість) + поточна вартість. */
