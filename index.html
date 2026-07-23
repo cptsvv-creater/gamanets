@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.96</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.97</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.96</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.97</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -684,7 +684,7 @@ svg .bar{transition:opacity .2s}
       <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('monoModal')">✕</button></div>
     <div class="muted" id="monoInfo" style="font-size:12px;margin-bottom:10px"></div>
     <div><label>На який рахунок занести</label><select id="monoAccount"></select></div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Суми у гривні (валюта картки). Обери гривневий рахунок Монобанку.</div>
+    <div class="muted" id="monoAccHint" style="font-size:11px;margin-top:4px">Обери рахунок тієї ж валюти, що й виписка.</div>
     <div style="margin-top:12px"><label>Категорії</label>
       <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
         <input type="radio" name="monoCat" value="none" checked> Без категорій (розсортую вручну)</label>
@@ -4115,6 +4115,10 @@ async function onMonoFile(ev){
   const mccIdx=head.findIndex(h=>h.includes('mcc'));
   const amtIdx=head.findIndex(h=>h.includes('сума в валюті картки'));
   if(dateIdx<0||amtIdx<0){ alert('Не схоже на виписку Монобанку (немає колонок «Дата» / «Сума в валюті картки»).'); return; }
+  // валюта виписки — із заголовка «Сума в валюті картки (XXX)»
+  const curM=(head[amtIdx]||'').match(/\(([a-zа-я]{3})\)/i);
+  const stCur=(curM?curM[1]:'UAH').toUpperCase();
+  window._monoCur=stCur;
   const parsed=[];
   for(let i=1;i<rows.length;i++){ const r=rows[i]; if(!r[dateIdx]) continue;
     const val=Number(String(r[amtIdx]).replace(/\s/g,'').replace(',','.'));
@@ -4128,9 +4132,15 @@ async function onMonoFile(ev){
   const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
   const sel=document.getElementById('monoAccount');
   sel.innerHTML=accOptsHtml();
-  const uah=accs.find(a=>a.currency==='UAH'); if(uah) sel.value=uah.id;
+  // авто-вибір рахунку тієї ж валюти, що й виписка (інакше — гривневий як запасний)
+  const match=accs.find(a=>a.currency===stCur)||accs.find(a=>a.currency==='UAH');
+  if(match) sel.value=match.id;
+  const noAcc=!accs.some(a=>a.currency===stCur);
   const dates=parsed.map(p=>p.date).sort();
-  document.getElementById('monoInfo').textContent='Знайдено операцій: '+parsed.length+' (з '+dates[0]+' по '+dates[dates.length-1]+').';
+  document.getElementById('monoInfo').innerHTML='Знайдено операцій: '+parsed.length+' (з '+dates[0]+' по '+dates[dates.length-1]+').'
+    +`<div style="margin-top:4px">Валюта виписки: <b>${stCur}</b>.`
+    +(noAcc?` <span style="color:var(--amber)">Немає рахунку в ${stCur} — створи його, інакше суми ляжуть у чужій валюті.</span>`:'')+`</div>`;
+  document.getElementById('monoAccHint').textContent=`Суми у валюті картки (${stCur}). Обери рахунок Монобанку у ${stCur}.`;
   document.getElementById('monoDup').textContent='Повторний імпорт того ж періоду безпечний — дублі пропускаються.';
   openModal('monoModal');
 }
@@ -4151,6 +4161,9 @@ async function runMonoImport(){
   if(!rows.length){ closeModal('monoModal'); return; }
   const acc=document.getElementById('monoAccount').value;
   if(!acc){ alert('Обери рахунок'); return; }
+  const accCur=accById(acc)?.currency;
+  if(window._monoCur && accCur && accCur!==window._monoCur
+     && !confirm(`Валюта виписки — ${window._monoCur}, а рахунок «${accById(acc)?.name}» у ${accCur}.\n\nСуми занесуться як є (числа з виписки), але рахуватимуться як ${accCur}. Це майже завжди помилка. Точно продовжити?`)) return;
   const mode=([...document.querySelectorAll('input[name=monoCat]')].find(x=>x.checked)||{}).value||'none';
   const btn=document.getElementById('monoGoBtn'); btn.disabled=true;
   try{
