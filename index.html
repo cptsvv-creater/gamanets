@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.99</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.00</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v0.99</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.00</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -1900,7 +1900,6 @@ function renderHeatmap(){
         <span onclick="hmSelectDay(${hmDay})" style="cursor:pointer;color:var(--muted);margin-left:10px">✕</span></div>
       ${ops.length?ops.map(txRow).join(''):'<div class="empty">Немає операцій цього дня.</div>'}</div>`;
   }
-  const onToday = !hmMonth && hmDay===Number(todayISO().slice(8,10));
   return `<div class="card">
     <div class="row" style="gap:6px"><h3 style="margin:0;white-space:nowrap">🗓 Дні місяця</h3>
       <div class="spacer"></div>
@@ -1908,7 +1907,7 @@ function renderHeatmap(){
         <button class="btn ghost sm" onclick="hmShift(-1)">‹</button>
         <span style="font-size:13px;min-width:80px;text-align:center;text-transform:capitalize">${monthLabel(mk)}</span>
         <button class="btn ghost sm" onclick="hmShift(1)">›</button></span></div>
-    ${onToday?'':`<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" onclick="hmToday()">Сьогодні</button></div>`}
+    ${hmMonth?`<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" onclick="hmToday()">Сьогодні</button></div>`:''}
     <div class="row" style="font-size:11px;margin-top:4px"><span class="muted">🟥 витрати · пік ${fmtDisp(mxE)}</span>
       <div class="spacer"></div><span class="muted">🟩 доходи${tI?' · пік '+fmtDisp(mxI):' — не було'}</span></div>
     ${(tE||tI)?`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px;font-size:9px;color:var(--muted);text-align:center">
@@ -2397,23 +2396,23 @@ function computeReturns(){
   const netIn=flows.reduce((s,f)=>s+(f.dir==='out'?-f.base:f.base),0);
   return {ok:true,mwrr,twrr,since:D0,openBal:V0,netIn,endVal,nFlows:fl.length};
 }
+// секція Дохідності — БЕЗ власної картки: вливається в картку портфеля (розділювач зверху)
 function renderReturnsCard(){
   const r=computeReturns();
-  const head=`<div class="row"><b>📈 Дохідність</b></div>`;
-  if(!r.ok) return `<div class="card">${head}
-    <div class="muted" style="font-size:12px;margin-top:8px">Щойно почнеться історія вартості й перший переказ на майданчик — тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div></div>`;
+  const wrap=inner=>`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+    <div class="row"><b>📈 Дохідність</b></div>${inner}</div>`;
+  if(!r.ok) return wrap(`<div class="muted" style="font-size:12px;margin-top:8px">Щойно почнеться історія вартості й перший переказ на майданчик — тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div>`);
   const pct=v=>v==null?'—':((v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%');
   const col=v=>v==null?'var(--muted)':(v>=0?'var(--green)':'var(--red)');
   const hint=r.nFlows?'':`<div class="muted" style="font-size:11px;margin-top:8px">Рахується від стартової вартості (${fmtDisp(r.openBal)}). Додавай заведення/виводи капіталу — і цифри враховуватимуть їх точно.</div>`;
-  return `<div class="card">${head}
-    <div class="grid cols2" style="margin-top:10px;gap:10px">
+  return wrap(`<div class="grid cols2" style="margin-top:10px;gap:10px">
       <div><div style="font-size:22px;font-weight:700;color:${col(r.twrr)}">${pct(r.twrr)}</div>
         <div class="muted" style="font-size:11px">TWRR річних · сам портфель${r.since?` (з ${r.since.slice(8,10)}.${r.since.slice(5,7)})`:''}</div></div>
       <div><div style="font-size:22px;font-weight:700;color:${col(r.mwrr)}">${pct(r.mwrr)}</div>
         <div class="muted" style="font-size:11px">MWRR річних · твій тайминг</div></div>
     </div>${hint}
     <div style="margin-top:10px"><span onclick="toggleFlowsList()" style="cursor:pointer;font-size:12px;color:var(--brand)">${flowsListOpen?'▾ Сховати потоки':`▸ Потоки капіталу (${allFlows().length})`}</span></div>
-    ${flowsListOpen?renderFlowsList():''}</div>`;
+    ${flowsListOpen?renderFlowsList():''}`);
 }
 function renderFlowsList(){
   const list=allFlows();
@@ -2463,16 +2462,16 @@ function renderInvest(){
   const {venues,cash,posVal,inv,value:portfolio,gain,gainPct}=portfolioTotals();
   const gcol=gain>=0?'var(--green)':'var(--red)';
   let html=`<div class="card">
-    <div class="muted" style="font-size:12px">Вартість портфеля</div>
-    <div style="font-size:26px;font-weight:700">${fmtDisp(portfolio)}</div>
+    <div class="row"><b>💼 Вартість портфеля</b></div>
+    <div style="font-size:26px;font-weight:700;margin-top:4px">${fmtDisp(portfolio)}</div>
     <div class="row" style="margin-top:8px;font-size:13px">
       <span class="muted">Вкладено: ${fmtDisp(inv)}</span><div class="spacer"></div>
       ${inv?`<span style="color:${gcol};font-weight:600">${gain>=0?'+':'−'}${fmtDisp(Math.abs(gain))} (${gainPct.toFixed(1)}%)</span>`:''}
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">Вільний кеш на майданчиках: ${fmtDisp(cash)}</div>
     ${pfHistSvg()}
+    ${renderReturnsCard()}
   </div>
-  ${renderReturnsCard()}
   ${holdings.some(h=>((h.kind==='stock'||h.kind==='crypto')&&(h.ticker||h.quoteSym))||(h.kind==='fund'&&h.inzhurSlug)||(h.kind==='bond'&&h.isin&&h.isin.trim()))?`<button class="btn ghost sm" style="width:100%;margin-bottom:14px" onclick="updatePrices()">↻ Оновити ціни${pricesUpdatedAt?` · ${new Date(pricesUpdatedAt).toLocaleDateString('uk-UA')}`:''}</button>`:''}`+`
   <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Майданчики</h3><div class="spacer"></div>
     ${venues.length?`<button class="btn ghost sm ${reorderMode?'on':''}" onclick="toggleReorder()">${reorderMode?'✓ Готово':'↕ Порядок'}</button>`:''}
