@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.00</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.01</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.00</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.01</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -1565,16 +1565,20 @@ function renderPassiveIncome(){
   const ovdp=pays.reduce((s,p)=>s+p.amount*(rates[p.currency]||1),0);
   const recInc=recurringGroups().filter(r=>r.type==='income');
   const recAnnual=recInc.reduce((s,r)=>s+r.perMonth*12,0);
-  if(ovdp<=0 && recAnnual<=0) return '';
-  const total=ovdp+recAnnual;
+  // праця/зарплата й інші нерегулярні доходи: середній дохід за 12 міс МІНУС уже враховані регулярні (без подвійного рахунку)
+  const work=Math.max(0,(avgMonthly().inc*12)-recAnnual);
+  if(ovdp<=0 && recAnnual<=0 && work<=0) return '';
+  const total=ovdp+recAnnual+work;
   const rows=[];
   if(ovdp>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>📜 ОВДП — купони й погашення</span><div class="spacer"></div><b style="color:var(--green);white-space:nowrap">+${fmtDisp(ovdp)}</b></div>`);
   recInc.slice(0,6).forEach(r=>{const c=catById(r.catId);
     rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>${c?.icon||'💰'} ${r.note||c?.name||'дохід'}</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(r.perMonth*12)}</span></div>`);});
+  if(work>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>💼 Праця (сер. за 12 міс)</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(work)}</span></div>`);
   return `<div class="card">
-    <div class="row"><h3 style="margin:0">🔮 Дохід наперед · 12 міс</h3><div class="spacer"></div>
+    <div class="row"><h3 style="margin:0;white-space:nowrap">🔮 Дохід наперед · 12 міс</h3></div>
+    <div class="row" style="margin-top:4px"><span class="muted" style="font-size:12px">орієнтовно</span><div class="spacer"></div>
       <b style="color:var(--green);white-space:nowrap">+${fmtDisp(total)}</b></div>
-    <div class="muted" style="font-size:11px;margin:2px 0 6px">≈${fmtDisp(total/12)}/міс пасивно. ОВДП — певні дати; регулярні — проекція за патерном.</div>
+    <div class="muted" style="font-size:11px;margin:2px 0 6px">≈${fmtDisp(total/12)}/міс. ОВДП — певні дати; регулярні й праця — за середнім патерном 12 міс.</div>
     ${rows.join('')}</div>`;
 }
 function renderBondCalendar(){
@@ -1839,12 +1843,13 @@ function renderMonthCompare(){
   const rows=Object.entries(sum).map(([cid,s])=>({cid,diff:s.cur-s.prev,...s}))
     .filter(r=>Math.abs(r.diff)>1).sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
   if(!rows.length) return '';
-  const curT=rows.reduce((s,r)=>s+r.cur,0), prevT=rows.reduce((s,r)=>s+r.prev,0);
+  // тотали — по ВСІХ категоріях (не лише змінених), щоб «зараз» збігалося з Оглядом
+  const curT=Object.values(sum).reduce((s,x)=>s+x.cur,0), prevT=Object.values(sum).reduce((s,x)=>s+x.prev,0);
   if(prevT<=0) return '';                                   // нема з чим порівнювати
   const dT=curT-prevT;
   return `<div class="card">
     <div class="row"><h3 style="margin:0">↕️ Проти минулого місяця</h3><div class="spacer"></div>
-      <b style="white-space:nowrap;color:${dT>0?'var(--red)':'var(--green)'}">${dT>0?'+':'−'}${fmtDisp(Math.abs(dT))}</b></div>
+      <b style="white-space:nowrap;color:${dT>0?'var(--red)':'var(--green)'}">${dT>0?'▲':'▼'}${fmtDisp(Math.abs(dT))}</b></div>
     <div class="muted" style="font-size:11px;margin:2px 0 6px">Витрати: ${fmtDisp(curT)} зараз · ${fmtDisp(prevT)} тоді. Найбільші зміни:</div>
     ${rows.slice(0,6).map(r=>{const c=catById(r.cid);
       return `<div class="row" style="font-size:13px;margin:6px 0;gap:6px">
@@ -1907,7 +1912,7 @@ function renderHeatmap(){
         <button class="btn ghost sm" onclick="hmShift(-1)">‹</button>
         <span style="font-size:13px;min-width:80px;text-align:center;text-transform:capitalize">${monthLabel(mk)}</span>
         <button class="btn ghost sm" onclick="hmShift(1)">›</button></span></div>
-    ${hmMonth?`<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" onclick="hmToday()">Сьогодні</button></div>`:''}
+    ${mk!==monthKey(todayISO())?`<div style="text-align:right;margin-top:6px"><button class="btn ghost sm" onclick="hmToday()">Сьогодні</button></div>`:''}
     <div class="row" style="font-size:11px;margin-top:4px"><span class="muted">🟥 витрати · пік ${fmtDisp(mxE)}</span>
       <div class="spacer"></div><span class="muted">🟩 доходи${tI?' · пік '+fmtDisp(mxI):' — не було'}</span></div>
     ${(tE||tI)?`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px;font-size:9px;color:var(--muted);text-align:center">
@@ -2742,7 +2747,10 @@ function openRule(id,preText){
   document.getElementById('ruleDelBtn').classList.toggle('hidden',!id);
   document.getElementById('ruleMatch').value=editingRule?.match||'contains';
   document.getElementById('ruleText').value=editingRule?.text||preText||'';
-  document.getElementById('ruleCat').innerHTML=cats.filter(c=>kids(c.id).length===0).map(c=>`<option value="${c.id}">${catFullName(c.id)}</option>`).join('');
+  {const leaf=cats.filter(c=>kids(c.id).length===0);
+   const optFor=type=>leaf.filter(c=>c.type===type).sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'))
+     .map(c=>`<option value="${c.id}">${c.icon||''} ${catFullName(c.id)}</option>`).join('');
+   document.getElementById('ruleCat').innerHTML=`<optgroup label="🔻 Витрати">${optFor('expense')}</optgroup><optgroup label="🔺 Доходи">${optFor('income')}</optgroup>`;}
   if(editingRule?.category) document.getElementById('ruleCat').value=editingRule.category;
   document.getElementById('ruleAcc').innerHTML=accOptsHtml();
   if(editingRule?.toAcc) document.getElementById('ruleAcc').value=editingRule.toAcc;
