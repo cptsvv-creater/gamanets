@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.01</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.02</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.01</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.02</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -823,6 +823,27 @@ svg .bar{transition:opacity .2s}
       <button class="btn danger sm hidden" id="flowDelBtn" onclick="delFlow()">Видалити</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveFlow()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Returns help modal (пояснення TWRR / MWRR) -->
+<div class="modal" id="returnsHelpModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">📈 Дохідність: TWRR і MWRR</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('returnsHelpModal')">✕</button></div>
+    <div style="font-size:12.5px;line-height:1.55">
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">MWRR — грошозважена</div>
+        <div class="muted" style="font-size:11.5px">Твоя реальна дохідність — з урахуванням, коли саме ти заводив гроші.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
+        <div style="font-weight:700">TWRR — часозважена</div>
+        <div class="muted" style="font-size:11.5px">Дохідність самого портфеля — ніби гроші лежали весь час, без впливу заведень.</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:0 0 8px"><b style="color:var(--text)">TWRR</b> — це «оцінка портфеля»: наскільки добре працювали самі активи. Її порівнюють з індексом чи фондом (обігнав ринок чи ні). Напр. +8.9% за 7 міс ≈ 15–16% річних у перерахунку.</p>
+      <p class="muted" style="font-size:11.5px;margin:0"><b style="color:var(--text)">MWRR</b> — це «оцінка тебе як інвестора». Якщо вона <b style="color:var(--text)">вища</b> за TWRR — твій тайминг заведень зіграв на користь: у середньому ти доносив гроші перед вдалими відрізками, а не після. Якщо нижча — навпаки.</p>
+      <div class="muted" style="font-size:11px;margin-top:12px;text-align:center;opacity:.7">Таке читають раз на рік 🙂</div>
     </div>
   </div>
 </div>
@@ -1573,7 +1594,7 @@ function renderPassiveIncome(){
   if(ovdp>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>📜 ОВДП — купони й погашення</span><div class="spacer"></div><b style="color:var(--green);white-space:nowrap">+${fmtDisp(ovdp)}</b></div>`);
   recInc.slice(0,6).forEach(r=>{const c=catById(r.catId);
     rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>${c?.icon||'💰'} ${r.note||c?.name||'дохід'}</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(r.perMonth*12)}</span></div>`);});
-  if(work>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>💼 Праця (сер. за 12 міс)</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(work)}</span></div>`);
+  if(work>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>💼 Зарплатня (сер. за 12 міс)</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(work)}</span></div>`);
   return `<div class="card">
     <div class="row"><h3 style="margin:0;white-space:nowrap">🔮 Дохід наперед · 12 міс</h3></div>
     <div class="row" style="margin-top:4px"><span class="muted" style="font-size:12px">орієнтовно</span><div class="spacer"></div>
@@ -2404,8 +2425,9 @@ function computeReturns(){
 // секція Дохідності — БЕЗ власної картки: вливається в картку портфеля (розділювач зверху)
 function renderReturnsCard(){
   const r=computeReturns();
+  const helpQ=`<span onclick="openModal('returnsHelpModal')" title="Що таке TWRR і MWRR?" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;margin-left:6px;flex:0 0 auto">?</span>`;
   const wrap=inner=>`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-    <div class="row"><b>📈 Дохідність</b></div>${inner}</div>`;
+    <div class="row"><b>📈 Дохідність</b>${helpQ}</div>${inner}</div>`;
   if(!r.ok) return wrap(`<div class="muted" style="font-size:12px;margin-top:8px">Щойно почнеться історія вартості й перший переказ на майданчик — тут з'являться дві прибутковості: <b>TWRR</b> (як працював сам портфель) і <b>MWRR</b> (з урахуванням, коли ти доносив гроші).</div>`);
   const pct=v=>v==null?'—':((v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%');
   const col=v=>v==null?'var(--muted)':(v>=0?'var(--green)':'var(--red)');
