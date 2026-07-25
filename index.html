@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.02</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.03</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.02</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.03</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -502,12 +502,12 @@ svg .bar{transition:opacity .2s}
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <label>Імпорт виписки з банку</label>
       <div class="row wrap" style="margin-top:6px">
-        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Монобанк (.csv)</button>
-        <input type="file" id="monoFile" accept=".csv,text/csv" class="hidden" onchange="onMonoFile(event)">
+        <button class="btn ghost sm" onclick="document.getElementById('monoFile').click()">⬆ Моно / Приват (.csv, .xlsx)</button>
+        <input type="file" id="monoFile" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" onchange="onMonoFile(event)">
         <button class="btn ghost sm" onclick="document.getElementById('ffFile').click()">⬆ Freedom24 (виписка .json)</button>
         <input type="file" id="ffFile" accept=".json,application/json" class="hidden" onchange="onFreedomFile(event)">
       </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Монобанк: CSV з застосунку — твої категорії не постраждають (обереш «без категорій» або AI). Freedom24: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Банк упізнається сам: <b>Монобанк</b> — CSV картки з застосунку; <b>ПриватБанк</b> — XLSX виписка з Приват24 (там є власні категорії — можна зіставити з твоїми). Валюта береться з виписки. Freedom24: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
       <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
@@ -680,7 +680,7 @@ svg .bar{transition:opacity .2s}
 </div>
 <div class="modal" id="monoModal">
   <div class="sheet">
-    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">Імпорт Монобанк</h3>
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0" id="monoModalTitle">Імпорт виписки</h3>
       <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('monoModal')">✕</button></div>
     <div class="muted" id="monoInfo" style="font-size:12px;margin-bottom:10px"></div>
     <div><label>На який рахунок занести</label><select id="monoAccount"></select></div>
@@ -688,6 +688,9 @@ svg .bar{transition:opacity .2s}
     <div style="margin-top:12px"><label>Категорії</label>
       <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
         <input type="radio" name="monoCat" value="none" checked> Без категорій (розсортую вручну)</label>
+      <label id="bankCatOpt" class="hidden" style="display:flex;align-items:flex-start;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
+        <input type="radio" name="monoCat" value="bank" style="margin-top:3px">
+        <span>Категорії банку — зіставити з моїми<br><span class="muted" id="bankCatHint" style="font-size:11px"></span></span></label>
       <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px;cursor:pointer">
         <input type="radio" name="monoCat" value="ai"> AI розкладе по моїх категоріях (потрібен ключ Anthropic)</label>
     </div>
@@ -4052,6 +4055,104 @@ function parseCSV(text){
   return rows.filter(r=>r.length>1||(r.length===1&&r[0].trim()!==''));
 }
 function extractJSONArray(s){ const m=s&&s.match(/\[[\s\S]*\]/); return m?JSON.parse(m[0]):null; }
+/* ===== Читання .xlsx просто в браузері (ZIP + deflate, без жодних бібліотек) =====
+   xlsx — це zip з XML усередині. Розпаковуємо через DecompressionStream (iOS 16.4+),
+   розбираємо sharedStrings + перший аркуш. Повертає масив рядків (масиви рядкових значень). */
+async function xlsxRows(buf){
+  if(typeof DecompressionStream==='undefined') throw new Error('Старий браузер не вміє .xlsx — онови систему або дай .csv');
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  let eo=-1;
+  for(let i=u8.length-22;i>=0 && i>u8.length-70000;i--){ if(dv.getUint32(i,true)===0x06054b50){eo=i;break;} }
+  if(eo<0) throw new Error('Файл не схожий на .xlsx');
+  const nEnt=dv.getUint16(eo+10,true), cdOff=dv.getUint32(eo+16,true);
+  const ent={}; let p=cdOff;
+  for(let i=0;i<nEnt;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true);
+    const fnLen=dv.getUint16(p+28,true), exLen=dv.getUint16(p+30,true), cmLen=dv.getUint16(p+32,true);
+    ent[new TextDecoder().decode(u8.subarray(p+46,p+46+fnLen))]={method,csize,lho:dv.getUint32(p+42,true)};
+    p+=46+fnLen+exLen+cmLen;
+  }
+  const read=async name=>{
+    const e=ent[name]; if(!e) return null;
+    const s=e.lho+30+dv.getUint16(e.lho+26,true)+dv.getUint16(e.lho+28,true);   // довжини беремо з ЛОКАЛЬНОГО заголовка
+    const raw=u8.subarray(s,s+e.csize);
+    if(e.method===0) return new TextDecoder().decode(raw);
+    return await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  };
+  const shName=Object.keys(ent).find(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+  if(!shName) throw new Error('У файлі немає аркуша');
+  const [shXml,ssXml]=[await read(shName), await read('xl/sharedStrings.xml')];
+  const P=new DOMParser();
+  let shared=[];
+  if(ssXml){ const d=P.parseFromString(ssXml,'application/xml');
+    shared=[...d.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join('')); }
+  const doc=P.parseFromString(shXml,'application/xml');
+  const colIdx=r=>{ const m=(r||'').match(/^([A-Z]+)/); if(!m) return 0;
+    let n=0; for(const ch of m[1]) n=n*26+(ch.charCodeAt(0)-64); return n-1; };
+  return [...doc.getElementsByTagName('row')].map(row=>{
+    const out=[];
+    for(const c of row.getElementsByTagName('c')){
+      const i=colIdx(c.getAttribute('r')), t=c.getAttribute('t');
+      let v=null;
+      if(t==='inlineStr'){ const is=c.getElementsByTagName('t'); v=is.length?is[0].textContent:''; }
+      else { const vv=c.getElementsByTagName('v');
+        if(vv.length){ v=vv[0].textContent; if(t==='s') v=shared[+v]??''; } }
+      out[i]=v==null?'':v;
+    }
+    for(let i=0;i<out.length;i++) if(out[i]===undefined) out[i]='';
+    return out;
+  });
+}
+/* ===== Реєстр форматів виписок: знаходимо рядок-заголовок і впізнаємо банк ===== */
+function detectStatement(rows){
+  for(let i=0;i<Math.min(10,rows.length);i++){
+    const h=(rows[i]||[]).map(x=>String(x||'').toLowerCase().trim());
+    const at=s=>h.findIndex(c=>c.includes(s));
+    const dateIdx=at('дата'); if(dateIdx<0) continue;
+    if(at('валюта картки')>=0 && at('опис операції')>=0)          // ПриватБанк (.xlsx)
+      return {bank:'privat',name:'ПриватБанк',headRow:i,idx:{date:dateIdx,cat:at('категорія'),card:at('картка'),
+        desc:at('опис операції'),amt:h.findIndex(c=>c.includes('сума в валюті картки')),cur:at('валюта картки'),bal:at('залишок')}};
+    const mi=h.findIndex(c=>c.includes('сума в валюті картки'));   // Монобанк, картка
+    if(mi>=0) return {bank:'mono',name:'Монобанк',headRow:i,cur:((h[mi].match(/\(([a-zа-яіїєґ]{3})\)/i)||[])[1]||'UAH').toUpperCase(),
+      idx:{date:dateIdx,desc:at('деталі'),mcc:at('mcc'),amt:mi}};
+    if(at('контрагент')>=0) return {bank:'monoIban',name:'Монобанк (рахунок IBAN)',headRow:i};
+  }
+  return null;
+}
+function parseStatement(rows,det){
+  const out=[], ix=det.idx||{};
+  for(let i=det.headRow+1;i<rows.length;i++){
+    const r=rows[i]; if(!r||!r[ix.date]) continue;
+    const val=Number(String(r[ix.amt]).replace(/\s/g,'').replace(/ /g,'').replace(',','.'));
+    if(!isFinite(val)||val===0) continue;
+    const {iso,ts}=monoDate(r[ix.date]); if(!iso) continue;
+    const desc=(String(r[ix.desc]||'').trim())||'Операція';
+    const rec={date:iso,createdAt:ts,type:val<0?'expense':'income',amount:Math.abs(val),note:desc,desc,mcc:''};
+    if(det.bank==='privat'){
+      rec.bankCat=String(r[ix.cat]||'').trim();
+      rec.cur=String(r[ix.cur]||'').trim().toUpperCase();
+      rec.bal=String(r[ix.bal]||'').trim();      // залишок робить ключ унікальним (автоплатежі з однаковим часом і сумою!)
+    } else rec.mcc=String(r[ix.mcc]!=null?r[ix.mcc]:'').trim();
+    out.push(rec);
+  }
+  return out;
+}
+/* Категорії ПриватБанку → мої категорії (за назвою). Прив'язка окремо для витрат і доходів. */
+function privatCatMap(rows){
+  const norm=s=>String(s||'').toLowerCase().replace(/[^0-9a-zа-яіїєґ ]/gi,' ').replace(/\s+/g,' ').trim();
+  const leaf=cats.filter(c=>kids(c.id).length===0), map={};
+  [...new Set(rows.filter(r=>r.bankCat).map(r=>r.type+'|'+r.bankCat))].forEach(k=>{
+    const type=k.slice(0,k.indexOf('|')), bc=k.slice(k.indexOf('|')+1);
+    const n=norm(bc), words=n.split(' ').filter(w=>w.length>3);
+    const pool=leaf.filter(c=>c.type===type);
+    const hit=pool.find(c=>norm(c.name)===n)
+      || pool.find(c=>{const cn=norm(c.name); return cn&&(n.includes(cn)||cn.includes(n));})
+      || pool.find(c=>{const cn=norm(c.name); return words.some(w=>cn.includes(w));});
+    if(hit) map[k]=hit.id;
+  });
+  return map;
+}
 function monoDate(s){
   const [d,t]=String(s).trim().split(' ');
   const [dd,mm,yy]=(d||'').split('.').map(Number);
@@ -4158,29 +4259,42 @@ async function runFreedomImport(){
 }
 async function onMonoFile(ev){
   const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
-  let text; try{ text=await file.text(); }catch(e){ alert('Не вдалося прочитати файл'); return; }
-  const rows=parseCSV(text);
-  if(rows.length<2){ alert('Порожній або нерозпізнаний CSV'); return; }
-  const head=rows[0].map(x=>x.toLowerCase());
-  const dateIdx=head.findIndex(h=>h.includes('дата'));
-  const descIdx=head.findIndex(h=>h.includes('деталі'));
-  const mccIdx=head.findIndex(h=>h.includes('mcc'));
-  const amtIdx=head.findIndex(h=>h.includes('сума в валюті картки'));
-  if(dateIdx<0||amtIdx<0){ alert('Не схоже на виписку Монобанку (немає колонок «Дата» / «Сума в валюті картки»).'); return; }
-  // валюта виписки — із заголовка «Сума в валюті картки (XXX)»
-  const curM=(head[amtIdx]||'').match(/\(([a-zа-я]{3})\)/i);
-  const stCur=(curM?curM[1]:'UAH').toUpperCase();
-  window._monoCur=stCur;
-  const parsed=[];
-  for(let i=1;i<rows.length;i++){ const r=rows[i]; if(!r[dateIdx]) continue;
-    const val=Number(String(r[amtIdx]).replace(/\s/g,'').replace(',','.'));
-    if(!isFinite(val)||val===0) continue;
-    const {iso,ts}=monoDate(r[dateIdx]); if(!iso) continue;
-    const desc=((r[descIdx]||'').trim())||'Операція';
-    parsed.push({date:iso,createdAt:ts,type:val<0?'expense':'income',amount:Math.abs(val),note:desc,desc,mcc:(r[mccIdx]||'').trim()});
-  }
+  let rows;
+  try{
+    rows = /\.xlsx$/i.test(file.name) ? await xlsxRows(await file.arrayBuffer()) : parseCSV(await file.text());
+  }catch(e){ alert('Не вдалося прочитати файл:\n'+(e&&e.message||e)); return; }
+  if(!rows||rows.length<2){ alert('Порожній або нерозпізнаний файл'); return; }
+  const det=detectStatement(rows);
+  if(!det){ alert('Не впізнав формат виписки.\n\nПідтримуються: Монобанк (.csv, картка) і ПриватБанк (.xlsx).'); return; }
+  if(det.bank==='monoIban'){ alert('Це виписка Монобанку по рахунку IBAN — її формат ще не підтримується.\n\nПоки що імпортуй виписку КАРТКИ (.csv).'); return; }
+  const parsed=parseStatement(rows,det);
   if(!parsed.length){ alert('Не знайшов жодної операції для імпорту.'); return; }
+  // валюта: Моно — із заголовка; Приват — з колонки «Валюта картки» (переважна в файлі)
+  let stCur=det.cur||'UAH';
+  if(det.bank==='privat'){
+    const cnt={}; parsed.forEach(r=>{ if(r.cur) cnt[r.cur]=(cnt[r.cur]||0)+1; });
+    stCur=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'UAH';
+    window._monoMixed=Object.keys(cnt).length>1?Object.keys(cnt).join('/'):'';
+  } else window._monoMixed='';
+  window._monoCur=stCur; window._monoBank=det.bank; window._monoBankName=det.name;
   window._monoRows=parsed;
+  // ПриватБанк дає власні категорії — пропонуємо зіставити з моїми
+  const isPrivat=det.bank==='privat';
+  const bankOpt=document.getElementById('bankCatOpt');
+  if(bankOpt){
+    bankOpt.classList.toggle('hidden',!isPrivat);
+    if(!isPrivat){   // банк без власних категорій — не лишаємо прихований режим обраним
+      const b=bankOpt.querySelector('input'); if(b&&b.checked){ b.checked=false;
+        const none=[...document.querySelectorAll('input[name=monoCat]')].find(x=>x.value==='none'); if(none) none.checked=true; }
+    }
+    if(isPrivat){
+      const m=privatCatMap(parsed), bcs=new Set(parsed.filter(r=>r.bankCat).map(r=>r.type+'|'+r.bankCat));
+      window._privatMap=m;
+      const hit=Object.keys(m).length;
+      document.getElementById('bankCatHint').textContent=`зіставилось ${hit} з ${bcs.size} категорій банку`;
+    }
+  }
+  const title=document.getElementById('monoModalTitle'); if(title) title.textContent='Імпорт: '+det.name;
   const accs=accounts.filter(a=>a.type!=='invest'&&a.type!=='asset'&&!a.archived);
   const sel=document.getElementById('monoAccount');
   sel.innerHTML=accOptsHtml();
@@ -4189,10 +4303,11 @@ async function onMonoFile(ev){
   if(match) sel.value=match.id;
   const noAcc=!accs.some(a=>a.currency===stCur);
   const dates=parsed.map(p=>p.date).sort();
-  document.getElementById('monoInfo').innerHTML='Знайдено операцій: '+parsed.length+' (з '+dates[0]+' по '+dates[dates.length-1]+').'
+  document.getElementById('monoInfo').innerHTML=`<b>${det.name}</b> · знайдено операцій: ${parsed.length} (з ${dates[0]} по ${dates[dates.length-1]}).`
     +`<div style="margin-top:4px">Валюта виписки: <b>${stCur}</b>.`
-    +(noAcc?` <span style="color:var(--amber)">Немає рахунку в ${stCur} — створи його, інакше суми ляжуть у чужій валюті.</span>`:'')+`</div>`;
-  document.getElementById('monoAccHint').textContent=`Суми у валюті картки (${stCur}). Обери рахунок Монобанку у ${stCur}.`;
+    +(noAcc?` <span style="color:var(--amber)">Немає рахунку в ${stCur} — створи його, інакше суми ляжуть у чужій валюті.</span>`:'')
+    +(window._monoMixed?` <span style="color:var(--amber)">У файлі кілька валют (${window._monoMixed}) — занесу все як ${stCur}, перевір.</span>`:'')+`</div>`;
+  document.getElementById('monoAccHint').textContent=`Суми у валюті картки (${stCur}). Обери рахунок у ${stCur}.`;
   document.getElementById('monoDup').textContent='Повторний імпорт того ж періоду безпечний — дублі пропускаються.';
   openModal('monoModal');
 }
@@ -4223,6 +4338,9 @@ async function runMonoImport(){
     if(mode==='ai'){
       if(!aiKey){ alert('Для AI-розкладки встав ключ Anthropic у «Ще». Або обери «без категорій».'); btn.disabled=false; return; }
       btn.textContent='AI думає…'; catOf=await aiCategorizeMono(rows);
+    } else if(mode==='bank'){                                   // категорії самого банку (Приват) → мої
+      const m=window._privatMap||privatCatMap(rows);
+      catOf=r=> (r.bankCat && m[r.type+'|'+r.bankCat]) || '';
     }
     /* Дедуплікація за impKey — стабільним ключем самої операції з виписки.
        Монобанк дає ТОЧНИЙ ЧАС (до секунди) — це і робить рядок унікальним.
@@ -4230,13 +4348,16 @@ async function runMonoImport(){
         1) дві однакові операції за день (кава вранці й ввечері) → одну З'ЇДАЛО;
         2) відредагував опис → повторний імпорт додавав дубль;
         3) імпорт у інший рахунок → дублі, бо ключ був прив'язаний до рахунку.
-       impKey не залежить ні від рахунку, ні від того, що юзер потім поправив. */
-    const impKey=r=>'mono:'+r.createdAt+':'+Number(r.amount).toFixed(2)+':'+r.type;
+       impKey не залежить ні від рахунку, ні від того, що юзер потім поправив.
+       ПРИВАТ додатково пише ЗАЛИШОК — без нього автоплатежі з однаковим часом і сумою
+       (напр. 4 донати по 1 ₴ о 18:25:42) склеїлись би в один (перевірено: 62 рядки з 1188). */
+    const bank=window._monoBank||'mono';
+    const impKey=r=>bank+':'+r.createdAt+':'+Number(r.amount).toFixed(2)+':'+r.type+(r.bal?':'+r.bal:'');
     const seen=new Set(txs.map(t=>t.impKey).filter(Boolean));
     // старі імпорти (до impKey) — підстрахуємось давнім ключем, щоб не задублювати їх
     const legacy=new Set(txs.filter(t=>t.account===acc&&!t.impKey)
       .map(t=>t.date+'|'+t.type+'|'+Number(t.amount).toFixed(2)+'|'+(t.note||'')));
-    let added=0, dup=0, ruled=0;
+    let added=0, dup=0, ruled=0, autoCat=0;
     for(const r of rows){
       const k=impKey(r);
       if(seen.has(k) || legacy.has(r.date+'|'+r.type+'|'+Number(r.amount).toFixed(2)+'|'+(r.note||''))){ dup++; continue; }
@@ -4248,13 +4369,14 @@ async function runMonoImport(){
         ruled++;
       } else if(rule && rule.action==='category' && rule.category && catById(rule.category)?.type===r.type){
         tx.category=rule.category; ruled++;
-      } else if(mode==='ai'){                                  // AI — лише для того, що не покрили правила
-        tx.category=catOf(r);
+      } else if(mode==='ai'||mode==='bank'){                   // AI / категорії банку — лише для того, що не покрили правила
+        const cid=catOf(r); if(cid&&catById(cid)?.type===r.type){ tx.category=cid; if(mode==='bank') autoCat++; }
       }
       await put('tx',tx); added++;
     }
     await loadAll(); closeModal('monoModal'); go('dash');
-    alert('Готово! Додано: '+added+(ruled?('. Правилами розкладено: '+ruled):'')+(dup?('. Пропущено дублів: '+dup):'.'));
+    alert('Готово! Додано: '+added+(ruled?('. Правилами розкладено: '+ruled):'')
+      +(autoCat?('. За категоріями банку: '+autoCat):'')+(dup?('. Пропущено дублів: '+dup):'.'));
   }catch(e){ alert('Помилка імпорту:\n'+(e&&e.message||e)); }
   finally{ btn.disabled=false; btn.textContent='Імпортувати'; }
 }
