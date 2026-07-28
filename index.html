@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.07</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.08</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.07</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.08</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -4474,51 +4474,69 @@ const INCOME_HINTS=['дохід','доход','зарплат','отримав',
 /* синоніми: сказане слово → фрагмент назви категорії, який воно означає */
 const SYN=[['продукт','їж'],['магазин','їж'],['супермаркет','їж'],['їст','їж'],
   ['кав','каф'],['кафе','каф'],['ресторан','ресторан'],['обід','каф'],['снідан','каф'],
-  ['бензин','пальн'],['заправк','пальн'],['дизель','пальн'],['солярк','пальн'],
+  ['бензин','пальн'],['заправ','пальн'],['дизель','пальн'],['солярк','пальн'],['пальн','пальн'],
   ['сигарет','тютюн'],['цигарк','тютюн'],['пив','алкогол'],['вин','алкогол'],['горілк','алкогол'],
+  ['їж','їж'],['харч','їж'],['продуктів','їж'],
   ['ліки','здоров'],['аптек','здоров'],['лікар','здоров'],['мобіл','телефон'],['поповн','телефон'],
   ['дитин','діт'],['дитяч','діт'],['подарунок','подарунк'],['презент','подарунк'],
   ['парковк','авт'],['мийк','авт'],['ремонт','авт'],['штраф','авт']];
 function parseVoice(text){
   const t=' '+text.toLowerCase().replace(/[’ʼ`]/g,"'")+' ';
-  const type=INCOME_HINTS.some(h=>t.includes(h))?'income':'expense';
+  /* Порівнюємо ПО СЛОВАХ, а не підрядком: інакше «Ку-ПИВ їжі» ловило синонім
+     «пив» іклало все в Алкоголь. Тепер слово має саме ПОЧИНАТИСЬ із фрагмента. */
+  const toks=t.split(/[^0-9a-zа-яёіїєґ']+/).filter(Boolean);
+  const has=frag=>toks.some(w=>w.startsWith(frag));
+  const type=INCOME_HINTS.some(h=>has(h))?'income':'expense';
   const amount=parseAmount(text);
   let catId=null,best=0;
   cats.filter(c=>c.type===type&&kids(c.id).length===0).forEach(c=>{
     const nm=c.name.toLowerCase().replace(/[’ʼ`]/g,"'");
     let score=0;
     nm.split(/[\s/]+/).forEach(w=>{
-      if(w.length>=4){const stem=w.slice(0,Math.max(4,w.length-2)); if(t.includes(stem))score+=w.length;}});
-    SYN.forEach(([spoken,frag])=>{ if(t.includes(spoken)&&nm.includes(frag)) score+=6; });
+      if(w.length>=3){const stem=w.slice(0,Math.max(3,w.length-2)); if(has(stem))score+=w.length;}});
+    SYN.forEach(([spoken,frag])=>{ if(has(spoken)&&nm.includes(frag)) score+=6; });
     if(score>best){best=score;catId=c.id;}
   });
-  let accId=accounts[0]?.id;
-  accounts.forEach(a=>{const w=a.name.toLowerCase().split(/\s+/)[0];
-    if(w.length>=4&&t.includes(w.slice(0,Math.max(4,w.length-1))))accId=a.id;});
+  // рахунок — тим самим надійним співставленням, що й у AI-гілці (кирилиця↔латиниця, відмінки)
+  const accId=accFromSpeech(text) || lastAccId || accounts[0]?.id;
   return {type,amount,catId,accId,text};
 }
-let recognition=null;
+let recognition=null, listening=false, voiceTimer=null;
+/* Заглушити мікрофон і повернути кнопку в норму. Викликається звідусіль:
+   повторний тап, згортання застосунку, помилка, сторожовий таймер. */
+function stopVoice(quiet){
+  clearTimeout(voiceTimer); voiceTimer=null;
+  if(recognition){ try{recognition.abort?recognition.abort():recognition.stop();}catch(e){} }
+  const wasOn=listening; listening=false;
+  document.getElementById('fab')?.classList.remove('listening');
+  if(wasOn&&!quiet) toast('Мікрофон вимкнено');
+}
 function startVoice(){
+  if(listening){ stopVoice(); return; }               // тап удруге = передумав, глушимо
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('Голосовий ввід не підтримується цим браузером 😕');return;}
   if(accounts.filter(a=>!a.archived).length===0){alert('Спершу додай рахунок');go('acc');return;}
   const mic=document.getElementById('fab');
   recognition=new SR();
   recognition.lang='uk-UA'; recognition.interimResults=false; recognition.maxAlternatives=1;
-  recognition.onstart=()=>{mic.classList.add('listening');toast(aiKey?'🎤 Слухаю (AI)…':'🎤 Слухаю…');};
-  recognition.onerror=e=>{mic.classList.remove('listening');
-    toast(e.error==='not-allowed'?'Немає доступу до мікрофона':'Не почув, спробуй ще раз');};
-  recognition.onend=()=>mic.classList.remove('listening');
+  recognition.onstart=()=>{listening=true;mic.classList.add('listening');toast(aiKey?'🎤 Слухаю (AI)…':'🎤 Слухаю…');
+    clearTimeout(voiceTimer); voiceTimer=setTimeout(()=>stopVoice(),15000);};   // не слухати вічно
+  recognition.onerror=e=>{const na=e.error==='not-allowed'; stopVoice(true);
+    toast(na?'Немає доступу до мікрофона':'Не почув, спробуй ще раз');};
+  recognition.onend=()=>{ clearTimeout(voiceTimer); listening=false; mic.classList.remove('listening'); };
   recognition.onresult=async e=>{
     const text=e.results[0][0].transcript;
+    stopVoice(true);
     if(aiKey && navigator.onLine){
       try{ voiceFill(await aiParseVoice(text)); return; }
-      catch(err){ toast('AI: '+(err.message||err)+' — простий розбір'); }
+      catch(err){ toast('ШІ не спрацював — розібрав простим способом'); }
     }
     voiceFill(parseVoice(text));
   };
-  try{recognition.start();}catch(err){toast('Мікрофон зайнятий, спробуй ще раз');}
+  try{recognition.start();}catch(err){stopVoice(true);toast('Мікрофон зайнятий, спробуй ще раз');}
 }
+// згорнули застосунок під час слухання — мікрофон має замовкнути, а не працювати далі
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='visible') stopVoice(true); });
 /* ===== розкладна кнопка ＋ ===== */
 function toggleFabMenu(){
   const m=document.getElementById('fabMenu'), hidden=m.classList.toggle('hidden');
