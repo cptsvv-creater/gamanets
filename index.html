@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.04</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.06</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.04</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.06</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -405,7 +405,7 @@ svg .bar{transition:opacity .2s}
 
     <h2 style="cursor:pointer;user-select:none" onclick="toggleRules()">Правила категорій <span id="rulesArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="rulesCard">
-      <p class="muted" style="margin-top:0">Якщо опис операції збігається з умовою — застосунок сам призначить категорію або зробить переказ на рахунок (напр. поповнення банки). Спрацьовує <b>тихо при імпорті Монобанку</b> та кнопкою «до наявних».</p>
+      <p class="muted" style="margin-top:0">Якщо опис операції збігається з умовою — застосунок сам призначить категорію або зробить переказ на рахунок (напр. поповнення банки). Спрацьовує <b>тихо при імпорті виписки будь-якого банку</b> та кнопкою «до наявних».</p>
       <div id="rulesList"></div>
       <div class="row" style="margin-top:12px;gap:8px">
         <button class="btn sm" onclick="openRule()">＋ Правило</button>
@@ -4307,7 +4307,7 @@ async function onMonoFile(ev){
   }catch(e){ alert('Не вдалося прочитати файл:\n'+(e&&e.message||e)); return; }
   if(!rows||rows.length<2){ alert('Порожній або нерозпізнаний файл'); return; }
   const det=detectStatement(rows);
-  if(!det){ alert('Не впізнав формат виписки.\n\nПідтримуються: Монобанк (.csv, картка) і ПриватБанк (.xlsx).'); return; }
+  if(!det){ alert('Не впізнав формат виписки.\n\nПідтримуються: Монобанк (.csv, картка), ПриватБанк (.xlsx), Банк Південний (.csv).'); return; }
   if(det.bank==='monoIban'){ alert('Це виписка Монобанку по рахунку IBAN — її формат ще не підтримується.\n\nПоки що імпортуй виписку КАРТКИ (.csv).'); return; }
   const parsed=parseStatement(rows,det);
   if(!parsed.length){ alert('Не знайшов жодної операції для імпорту.'); return; }

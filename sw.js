@@ -3,7 +3,7 @@
    - онлайн  → завжди свіжа версія з сервера (оновлення приходять одразу);
    - офлайн  → остання збережена копія (працює без інтернету).
    Версію CACHE піднімати при кожному релізі, щоб старі кеші прибирались. */
-const CACHE = 'gamanets-v96';
+const CACHE = 'gamanets-v98';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -19,6 +19,19 @@ self.addEventListener('activate', e => {
   })());
 });
 
+/* Чи можна класти цю відповідь у кеш?
+   ВАЖЛИВО для майбутнього Cloudflare Access: коли сесія входу спливає, сервер
+   віддає СТОРІНКУ ВХОДУ замість застосунку. Якби ми її закешували як index.html —
+   застосунок «зламався б» назавжди (показував би форму входу навіть офлайн).
+   Тому кешуємо лише свій, незредиректжений, успішний матеріал. */
+function cacheable(req, res) {
+  if (!res || !res.ok || res.type === 'opaque') return false;
+  if (res.redirected) return false;                       // нас кудись перекинуло (сторінка входу) — не наше
+  try { if (new URL(res.url || req.url).origin !== self.location.origin) return false; }
+  catch (e) { return false; }
+  return true;
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -26,8 +39,10 @@ self.addEventListener('fetch', e => {
     try {
       // мережа передусім, В ОБХІД HTTP-кешу браузера (щоб завжди свіже)
       const fresh = await fetch(req, { cache: 'no-store' });
-      const cache = await caches.open(CACHE);
-      cache.put(req, fresh.clone());
+      if (cacheable(req, fresh)) {
+        const cache = await caches.open(CACHE);
+        cache.put(req, fresh.clone());
+      }
       return fresh;
     } catch (err) {
       // офлайн → з кешу; для навігації віддаємо index.html
