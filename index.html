@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.03</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.04</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.03</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.04</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -507,7 +507,7 @@ svg .bar{transition:opacity .2s}
         <button class="btn ghost sm" onclick="document.getElementById('ffFile').click()">⬆ Freedom24 (виписка .json)</button>
         <input type="file" id="ffFile" accept=".json,application/json" class="hidden" onchange="onFreedomFile(event)">
       </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Банк упізнається сам: <b>Монобанк</b> — CSV картки з застосунку; <b>ПриватБанк</b> — XLSX виписка з Приват24 (там є власні категорії — можна зіставити з твоїми). Валюта береться з виписки. Freedom24: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Банк упізнається сам: <b>Монобанк</b> — CSV картки з застосунку; <b>ПриватБанк</b> — XLSX виписка з Приват24 (там є власні категорії — можна зіставити з твоїми); <b>Банк Південний</b> — CSV з інтернет-банкінгу. Валюта береться з виписки. <b>Freedom24</b>: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
       <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
@@ -826,6 +826,23 @@ svg .bar{transition:opacity .2s}
       <button class="btn danger sm hidden" id="flowDelBtn" onclick="delFlow()">Видалити</button>
       <div class="spacer"></div>
       <button class="btn" onclick="saveFlow()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- Wipe confirmation modal (треба вписати слово) -->
+<div class="modal" id="wipeModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;color:var(--red)">⚠️ Стерти всі дані</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('wipeModal')">✕</button></div>
+    <div style="font-size:13px;line-height:1.5">Буде видалено <b>все</b>: рахунки, операції, категорії, інвестиції, історія та налаштування. Відновити з пристрою буде <b>неможливо</b>.</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">Якщо є хмарний бекап або файл експорту — дані можна буде відновити з них.</div>
+    <div style="margin-top:14px"><label>Введи слово <b style="color:var(--red)">стерти</b> для підтвердження</label>
+      <input id="wipeWord" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="стерти" oninput="checkWipeWord()"></div>
+    <div class="row" style="margin-top:16px;gap:8px">
+      <button class="btn ghost sm" onclick="closeModal('wipeModal')">Скасувати</button>
+      <div class="spacer"></div>
+      <button class="btn danger sm" id="wipeGoBtn" disabled onclick="wipeConfirmed()">Стерти все</button>
     </div>
   </div>
 </div>
@@ -3860,11 +3877,24 @@ async function importData(ev){
  if(autoBackup&&backupId&&backupPass) cloudBackupNow(true);
  go('dash');alert('Готово! Дані імпортовано.');
 }
-async function wipeData(){
-  if(!confirm('Стерти ВСІ дані без відновлення?'))return;
-  if(!confirm('Точно? Це незворотньо.'))return;
+/* Стирання всього — два шари захисту: спершу треба ВПИСАТИ слово «стерти»,
+   і лише потім звичайне підтвердження. Захищає від випадкового тапу. */
+function wipeData(){
+  const inp=document.getElementById('wipeWord'); if(inp) inp.value='';
+  const b=document.getElementById('wipeGoBtn'); if(b) b.disabled=true;
+  openModal('wipeModal');
+}
+function checkWipeWord(){
+  const v=(document.getElementById('wipeWord').value||'').trim().toLowerCase();
+  document.getElementById('wipeGoBtn').disabled = v!=='стерти';
+}
+async function wipeConfirmed(){
+  if((document.getElementById('wipeWord').value||'').trim().toLowerCase()!=='стерти') return;
+  if(!confirm('Останнє попередження: стерти ВСІ дані без відновлення?')) return;
+  closeModal('wipeModal');
   for(const s of ['accounts','tx','categories','holdings','meta']) await new Promise(r=>{db.transaction(s,'readwrite').objectStore(s).clear().onsuccess=r;});
   await seed();await loadAll();go('dash');
+  toast('Усі дані стерто');
 }
 
 /* ========================= ХМАРНИЙ БЕКАП =========================
@@ -4042,13 +4072,16 @@ window.addEventListener('online',()=>syncCheck());
 // перетнули межу телефон↔десктоп (розтягнули вікно) → перегрупувати список рахунків
 matchMedia('(min-width:900px)').addEventListener('change',()=>{ if(curTab()==='acc') renderAccounts(); });
 
-/* ========================= ІМПОРТ МОНОБАНК (CSV) ========================= */
+/* ========================= ІМПОРТ ВИПИСОК (CSV / XLSX) ========================= */
 function parseCSV(text){
   const s=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  // роздільник: Моно — кома, Південний — крапка з комою. Визначаємо за першим рядком.
+  const head=s.slice(0,s.indexOf('\n')+1||s.length);
+  const D=(head.split(';').length>head.split(',').length)?';':',';
   const rows=[]; let row=[], field='', inQ=false;
   for(let i=0;i<s.length;i++){ const c=s[i];
     if(inQ){ if(c==='"'){ if(s[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=c; }
-    else { if(c==='"') inQ=true; else if(c===','){ row.push(field); field=''; }
+    else { if(c==='"') inQ=true; else if(c===D){ row.push(field); field=''; }
       else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; } else field+=c; }
   }
   if(field!==''||row.length){ row.push(field); rows.push(row); }
@@ -4110,6 +4143,10 @@ function detectStatement(rows){
     const h=(rows[i]||[]).map(x=>String(x||'').toLowerCase().trim());
     const at=s=>h.findIndex(c=>c.includes(s));
     const dateIdx=at('дата'); if(dateIdx<0) continue;
+    if(at('квитанція')>=0 && at('валюта рахунку')>=0)             // Банк Південний (.csv, роздільник «;»)
+      return {bank:'pivdenny',name:'Банк Південний',headRow:i,idx:{date:dateIdx,ts:at('дата блокування'),
+        rcpt:at('квитанція'),card:at('картка'),desc:at('деталі операції'),
+        amt:h.findIndex(c=>c.includes('сума в валюті рахунку')),cur:at('валюта рахунку')}};
     if(at('валюта картки')>=0 && at('опис операції')>=0)          // ПриватБанк (.xlsx)
       return {bank:'privat',name:'ПриватБанк',headRow:i,idx:{date:dateIdx,cat:at('категорія'),card:at('картка'),
         desc:at('опис операції'),amt:h.findIndex(c=>c.includes('сума в валюті картки')),cur:at('валюта картки'),bal:at('залишок')}};
@@ -4133,6 +4170,11 @@ function parseStatement(rows,det){
       rec.bankCat=String(r[ix.cat]||'').trim();
       rec.cur=String(r[ix.cur]||'').trim().toUpperCase();
       rec.bal=String(r[ix.bal]||'').trim();      // залишок робить ключ унікальним (автоплатежі з однаковим часом і сумою!)
+    } else if(det.bank==='pivdenny'){
+      rec.cur=String(r[ix.cur]||'').trim().toUpperCase();
+      rec.bal=String(r[ix.rcpt]||'').trim();      // «квитанція код» — унікальний номер операції
+      const tsm=monoDate(r[ix.ts]||'');           // «дата блокування» має час — точніший ключ і порядок
+      if(tsm.ts) rec.createdAt=tsm.ts;
     } else rec.mcc=String(r[ix.mcc]!=null?r[ix.mcc]:'').trim();
     out.push(rec);
   }
@@ -4271,7 +4313,7 @@ async function onMonoFile(ev){
   if(!parsed.length){ alert('Не знайшов жодної операції для імпорту.'); return; }
   // валюта: Моно — із заголовка; Приват — з колонки «Валюта картки» (переважна в файлі)
   let stCur=det.cur||'UAH';
-  if(det.bank==='privat'){
+  if(det.bank==='privat'||det.bank==='pivdenny'){
     const cnt={}; parsed.forEach(r=>{ if(r.cur) cnt[r.cur]=(cnt[r.cur]||0)+1; });
     stCur=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'UAH';
     window._monoMixed=Object.keys(cnt).length>1?Object.keys(cnt).join('/'):'';
