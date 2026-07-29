@@ -219,8 +219,24 @@ svg .bar{transition:opacity .2s}
 </style>
 </head>
 <body>
+<!-- Екран блокування: поверх усього, з'являється до того, як щось видно -->
+<div id="lockScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
+     flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
+  <div style="font-size:40px;margin-bottom:6px">₴</div>
+  <div style="font-size:17px;font-weight:700;margin-bottom:2px">Гаманець</div>
+  <div class="muted" id="lockHint" style="font-size:13px;margin-bottom:18px">Введи PIN</div>
+
+  <div id="lockDots" style="display:flex;gap:12px;margin-bottom:18px"></div>
+
+  <div id="lockPad" style="display:grid;grid-template-columns:repeat(3,64px);gap:12px"></div>
+
+  <button class="btn ghost sm hidden" id="lockBioBtn" style="margin-top:18px" onclick="lockTryBio()">😊 Face ID</button>
+  <div id="lockErr" style="font-size:12px;color:var(--red);margin-top:14px;min-height:16px"></div>
+  <span onclick="lockRecoverAsk()" style="cursor:pointer;font-size:12px;color:var(--muted);margin-top:8px">Не можу увійти</span>
+</div>
+
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.09</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.10</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.09</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.10</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -412,6 +428,14 @@ svg .bar{transition:opacity .2s}
         <div class="spacer"></div>
         <button class="btn ghost sm" onclick="applyRulesToExisting()">↻ До наявних</button>
       </div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleLock()">Захист входу <span id="lockArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="lockCard">
+      <p class="muted" style="margin-top:0">Щоб з твого <b>розблокованого</b> телефона ніхто не зазирнув у фінанси. Питає Face ID або PIN при відкритті застосунку.</p>
+      <div id="lockStatus"></div>
+      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+        Це <b>фіранка, а не сейф</b>: дані на пристрої лежать незашифровані, тож технічно підкована людина обійде. Захищає від цікавих очей, не від хакера.</div>
     </div>
 
     <h2 style="cursor:pointer;user-select:none" onclick="toggleApi()">Авто-курси акцій <span id="apiArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
@@ -4896,9 +4920,179 @@ async function migrateCash(){
   await setMeta('cashMigrated',true);
   if(n) await loadAll();
 }
+/* ========================= ЗАХИСТ ВХОДУ (PIN + Face ID) =========================
+   Фіранка, не сейф: дані НЕ шифруються піном (забув пін ≠ втратив усе).
+   Усе зберігається ЛИШЕ на цьому пристрої й НЕ їде в бекап — замок у кожного свій. */
+let lockOn=false, pinHash='', pinSalt='', recovHash='', bioCredId='', lockFails=0, lockUntil=0;
+let lockExpanded=false, lockBuf='', lockMode='unlock', lockNewPin='', hiddenAt=0, unlocked=false;
+const LOCK_GRACE=60000;                        // згорнув менш ніж на хвилину — не питаємо знову
+
+const rndHex=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');};
+async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+// код відновлення: 16 символів без 0/O/1/I, щоб не переплутати при переписуванні
+function makeRecoveryCode(){
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(16); crypto.getRandomValues(a);
+  return [...a].map(b=>A[b%A.length]).join('').replace(/(.{4})/g,'$1-').slice(0,19);
+}
+async function loadLock(){
+  lockOn=!!(await getMeta('lockOn')); pinHash=await getMeta('pinHash')||''; pinSalt=await getMeta('pinSalt')||'';
+  recovHash=await getMeta('recovHash')||''; bioCredId=await getMeta('bioCredId')||'';
+  lockFails=await getMeta('lockFails')||0; lockUntil=await getMeta('lockUntil')||0;
+}
+const bioAvailable=()=>!!(window.PublicKeyCredential && navigator.credentials);
+
+/* ---- екран блокування ---- */
+function lockShow(mode){
+  lockMode=mode||'unlock'; lockBuf=''; unlocked=false;
+  const s=document.getElementById('lockScreen');
+  s.style.display='flex';
+  document.getElementById('lockBioBtn').classList.toggle('hidden', !(lockMode==='unlock'&&bioCredId&&bioAvailable()));
+  document.querySelector('#lockScreen span[onclick="lockRecoverAsk()"]').style.display=(lockMode==='unlock')?'':'none';
+  lockPaint(); lockRenderPad();
+  if(lockMode==='unlock'&&bioCredId&&bioAvailable()) setTimeout(lockTryBio,300);   // одразу пробуємо мордочку
+}
+function lockHide(){ document.getElementById('lockScreen').style.display='none'; unlocked=true; }
+function lockPaint(){
+  const hints={unlock:'Введи PIN',set:'Придумай PIN з 4 цифр',confirm:'Повтори PIN',change:'Введи поточний PIN'};
+  document.getElementById('lockHint').textContent=hints[lockMode]||'Введи PIN';
+  document.getElementById('lockDots').innerHTML=[0,1,2,3].map(i=>
+    `<div style="width:13px;height:13px;border-radius:50%;border:2px solid var(--muted);background:${i<lockBuf.length?'var(--brand)':'transparent'};border-color:${i<lockBuf.length?'var(--brand)':'var(--muted)'}"></div>`).join('');
+}
+function lockRenderPad(){
+  const wait=Math.max(0,lockUntil-Date.now());
+  const pad=document.getElementById('lockPad');
+  if(wait>0){ pad.innerHTML=''; lockErr('Забагато спроб. Зачекай '+Math.ceil(wait/1000)+' с');
+    setTimeout(lockRenderPad,1000); return; }
+  const keys=[1,2,3,4,5,6,7,8,9,'',0,'⌫'];
+  pad.innerHTML=keys.map(k=>k===''?'<div></div>':
+    `<button class="btn ghost" style="width:64px;height:64px;border-radius:50%;font-size:${k==='⌫'?'18':'22'}px;padding:0" onclick="lockKey('${k}')">${k}</button>`).join('');
+}
+function lockErr(t){ document.getElementById('lockErr').textContent=t||''; }
+async function lockKey(k){
+  if(Date.now()<lockUntil) return;
+  if(k==='⌫'){ lockBuf=lockBuf.slice(0,-1); lockPaint(); lockErr(''); return; }
+  if(lockBuf.length>=4) return;
+  lockBuf+=k; lockPaint();
+  if(lockBuf.length===4) setTimeout(lockSubmit,120);
+}
+async function lockSubmit(){
+  const pin=lockBuf; lockBuf='';
+  if(lockMode==='set'){ lockNewPin=pin; lockMode='confirm'; lockPaint(); lockErr(''); return; }
+  if(lockMode==='confirm'){
+    if(pin!==lockNewPin){ lockMode='set'; lockNewPin=''; lockPaint(); lockErr('PIN не збігся, спробуй ще'); return; }
+    await lockSavePin(pin); return;
+  }
+  // перевірка (unlock або change)
+  const ok = pinHash && (await sha(pinSalt+pin))===pinHash;
+  if(ok){
+    lockFails=0; lockUntil=0; await setMeta('lockFails',0); await setMeta('lockUntil',0);
+    if(lockMode==='change'){ lockMode='set'; lockPaint(); lockErr(''); return; }
+    lockHide(); lockErr('');
+  }else{
+    lockFails++; await setMeta('lockFails',lockFails);
+    // затримка зростає: 3 промахи → 30с, 5 → 5хв, 7+ → 15хв
+    const d = lockFails>=7?900000 : lockFails>=5?300000 : lockFails>=3?30000 : 0;
+    if(d){ lockUntil=Date.now()+d; await setMeta('lockUntil',lockUntil); lockRenderPad(); }
+    lockPaint(); lockErr('Невірний PIN'+(d?'':' · спроба '+lockFails));
+  }
+}
+async function lockSavePin(pin){
+  pinSalt=rndHex(8); pinHash=await sha(pinSalt+pin);
+  await setMeta('pinSalt',pinSalt); await setMeta('pinHash',pinHash);
+  lockOn=true; await setMeta('lockOn',true);
+  const code=makeRecoveryCode();
+  recovHash=await sha('r'+code); await setMeta('recovHash',recovHash);
+  lockHide(); renderLockCard();
+  alert('PIN встановлено ✅\n\nКОД ВІДНОВЛЕННЯ:\n\n'+code+'\n\nЗапиши його зараз у нотатки або менеджер паролів.\nЦе ЄДИНИЙ спосіб зайти, якщо забудеш PIN. Більше він не показується.');
+}
+/* ---- Face ID через WebAuthn ---- */
+async function lockRegisterBio(){
+  if(!bioAvailable()){ alert('Цей пристрій або браузер не вміє Face ID / Touch ID для сайтів.'); return; }
+  try{
+    const cred=await navigator.credentials.create({publicKey:{
+      challenge:crypto.getRandomValues(new Uint8Array(32)),
+      rp:{name:'Гаманець'},
+      user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'gamanets',displayName:'Гаманець'},
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required'},
+      timeout:60000, attestation:'none'}});
+    if(!cred) throw new Error('скасовано');
+    bioCredId=btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+    await setMeta('bioCredId',bioCredId); renderLockCard(); toast('✓ Face ID увімкнено');
+  }catch(e){ alert('Не вдалося увімкнути Face ID:\n'+(e&&e.message||e)+'\n\nPIN працює як і працював.'); }
+}
+async function lockTryBio(){
+  if(!bioCredId||!bioAvailable()) return;
+  try{
+    const raw=Uint8Array.from(atob(bioCredId),c=>c.charCodeAt(0));
+    const res=await navigator.credentials.get({publicKey:{
+      challenge:crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials:[{type:'public-key',id:raw}],
+      userVerification:'required', timeout:60000}});
+    if(res){ lockFails=0; await setMeta('lockFails',0); lockHide(); lockErr(''); }
+  }catch(e){ lockErr('Face ID не впізнав — введи PIN'); }
+}
+/* ---- відновлення ---- */
+async function lockRecoverAsk(){
+  const c=prompt('Введи код відновлення (той, що зберіг при налаштуванні):');
+  if(c===null) return;
+  const clean=String(c).trim().toUpperCase();
+  if(recovHash && (await sha('r'+clean))===recovHash){
+    lockFails=0; lockUntil=0; await setMeta('lockFails',0); await setMeta('lockUntil',0);
+    alert('Код правильний ✅ Зараз задаси новий PIN.');
+    lockShow('set');
+  }else alert('Код не підійшов.\n\nЯкщо загубив і його — перевстанови застосунок і відновись із бекапу: дані від цього не постраждають.');
+}
+/* ---- налаштування в «Ще» ---- */
+function toggleLock(){
+  lockExpanded=!lockExpanded;
+  document.getElementById('lockCard').classList.toggle('hidden',!lockExpanded);
+  document.getElementById('lockArrow').textContent=lockExpanded?'▾':'▸';
+  if(lockExpanded) renderLockCard();
+}
+function renderLockCard(){
+  const box=document.getElementById('lockStatus'); if(!box) return;
+  if(!lockOn){
+    box.innerHTML=`<button class="btn sm" onclick="lockShow('set')">🔒 Увімкнути захист</button>`;
+    return;
+  }
+  const bio=bioCredId?`<div class="row" style="margin-top:8px;font-size:13px"><span>😊 Face ID увімкнено</span><div class="spacer"></div>
+      <button class="btn ghost sm" onclick="lockDropBio()">Вимкнути</button></div>`
+    : (bioAvailable()?`<div style="margin-top:8px"><button class="btn ghost sm" onclick="lockRegisterBio()">😊 Додати Face ID</button></div>`:'');
+  box.innerHTML=`<div style="font-size:13px;color:var(--green)">🔒 Захист увімкнено</div>${bio}
+    <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost sm" onclick="lockShow('change')">Змінити PIN</button>
+      <button class="btn ghost sm" onclick="lockNewRecovery()">Новий код відновлення</button>
+      <div class="spacer"></div>
+      <button class="btn danger sm" onclick="lockDisable()">Вимкнути</button></div>`;
+}
+async function lockNewRecovery(){
+  const code=makeRecoveryCode(); recovHash=await sha('r'+code); await setMeta('recovHash',recovHash);
+  alert('НОВИЙ КОД ВІДНОВЛЕННЯ:\n\n'+code+'\n\nСтарий більше не працює. Запиши цей.');
+}
+async function lockDropBio(){
+  bioCredId=''; await setMeta('bioCredId',''); renderLockCard(); toast('Face ID вимкнено — лишився PIN');
+}
+async function lockDisable(){
+  if(!confirm('Вимкнути захист входу? Застосунок відкриватиметься без PIN.')) return;
+  lockOn=false; pinHash=''; pinSalt=''; recovHash=''; bioCredId=''; lockFails=0; lockUntil=0;
+  for(const k of ['lockOn','pinHash','pinSalt','recovHash','bioCredId','lockFails','lockUntil']) await setMeta(k, k==='lockOn'?false:'');
+  renderLockCard(); toast('Захист вимкнено');
+}
+/* ---- коли питати ---- */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){ hiddenAt=Date.now(); return; }
+  if(lockOn && unlocked && hiddenAt && Date.now()-hiddenAt>LOCK_GRACE) lockShow('unlock');
+});
+
 /* ========================= BOOT ========================= */
 (async function(){
-  await openDB(); await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
+  await openDB();
+  await loadLock();                       // замок ПЕРШИМ: показуємо його до того, як щось видно
+  if(lockOn) lockShow('unlock'); else unlocked=true;
+  await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   await pfSnapshot();   // щоденна крапка історії портфеля
   updateNet(); go('dash');
