@@ -220,7 +220,7 @@ svg .bar{transition:opacity .2s}
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.08</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.09</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -231,7 +231,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.08</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.09</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -958,7 +958,10 @@ const PIVOT = 'UAH';  // технічний якір для курсів НБУ
 const DEFAULT_PROXY = 'https://quiet-tooth-d62b.nd4vp65rtg.workers.dev/';
 // що реально використовуємо: особисте налаштування > вшите
 const activeProxy = ()=> (proxyUrl || DEFAULT_PROXY);
-const fmt = (v,c=PIVOT)=> (CUR[c]?.s||c)+' '+Number(v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+/* Копійчані «хвости» від float (0.1-0.1 = -1e-16) друкувалися як «−0,00».
+   Усе, що менше півкопійки, — це нуль, і знака в нього немає. */
+const fmt = (v,c=PIVOT)=>{ const n=Number(v)||0;
+  return (CUR[c]?.s||c)+' '+(Math.abs(n)<0.005?0:n).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const pad2 = n => String(n).padStart(2,'0');
 const ymKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
 const todayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;};
@@ -4539,6 +4542,7 @@ function startVoice(){
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='visible') stopVoice(true); });
 /* ===== розкладна кнопка ＋ ===== */
 function toggleFabMenu(){
+  if(listening){ stopVoice(); return; }        // кнопка червона = слухає; тап по ній глушить, а не відкриває меню
   const m=document.getElementById('fabMenu'), hidden=m.classList.toggle('hidden');
   document.getElementById('fabBackdrop').classList.toggle('hidden',hidden);
   document.getElementById('fab').classList.toggle('rot',!hidden);
