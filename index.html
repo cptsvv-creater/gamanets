@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.10</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.11</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.10</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.11</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -851,6 +851,21 @@ svg .bar{transition:opacity .2s}
       <div class="spacer"></div>
       <button class="btn" onclick="saveFlow()">Зберегти</button>
     </div>
+  </div>
+</div>
+
+<!-- Код відновлення: показуємо ОДИН раз, з кнопкою копіювання -->
+<div class="modal" id="recoveryModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0">🔑 Код відновлення</h3></div>
+    <div style="font-size:13px;line-height:1.5">Це <b>єдиний спосіб</b> зайти, якщо забудеш PIN. Збережи його <b>зараз</b> — вдруге він не покажеться.</div>
+    <div id="recoveryCode" style="margin-top:14px;padding:16px;background:var(--surface2);border-radius:12px;
+         font-family:ui-monospace,Menlo,monospace;font-size:20px;font-weight:700;text-align:center;
+         letter-spacing:1px;user-select:all;-webkit-user-select:all"></div>
+    <button class="btn ghost sm" style="width:100%;margin-top:10px" onclick="copyRecovery()">📋 Копіювати</button>
+    <div class="muted" style="font-size:11px;margin-top:10px">Встав у нотатки або менеджер паролів. Можна й переписати від руки — літери, схожі на цифри (O, I), тут навмисно не використовуються.</div>
+    <div class="row" style="margin-top:16px"><div class="spacer"></div>
+      <button class="btn" onclick="closeModal('recoveryModal')">Я зберіг</button></div>
   </div>
 </div>
 
@@ -5005,7 +5020,18 @@ async function lockSavePin(pin){
   const code=makeRecoveryCode();
   recovHash=await sha('r'+code); await setMeta('recovHash',recovHash);
   lockHide(); renderLockCard();
-  alert('PIN встановлено ✅\n\nКОД ВІДНОВЛЕННЯ:\n\n'+code+'\n\nЗапиши його зараз у нотатки або менеджер паролів.\nЦе ЄДИНИЙ спосіб зайти, якщо забудеш PIN. Більше він не показується.');
+  showRecovery(code);
+}
+/* показ коду з можливістю СКОПІЮВАТИ — переписувати вручну легко помилитись */
+function showRecovery(code){
+  document.getElementById('recoveryCode').textContent=code;
+  window._recoveryCode=code;
+  openModal('recoveryModal');
+}
+async function copyRecovery(){
+  const code=window._recoveryCode||document.getElementById('recoveryCode').textContent;
+  try{ await navigator.clipboard.writeText(code); toast('✓ Код скопійовано — встав у нотатки'); }
+  catch(_){ prompt('Скопіюй код вручну (виділити все → копіювати):', code); }   // старі iOS без clipboard API
 }
 /* ---- Face ID через WebAuthn ---- */
 async function lockRegisterBio(){
@@ -5070,7 +5096,7 @@ function renderLockCard(){
 }
 async function lockNewRecovery(){
   const code=makeRecoveryCode(); recovHash=await sha('r'+code); await setMeta('recovHash',recovHash);
-  alert('НОВИЙ КОД ВІДНОВЛЕННЯ:\n\n'+code+'\n\nСтарий більше не працює. Запиши цей.');
+  showRecovery(code); toast('Старий код більше не діє');
 }
 async function lockDropBio(){
   bioCredId=''; await setMeta('bioCredId',''); renderLockCard(); toast('Face ID вимкнено — лишився PIN');
