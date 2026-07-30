@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.12</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.13</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.12</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.13</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -430,14 +430,6 @@ svg .bar{transition:opacity .2s}
       </div>
     </div>
 
-    <h2 style="cursor:pointer;user-select:none" onclick="toggleLock()">Захист входу <span id="lockArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
-    <div class="card hidden" id="lockCard">
-      <p class="muted" style="margin-top:0">Щоб з твого <b>розблокованого</b> телефона ніхто не зазирнув у фінанси. Питає Face ID або PIN при відкритті застосунку.</p>
-      <div id="lockStatus"></div>
-      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
-        Це <b>фіранка, а не сейф</b>: дані на пристрої лежать незашифровані, тож технічно підкована людина обійде. Захищає від цікавих очей, не від хакера.</div>
-    </div>
-
     <h2 style="cursor:pointer;user-select:none" onclick="toggleApi()">Авто-курси акцій <span id="apiArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="apiCard">
       <p class="muted" style="margin-top:0">Щоб оновлювати ціни акцій автоматично, встав безкоштовний API-ключ <b>Finnhub</b>. Реєстрація на finnhub.io займає ~хвилину (60 запитів/хв безкоштовно). Ключ зберігається лише на цьому пристрої.</p>
@@ -513,6 +505,22 @@ svg .bar{transition:opacity .2s}
         </div>
       </div>
       <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleFam()">Сімейний бюджет <span id="famArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="famCard">
+      <p class="muted" style="margin-top:0">Спільні рахунки видно всій родині — хто скільки вніс і витратив. <b>Решта рахунків лишається лише твоєю</b>: приватне взагалі не передається.</p>
+      <div id="famStatus"></div>
+      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+        Категорії, ліміти й бюджети в кожного <b>свої</b> — синхронізуються тільки самі операції.</div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleLock()">Захист входу <span id="lockArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="lockCard">
+      <p class="muted" style="margin-top:0">Щоб з твого <b>розблокованого</b> телефона ніхто не зазирнув у фінанси. Питає Face ID або PIN при відкритті застосунку.</p>
+      <div id="lockStatus"></div>
+      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+        Це <b>фіранка, а не сейф</b>: дані на пристрої лежать незашифровані, тож технічно підкована людина обійде. Захищає від цікавих очей, не від хакера.</div>
     </div>
 
     <h2 style="cursor:pointer;user-select:none" onclick="toggleDataSec()">Дані <span id="dataArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
@@ -658,6 +666,11 @@ svg .bar{transition:opacity .2s}
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text)">
         <input type="checkbox" id="accCrypto"> 🪙 Крипто-майданчик (біржа або гаманець)</label>
       <div class="muted" style="font-size:11px;margin-top:4px">Тоді позиції тут будуть монети (ціна з CoinGecko) і ф'ючерси, а не акції/ОВДП.</div>
+    </div>
+    <div id="accSharedWrap" class="hidden" style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text)">
+        <input type="checkbox" id="accShared"> 👨‍👩‍👧 Спільний рахунок</label>
+      <div class="muted" style="font-size:11px;margin-top:4px">Операції з цього рахунку побачить родина. Решта рахунків лишається тільки твоєю.</div>
     </div>
     <div style="margin-top:10px"><label>Колір картки</label><div class="colorrow" id="accColorRow"></div></div>
     <div style="margin-top:10px"><label>Іконка</label>
@@ -1591,9 +1604,12 @@ function txRow(t){
     const sign=t.type==='income'?'+':'−';
     amtHtml=`<span class="amt ${t.type==='income'?'pos':'neg'}">${sign}${fmt(t.amount,acc?.currency)}</span>`;
   }
-  return `<div class="tx" onclick="openTx('${t.id}')">
+  // на спільному рахунку показуємо, ХТО зробив операцію; чужі не редагуються
+  const who=t.by?`<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:var(--surface2);color:var(--muted);margin-left:6px">👤 ${t.by}</span>`:'';
+  const foreignCat=(t.ext&&t.cat&&!t.category)?` · <span style="color:var(--muted)">партнер: ${t.cat}</span>`:'';
+  return `<div class="tx" ${t.ext?'style="opacity:.92"':`onclick="openTx('${t.id}')"`}>
     <div class="ic">${ic}</div>
-    <div class="mid"><div class="t">${title}</div><div class="s">${t.date} · ${sub}</div></div>
+    <div class="mid"><div class="t">${title}${who}</div><div class="s">${t.date} · ${sub}${foreignCat}</div></div>
     ${amtHtml}</div>`;
 }
 
@@ -3418,7 +3434,7 @@ function go(tab){
   document.getElementById('fab').classList.toggle('hidden', hideFab);
   closeFabMenu();
   if(tab==='dash')renderDash();
-  if(tab==='acc')renderAccounts(); if(tab==='set'){renderSettings();renderCurrencySettings();if(catsExpanded)renderCats();if(rulesExpanded)renderRules();}
+  if(tab==='acc')renderAccounts(); if(tab==='set'){renderSettings();renderCurrencySettings();if(catsExpanded)renderCats();if(rulesExpanded)renderRules();if(famExpanded)renderFamCard();if(lockExpanded)renderLockCard();}
   if(tab==='invest')renderInvest();
   if(tab==='analytics'){ if(!hmMonth) hmDay=Number(todayISO().slice(8,10)); renderAnalytics(); }  // відкрив → сьогодні в фокусі
   if(tab==='ai')renderAdvisor();
@@ -3632,8 +3648,11 @@ async function saveTx(){
   }else{
     rec.category=document.getElementById('txCat').value;
   }
+  // операція на спільному рахунку підписується автором — щоб родина бачила, хто це зробив
+  if(family && (accById(rec.account)?.shared || (rec.to&&accById(rec.to)?.shared))) rec.by=family.name;
   await put('tx',rec);
   if(rec.account&&rec.account!==lastAccId){ lastAccId=rec.account; setMeta('lastAccId',lastAccId); }
+  famPush();
   // пов'язана витрата-комісія для переказів
   const prevFee=txs.find(t=>t.linkedTransfer===rec.id);
   if(prevFee) await del('tx',prevFee.id);
@@ -3700,6 +3719,9 @@ function openAccount(id){
   document.getElementById('accType').value=editingAcc?.type||'regular';
   document.getElementById('accCreditLimit').value=editingAcc?.creditLimit||'';
   document.getElementById('accCrypto').checked=!!editingAcc?.crypto;
+  // «спільний» показуємо лише коли родина створена — інакше пункт нікому не потрібен
+  document.getElementById('accShared').checked=!!editingAcc?.shared;
+  document.getElementById('accSharedWrap').classList.toggle('hidden',!family);
   pickedAccColor=editingAcc?.color||CAT_COLORS[7];
   pickedAccIcon=editingAcc?.icon||'💳';
   document.getElementById('accIconPreview').value=pickedAccIcon;
@@ -3803,7 +3825,11 @@ async function saveAccount(){
     order: editingAcc? editingAcc.order : (accounts.reduce((m,a)=>Math.max(m,a.order??-1),-1)+1)};
   if(type==='credit'){const cl=parseFloat(document.getElementById('accCreditLimit').value);if(cl>0)rec.creditLimit=cl;}
   if(type==='invest' && document.getElementById('accCrypto').checked) rec.crypto=true;
+  if(family && document.getElementById('accShared').checked) rec.shared=true;
+  else if(editingAcc?.shared) rec.shared=false;
+  if(editingAcc?.ext) rec.ext=editingAcc.ext;          // рахунок, що прийшов від партнера
   await put('accounts',rec);await loadAll();closeModal('accModal');
+  famPush();                                            // спільний рахунок міг з'явитись/зникнути
   // майданчики живуть на «Інвестиціях», решта — на «Рахунках»: малюємо той екран, де воно з'явиться
   (type==='invest')?renderInvest():renderAccounts();
 }
@@ -5175,6 +5201,177 @@ async function migrateCash(){
   await setMeta('cashMigrated',true);
   if(n) await loadAll();
 }
+/* ========================= 👨‍👩‍👧 СІМЕЙНИЙ БЮДЖЕТ =========================
+   Принцип: за замовчуванням УСЕ приватне. Спільними стають лише рахунки з позначкою.
+   Видимість керується не приховуванням в інтерфейсі, а ТИМ, ЩО ПЕРЕДАЄТЬСЯ:
+   приватні рахунки просто ніколи не вивантажуються — на чужому пристрої їх НЕМАЄ.
+
+   Транспорт: у кожного учасника СВОЯ поличка у сховищі (адреса = похідна від
+   сімейного ключа й номера). Пишеш лише у свою, читаєш усі. Тому:
+     • конфлікти неможливі фізично — ніхто не пише в чужу комірку;
+     • видалення працює само: викладається ПОВНИЙ знімок, зникло зі знімку = стерто.
+   Шифрування те саме, що в бекапі: у хмару летить нечитабельний шматок. */
+let family=null;            // {id, pass, member, name} або null — фіча спить
+let famMembers=[];          // хто ще в родині (з їхніх поличок): [{member,name,at,count}]
+let _famTimer=null, famBusy=false, famLastPull=0;
+
+const famSlotId=async(famId,member)=>(await sha(famId+':slot:'+member)).slice(0,32);
+const isShared=id=>!!accById(id)?.shared;
+// що саме публікуємо: спільні рахунки + МОЇ операції на них (чуже й приватне — ніколи)
+function famPayload(){
+  const accs=accounts.filter(a=>a.shared&&!a.archived).map(a=>({
+    id:a.id,name:a.name,currency:a.currency,icon:a.icon,color:a.color,type:a.type,balance:a.balance||0}));
+  const ids=new Set(accs.map(a=>a.id));
+  const mine=txs.filter(t=>!t.ext && (ids.has(t.account)||ids.has(t.to)));
+  return {v:1,name:family.name,member:family.member,at:new Date().toISOString(),
+    accounts:accs,
+    tx:mine.map(t=>({...t, by:t.by||family.name, cat:catFullName(t.category)||''}))};   // категорію везе ТЕКСТОМ
+}
+async function famPush(){
+  if(!family||famBusy) return;
+  clearTimeout(_famTimer);
+  _famTimer=setTimeout(async()=>{
+    if(!family) return;
+    try{
+      const blob=await bkEncrypt(JSON.stringify(famPayload()), family.pass, family.id);   // сіль = 32 hex (16 байт)
+      const id=await famSlotId(family.id,family.member);
+      await fetch(bkUrl('id='+id),{method:'PUT',body:blob});
+    }catch(e){ /* мовчки: синхронізація не має заважати роботі */ }
+  },1500);
+}
+// зчитати полички всіх інших і замінити ЇХНІ операції у себе (повна заміна = видалення працює)
+async function famPull(silent){
+  if(!family||famBusy) return {ok:false};
+  famBusy=true;
+  let added=0, removed=0, found=[];
+  try{
+    for(let m=1;m<=6;m++){
+      if(m===family.member) continue;
+      let data=null;
+      try{
+        const id=await famSlotId(family.id,m);
+        const r=await fetch(bkUrl('id='+id));
+        if(!r.ok) continue;
+        const u8=new Uint8Array(await r.arrayBuffer());
+        data=JSON.parse(await bkDecrypt(u8, family.pass));
+      }catch(e){ continue; }
+      if(!data||!Array.isArray(data.tx)) continue;
+      const who=String(data.name||('Учасник '+m)).slice(0,24);
+      found.push({member:m,name:who,at:data.at,count:data.tx.length});
+      // 1) спільні рахунки партнера, яких у мене ще нема — створюємо дзеркало з ТИМ САМИМ id
+      for(const a of (data.accounts||[])){
+        if(!accById(a.id)) await put('accounts',{...a,shared:true,ext:1,
+          order:accounts.reduce((mx,x)=>Math.max(mx,x.order??-1),-1)+1});
+      }
+      // 2) його операції: прибираємо старий знімок і кладемо новий
+      const old=txs.filter(t=>t.ext&&t.owner===who);
+      for(const t of old) await del('tx',t.id);
+      removed+=old.length;
+      for(const t of data.tx){
+        await put('tx',{...t, ext:1, owner:who, by:t.by||who});
+        added++;
+      }
+    }
+    famMembers=found; await setMeta('famMembers',famMembers);
+    famLastPull=Date.now();
+    await loadAll();
+    if(!silent){ renderFamCard(); go(curTab()); }
+    return {ok:true,members:found.length,added,removed};
+  } finally { famBusy=false; }
+}
+/* ---- створення / приєднання / вихід ---- */
+async function famCreate(){
+  const name=(prompt('Як тебе звати в родині? (підписуватиме твої операції)','Віталій')||'').trim();
+  if(!name) return;
+  const pass=prompt('Придумай сімейний пароль (його скажеш партнеру):');
+  if(!pass) return;
+  family={id:rndHex(16),pass,member:1,name};
+  await setMeta('family',family);
+  renderFamCard();
+  await famPush();
+  showFamKey();
+}
+async function famJoin(){
+  const name=(prompt('Як тебе звати в родині?','Десктоп')||'').trim(); if(!name) return;
+  const id=(prompt('Сімейний ключ (32 символи від партнера):')||'').trim().toLowerCase();
+  if(!/^[a-f0-9]{32}$/.test(id)){ alert('Ключ має бути 32 символи (a-f, 0-9)'); return; }
+  const pass=prompt('Сімейний пароль:'); if(!pass) return;
+  // шукаємо вільний номер: перевіряємо, чиї полички вже зайняті
+  let member=0;
+  for(let m=2;m<=6;m++){
+    try{ const r=await fetch(bkUrl('id='+await famSlotId(id,m))); if(!r.ok){ member=m; break; } }
+    catch(e){ member=m; break; }
+  }
+  if(!member){ alert('У родині вже максимум учасників'); return; }
+  family={id,pass,member,name};
+  await setMeta('family',family);
+  const res=await famPull();
+  if(!res.ok||!res.members){
+    if(!confirm('Не знайшов жодного учасника — можливо, ключ або пароль не ті.\n\nЛишитись у родині?')){
+      family=null; await setMeta('family',null); renderFamCard(); return; }
+  }
+  await famPush(); renderFamCard(); toast('✓ Приєднано до родини');
+}
+async function famLeave(){
+  if(!confirm('Вийти з родини?\n\nЗникнуть операції партнерів і позначки «спільний».\nТВОЇ власні записи й уся історія лишаться недоторканими.')) return;
+  const foreign=txs.filter(t=>t.ext);
+  for(const t of foreign) await del('tx',t.id);
+  const extAcc=accounts.filter(a=>a.ext);
+  for(const a of extAcc){                        // рахунок партнера прибираємо, лише якщо в мене там нічого свого
+    const mine=txs.filter(t=>!t.ext&&(t.account===a.id||t.to===a.id));
+    if(!mine.length) await del('accounts',a.id);
+    else await put('accounts',{...a,shared:false,ext:0});
+  }
+  for(const a of accounts.filter(a=>a.shared&&!a.ext)) await put('accounts',{...a,shared:false});
+  for(const t of txs.filter(t=>!t.ext&&t.by)){ const {by,...rest}=t; await put('tx',rest); }
+  family=null; famMembers=[];
+  await setMeta('family',null); await setMeta('famMembers',[]);
+  await loadAll(); renderFamCard(); go(curTab());
+  toast('Ти вийшов з родини — записи лишились твоїми');
+}
+function showFamKey(){
+  document.getElementById('recoveryCode').textContent=family.id;
+  window._recoveryCode=family.id;
+  document.querySelector('#recoveryModal h3').textContent='🔑 Сімейний ключ';
+  openModal('recoveryModal');
+}
+/* ---- секція в «Ще» ---- */
+let famExpanded=false;
+function toggleFam(){
+  famExpanded=!famExpanded;
+  document.getElementById('famCard').classList.toggle('hidden',!famExpanded);
+  document.getElementById('famArrow').textContent=famExpanded?'▾':'▸';
+  if(famExpanded) renderFamCard();
+}
+function renderFamCard(){
+  const box=document.getElementById('famStatus'); if(!box) return;
+  if(!family){
+    box.innerHTML=`<div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="btn sm" onclick="famCreate()">👨‍👩‍👧 Створити родину</button>
+      <button class="btn ghost sm" onclick="famJoin()">Приєднатись за ключем</button></div>`;
+    return;
+  }
+  const sh=accounts.filter(a=>a.shared&&!a.archived);
+  const mem=famMembers.map(m=>`<div class="row" style="font-size:13px;margin:4px 0"><span>👤 ${m.name}</span>
+    <div class="spacer"></div><span class="muted" style="font-size:11px">${m.count} оп.</span></div>`).join('')
+    || '<div class="muted" style="font-size:12px">Поки нікого — дай партнеру ключ і пароль</div>';
+  box.innerHTML=`<div style="font-size:13px;color:var(--green)">👨‍👩‍👧 Ти в родині як <b>${family.name}</b></div>
+    <div style="margin-top:10px;font-size:13px;font-weight:600">Учасники</div>${mem}
+    <div style="margin-top:10px;font-size:13px;font-weight:600">Спільні рахунки (${sh.length})</div>
+    ${sh.length?sh.map(a=>`<div style="font-size:13px;margin:4px 0">${a.icon||'💳'} ${a.name}</div>`).join('')
+      :'<div class="muted" style="font-size:12px">Ще жодного. Постав позначку «Спільний» у потрібному рахунку.</div>'}
+    <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost sm" onclick="famPullNow()">↻ Оновити</button>
+      <button class="btn ghost sm" onclick="showFamKey()">🔑 Показати ключ</button>
+      <div class="spacer"></div>
+      <button class="btn danger sm" onclick="famLeave()">Вийти</button></div>`;
+}
+async function famPullNow(){
+  toast('Оновлюю…');
+  const r=await famPull();
+  toast(r.ok?`✓ Учасників: ${r.members} · операцій: ${r.added}`:'Не вдалося оновити');
+}
+
 /* ========================= ЗАХИСТ ВХОДУ (PIN + Face ID) =========================
    Фіранка, не сейф: дані НЕ шифруються піном (забув пін ≠ втратив усе).
    Усе зберігається ЛИШЕ на цьому пристрої й НЕ їде в бекап — замок у кожного свій. */
@@ -5190,6 +5387,10 @@ async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncod
 function makeRecoveryCode(){
   const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(16); crypto.getRandomValues(a);
   return [...a].map(b=>A[b%A.length]).join('').replace(/(.{4})/g,'$1-').slice(0,19);
+}
+async function loadFamily(){
+  family=await getMeta('family')||null;
+  famMembers=await getMeta('famMembers')||[];
 }
 async function loadLock(){
   lockOn=!!(await getMeta('lockOn')); pinHash=await getMeta('pinHash')||''; pinSalt=await getMeta('pinSalt')||'';
@@ -5357,6 +5558,7 @@ document.addEventListener('visibilitychange',()=>{
 (async function(){
   await openDB();
   await loadLock();                       // замок ПЕРШИМ: показуємо його до того, як щось видно
+  await loadFamily();
   if(lockOn) lockShow('unlock'); else unlocked=true;
   await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
@@ -5364,6 +5566,7 @@ document.addEventListener('visibilitychange',()=>{
   updateNet(); go('dash');
   // нагадування спливають РАЗ за запуск (лише якщо є що показати) — далі доступні по 🔔
   if(dueReminders().length) setTimeout(openDueModal,600);
+  if(family) setTimeout(()=>famPull(true).then(()=>go(curTab())),1200);   // тихо підтягуємо родину
   // холодний старт: 1) дожимаємо бекап, що не встиг відлетіти минулого разу
   // (зміна була, а вивантаження зірвалось/не відбулось — інакше воно чекало б наступної зміни);
   // 2) потім питаємо хмару, чи нема новішого з іншого пристрою
