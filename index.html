@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.11</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.12</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.11</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.12</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -854,6 +854,45 @@ svg .bar{transition:opacity .2s}
   </div>
 </div>
 
+<!-- Майстер розмітки: навчити застосунок читати виписку будь-якого банку -->
+<div class="modal" id="mapModal">
+  <div class="sheet" style="max-width:640px">
+    <div class="row" style="margin-bottom:8px"><h3 style="margin:0">🧩 Познач колонки</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('mapModal')">✕</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Застосунок не впізнав цей банк. Покажи, де що — і надалі він читатиме такі виписки сам.</div>
+
+    <label>Рядок із назвами колонок</label>
+    <select id="mapHeadRow" onchange="mapRedraw()"></select>
+
+    <div style="overflow-x:auto;margin-top:10px;border:1px solid var(--line);border-radius:10px">
+      <table id="mapPreview" style="border-collapse:collapse;font-size:11px;white-space:nowrap"></table>
+    </div>
+
+    <div class="grid cols2" style="margin-top:12px;gap:10px">
+      <div><label>📅 Дата <span style="color:var(--red)">*</span></label><select id="mapDate" onchange="mapRedraw()"></select></div>
+      <div><label>💰 Сума <span style="color:var(--red)">*</span></label><select id="mapAmt" onchange="mapRedraw()"></select></div>
+      <div><label>📝 Опис</label><select id="mapDesc" onchange="mapRedraw()"></select></div>
+      <div><label>➕ Надходження (окрема колонка)</label><select id="mapInc" onchange="mapRedraw()"></select></div>
+      <div><label>💱 Валюта</label><select id="mapCur" onchange="mapCurChanged()"></select></div>
+      <div id="mapFixedCurWrap"><label>Валюта виписки</label><select id="mapFixedCur"></select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="mapInvert" onchange="mapRedraw()"> Суми навпаки (витрати додатні)</label>
+
+    <div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:10px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">Що вийде:</div>
+      <div id="mapResult" style="font-size:12px"></div>
+    </div>
+
+    <div style="margin-top:12px"><label>Назва формату (щоб упізнавати надалі)</label>
+      <input id="mapName" placeholder="напр. Ощадбанк"></div>
+
+    <div class="row" style="margin-top:16px;gap:8px"><div class="spacer"></div>
+      <button class="btn ghost sm" onclick="closeModal('mapModal')">Скасувати</button>
+      <button class="btn" id="mapGoBtn" onclick="mapApply()">Далі</button></div>
+  </div>
+</div>
+
 <!-- Код відновлення: показуємо ОДИН раз, з кнопкою копіювання -->
 <div class="modal" id="recoveryModal">
   <div class="sheet">
@@ -1121,6 +1160,7 @@ async function loadAll(){
   ruleDismiss=await getMeta('ruleDismiss')||[];
   remindState=await getMeta('remindState')||{};
   lastAccId=await getMeta('lastAccId')||'';
+  customFormats=await getMeta('customFormats')||[];
   coinIdCache=await getMeta('coinIdCache')||{};
   // Нова схема: у meta зберігається ПОВНИЙ набір валют (з UAH) → видалення зберігаються.
   // Стара схема зберігала лише кастомні (без UAH) → тоді домішуємо до вбудованих.
@@ -2316,6 +2356,7 @@ let catRules=[];  // правила категорій: {id,match:'contains'|'eq
 let ruleDismiss=[]; // описи, для яких авто-підказку відхилили (не питати)
 let remindState={}; // нагадування: {ключ: 'off' (ніколи) | 'YYYY-MM' (сховано на цей місяць)}
 let lastAccId='';   // останній рахунок, з якого проводили операцію — типовий для голосу й чека
+let customFormats=[]; // формати виписок, які користувач налаштував сам: {id,name,sig,idx,cur,invert}
 async function pfSnapshot(){
   pfHist=await getMeta('pfHist')||[];
   const pt=portfolioTotals(), d=todayISO(), v=+(pt.value||0).toFixed(2), inv=+(pt.inv||0).toFixed(2);
@@ -3889,7 +3930,7 @@ async function fetchRates(){
 async function exportData(){
   const payload={app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,pfFlows,catRules,remindState,goalTargetUSD,goalDate};   // історія портфеля, потоки, правила, стан нагадувань і ціль у бекапі
+    pfHist,pfFlows,catRules,remindState,customFormats,goalTargetUSD,goalDate};   // історія портфеля, потоки, правила, стан нагадувань і ціль у бекапі
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='gamanets-'+todayISO()+'.json';a.click();
@@ -3912,6 +3953,7 @@ async function importData(ev){
   if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(Array.isArray(data.catRules)){ catRules=data.catRules; await setMeta('catRules',catRules); }
   if(data.remindState&&typeof data.remindState==='object'){ remindState=data.remindState; await setMeta('remindState',remindState); }
+  if(Array.isArray(data.customFormats)){ customFormats=data.customFormats; await setMeta('customFormats',customFormats); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll();await ensureCurrencies(); await migrateAccountTypes();await normalizeOrder();
@@ -3994,7 +4036,7 @@ const bkUrl = (q) => activeProxy().replace(/\/+$/,'')+'/backup?'+q;
 function bkPayload(){
   return JSON.stringify({app:'gamanets',version:1,exportedAt:new Date().toISOString(),
     accounts,tx:txs,categories:cats,holdings,rates,currencies:CUR,
-    pfHist,pfFlows,catRules,remindState,goalTargetUSD,goalDate});
+    pfHist,pfFlows,catRules,remindState,customFormats,goalTargetUSD,goalDate});
 }
 async function cloudBackupNow(silent){
   if(!backupId||!backupPass){ if(!silent){alert('Спершу увімкни хмарний бекап у «Ще»');go('set');} return false; }
@@ -4049,6 +4091,7 @@ async function applyBackupData(data){
   if(Array.isArray(data.pfFlows)){ pfFlows=data.pfFlows; await setMeta('pfFlows',pfFlows); }
   if(Array.isArray(data.catRules)){ catRules=data.catRules; await setMeta('catRules',catRules); }
   if(data.remindState&&typeof data.remindState==='object'){ remindState=data.remindState; await setMeta('remindState',remindState); }
+  if(Array.isArray(data.customFormats)){ customFormats=data.customFormats; await setMeta('customFormats',customFormats); }
   if(data.goalTargetUSD!==undefined){ goalTargetUSD=Number(data.goalTargetUSD)||0; await setMeta('goalTargetUSD',goalTargetUSD); }
   if(data.goalDate!==undefined){ goalDate=data.goalDate||''; await setMeta('goalDate',goalDate); }
   await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await normalizeOrder();
@@ -4120,9 +4163,13 @@ matchMedia('(min-width:900px)').addEventListener('change',()=>{ if(curTab()==='a
 /* ========================= ІМПОРТ ВИПИСОК (CSV / XLSX) ========================= */
 function parseCSV(text){
   const s=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-  // роздільник: Моно — кома, Південний — крапка з комою. Визначаємо за першим рядком.
-  const head=s.slice(0,s.indexOf('\n')+1||s.length);
-  const D=(head.split(';').length>head.split(',').length)?';':',';
+  /* Роздільник: кома, крапка з комою або табуляція. Дивимось НЕ на один рядок, а на
+     перші 15 — бо перед заголовком часто йдуть службові («Виписка по рахунку…»),
+     де роздільника взагалі немає. Обираємо той, що дає найрівніші рядки. */
+  const probe=s.split('\n').slice(0,15).filter(l=>l.trim());
+  const score=d=>probe.reduce((n,l)=>n+(l.split(d).length-1),0);
+  const best=[';','\t',','].map(d=>({d,n:score(d)})).sort((a,b)=>b.n-a.n)[0];
+  const D = best && best.n ? best.d : ',';
   const rows=[]; let row=[], field='', inQ=false;
   for(let i=0;i<s.length;i++){ const c=s[i];
     if(inQ){ if(c==='"'){ if(s[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=c; }
@@ -4183,7 +4230,181 @@ async function xlsxRows(buf){
   });
 }
 /* ===== Реєстр форматів виписок: знаходимо рядок-заголовок і впізнаємо банк ===== */
+/* ===== МАЙСТЕР РОЗМІТКИ: користувач сам показує, де що — і застосунок запам'ятовує формат.
+   Завдяки цьому не потрібно «навчати» код під кожен банк: будь-яка виписка читається. ===== */
+let mapRows=null;
+function openMapper(rows){
+  mapRows=rows;
+  const hr=document.getElementById('mapHeadRow');
+  // пропонуємо рядки-кандидати на заголовок: перші 12, показуємо кілька перших клітинок
+  hr.innerHTML=rows.slice(0,12).map((r,i)=>{
+    const t=(r||[]).filter(x=>String(x||'').trim()).slice(0,4).join(' · ').slice(0,60);
+    return `<option value="${i}">Рядок ${i+1}: ${t||'(порожній)'}</option>`;}).join('');
+  // найімовірніший заголовок — рядок із найбільшою кількістю непорожніх текстових клітинок
+  let best=0,bestN=-1;
+  rows.slice(0,12).forEach((r,i)=>{ const n=(r||[]).filter(x=>String(x||'').trim()&&isNaN(parseNum(x))).length;
+    if(n>bestN){bestN=n;best=i;} });
+  hr.value=best;
+  document.getElementById('mapFixedCur').innerHTML=curOptionsHtml();
+  document.getElementById('mapFixedCur').value=baseCur;
+  document.getElementById('mapName').value='';
+  document.getElementById('mapInvert').checked=false;
+  mapFillCols(true);
+  openModal('mapModal');
+}
+function mapCols(){
+  const hi=+document.getElementById('mapHeadRow').value||0;
+  const head=mapRows[hi]||[];
+  const width=Math.max(head.length,...mapRows.slice(hi,hi+8).map(r=>(r||[]).length));
+  return {hi,head,width};
+}
+// заповнити випадайки назвами колонок + спробувати вгадати
+function mapFillCols(guess){
+  const {hi,head,width}=mapCols();
+  const opts=(none)=>`<option value="-1">${none}</option>`+Array.from({length:width},(_,c)=>{
+    const t=String(head[c]||'').trim()||`колонка ${c+1}`;
+    return `<option value="${c}">${c+1}. ${t.slice(0,40)}</option>`;}).join('');
+  document.getElementById('mapDate').innerHTML=opts('— обери —');
+  document.getElementById('mapAmt').innerHTML=opts('— обери —');
+  document.getElementById('mapDesc').innerHTML=opts('— немає —');
+  document.getElementById('mapInc').innerHTML=opts('— немає (сума зі знаком) —');
+  document.getElementById('mapCur').innerHTML=opts('— фіксована (нижче) —');
+  if(guess){
+    const h=head.map(x=>String(x||'').toLowerCase());
+    const byName=(...ws)=>h.findIndex(c=>c&&ws.some(w=>c.includes(w)));
+    const body=mapRows.slice(hi+1,hi+14).filter(r=>r&&r.length);
+    // класифікуємо кожну колонку за ВМІСТОМ — назви бувають які завгодно
+    const cls=[];
+    for(let c=0;c<width;c++){
+      const vals=body.map(r=>(r||[])[c]).filter(v=>v!==undefined&&String(v).trim()!=='');
+      const n=vals.length||1;
+      const isDateVal=v=>!!parseAnyDate(v).iso && /[.\/-]/.test(String(v));
+      cls.push({c, filled:vals.length, rows:body.length,
+        date: vals.filter(isDateVal).length/n>=0.6,
+        num:  vals.filter(v=>isFinite(parseNum(v))&&!isDateVal(v)).length/n>=0.6,
+        cur:  vals.filter(v=>{const t=String(v).trim().toUpperCase();return t.length===3&&CUR[t];}).length/n>=0.6,
+        text: vals.filter(v=>!isFinite(parseNum(v))&&!isDateVal(v)).length/n>=0.6,
+        len:  vals.reduce((s,v)=>s+String(v).length,0)/n});
+    }
+    const pick=(nameHit,pred)=>nameHit>=0?nameHit:(cls.find(pred)||{c:-1}).c;
+    const dateI=pick(byName('дата','час','date','time'), x=>x.date);
+    const curI =pick(byName('валют','currency','вал.'), x=>x.cur&&x.c!==dateI);
+    // гроші: числові колонки, крім дати, валюти й «залишку» (той заповнений завжди й зазвичай останній)
+    const balName=h.findIndex(c=>c&&/залиш|баланс|balance/.test(c));
+    const money=cls.filter(x=>x.num&&x.c!==dateI&&x.c!==curI&&x.c!==balName);
+    const debit =byName('списан','дебет','витрат','debit','видатк');
+    const credit=byName('зарахов','кредит','надходж','credit','дохід','приход');
+    let amtI=-1, incI=-1;
+    if(debit>=0&&credit>=0){ amtI=debit; incI=credit; }                       // дві колонки: витрати / надходження
+    else {
+      const sparse=money.filter(x=>x.filled<x.rows*0.8);                       // напівпорожні = пара дебет/кредит
+      if(sparse.length===2){ amtI=sparse[0].c; incI=sparse[1].c; }
+      else amtI=pick(byName('сума','amount','сумма'), x=>money.includes(x));
+    }
+    const descI=pick(byName('опис','деталі','призначенн','отримувач','платник','контрагент','коментар','назва','description','details','payee','merchant'),
+                     x=>x.text&&x.c!==dateI&&x.c!==curI&&x.len>=4);
+    const set=(id,v)=>{ const el=document.getElementById(id); if(v>=0&&v<width) el.value=v; };
+    set('mapDate',dateI); set('mapAmt',amtI); set('mapInc',incI); set('mapDesc',descI); set('mapCur',curI);
+  }
+  mapCurChanged(); mapRedraw();
+}
+function mapCurChanged(){
+  const useCol=+document.getElementById('mapCur').value>=0;
+  document.getElementById('mapFixedCurWrap').style.display=useCol?'none':'';
+  mapRedraw();
+}
+function mapDraft(){
+  const g=id=>+document.getElementById(id).value;
+  const {hi}=mapCols();
+  const useCol=g('mapCur')>=0;
+  return {bank:'custom',name:document.getElementById('mapName').value.trim()||'Мій банк',headRow:hi,
+    cur: useCol?'':document.getElementById('mapFixedCur').value,
+    fmt:{invert:document.getElementById('mapInvert').checked},
+    idx:{date:g('mapDate'),amt:g('mapAmt'),desc:g('mapDesc'),inc:g('mapInc'),cur:g('mapCur')}};
+}
+// таблиця-прев'ю зверху + «що вийде» знизу — щоб людина оком побачила, що все стало на місця
+function mapRedraw(){
+  const {hi,head,width}=mapCols();
+  const g=id=>+document.getElementById(id).value;
+  const role={}; [['mapDate','📅'],['mapAmt','💰'],['mapDesc','📝'],['mapInc','➕'],['mapCur','💱']]
+    .forEach(([id,ic])=>{ const v=g(id); if(v>=0) role[v]=(role[v]||'')+ic; });
+  const cell=(v,th)=>`<${th?'th':'td'} style="border:1px solid var(--line);padding:4px 7px;text-align:left;max-width:150px;overflow:hidden;text-overflow:ellipsis">${String(v??'').slice(0,28)}</${th?'th':'td'}>`;
+  let html='<tr>'+Array.from({length:width},(_,c)=>
+    `<th style="border:1px solid var(--line);padding:4px 7px;background:var(--surface2);color:${role[c]?'var(--brand)':'var(--muted)'}">${role[c]||''} ${String(head[c]||'').slice(0,20)||c+1}</th>`).join('')+'</tr>';
+  mapRows.slice(hi+1,hi+5).forEach(r=>{ html+='<tr>'+Array.from({length:width},(_,c)=>cell((r||[])[c])).join('')+'</tr>'; });
+  document.getElementById('mapPreview').innerHTML=html;
+  // результат
+  const box=document.getElementById('mapResult'), btn=document.getElementById('mapGoBtn');
+  if(g('mapDate')<0||g('mapAmt')<0){ box.innerHTML='<span style="color:var(--amber)">Познач хоча б <b>Дату</b> і <b>Суму</b></span>'; btn.disabled=true; return; }
+  const det=mapDraft();
+  let parsed=[]; try{ parsed=parseStatement(mapRows,det); }catch(e){}
+  if(!parsed.length){ box.innerHTML='<span style="color:var(--red)">Нічого не вийшло прочитати — спробуй інші колонки або інший рядок заголовка</span>'; btn.disabled=true; return; }
+  btn.disabled=false;
+  const ex=parsed.slice(0,3).map(p=>`<div style="margin:3px 0">${p.date} · <b style="color:${p.type==='expense'?'var(--red)':'var(--green)'}">${p.type==='expense'?'−':'+'}${p.amount.toFixed(2)}</b> ${p.cur||''} · ${String(p.note).slice(0,32)}</div>`).join('');
+  const inc=parsed.filter(p=>p.type==='income').length;
+  box.innerHTML=`<div style="color:var(--green)">✓ Розпізнано операцій: <b>${parsed.length}</b> (витрат ${parsed.length-inc}, надходжень ${inc})</div>
+    <div class="muted" style="margin-top:6px">Перші три:</div>${ex}`;
+}
+async function mapApply(){
+  const det=mapDraft();
+  const parsed=parseStatement(mapRows,det);
+  if(!parsed.length){ alert('Не вдалося прочитати жодної операції.'); return; }
+  // запам'ятовуємо формат за підписом заголовка — наступного разу впізнає сам
+  const sig=headerSig(mapRows[det.headRow]);
+  const rec={id:uid(),name:det.name,sig,idx:det.idx,cur:det.cur,invert:det.fmt.invert};
+  customFormats=customFormats.filter(f=>f.sig!==sig).concat(rec);
+  await setMeta('customFormats',customFormats);
+  closeModal('mapModal');
+  toast('✓ Формат «'+det.name+'» збережено');
+  det.fmt=rec;
+  finishStatementLoad(parsed,det);          // далі — звичайне вікно імпорту
+}
+
+/* ===== Універсальні розбирачі — щоб читати виписку БУДЬ-ЯКОГО банку ===== */
+// «5 000.00», «5 000,00», «1,234.56», «-1 234,56», «(1234)» — усе це числа
+function parseNum(v){
+  if(typeof v==='number') return v;
+  let s=String(v??'').replace(/[\s '’]/g,'');
+  const neg=/^\(.*\)$/.test(s);                       // бухгалтерський мінус: (123)
+  s=s.replace(/[()]/g,'').replace(/[^\d.,+-]/g,'');
+  if(!s||!/\d/.test(s)) return NaN;
+  const lc=s.lastIndexOf(','), ld=s.lastIndexOf('.');
+  if(lc>-1&&ld>-1) s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+  else if(lc>-1){ const p=s.split(',');
+    s = (p.length===2 && p[1].length<=2) ? s.replace(',','.') : s.replace(/,/g,''); }
+  const n=parseFloat(s);
+  return isNaN(n)?NaN:(neg?-n:n);
+}
+// «31.12.2025 14:44:23», «2025-12-31», «31/12/2025», а також дата-число з Excel
+function parseAnyDate(v){
+  if(typeof v==='number' && v>20000 && v<80000){       // серійна дата Excel (від 1900-01-00)
+    const d=new Date(Date.UTC(1899,11,30)+v*864e5);
+    return {iso:d.toISOString().slice(0,10), ts:d.getTime()};
+  }
+  const t=String(v??'').trim(); if(!t) return {iso:'',ts:0};
+  let y,mo,d;
+  let m=t.match(/(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})/);          // 2025-12-31
+  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else { m=t.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);     // 31.12.2025
+    if(!m) return {iso:'',ts:0};
+    d=+m[1]; mo=+m[2]; y=+m[3]; if(y<100) y+=2000; }
+  if(!(y&&mo&&d)||mo>12||d>31) return {iso:'',ts:0};
+  const tm=t.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);              // час, якщо є
+  const H=tm?+tm[1]:0, Mi=tm?+tm[2]:0, S=tm&&tm[3]?+tm[3]:0;
+  return {iso:`${y}-${pad2(mo)}-${pad2(d)}`, ts:new Date(y,mo-1,d,H,Mi,S).getTime()};
+}
+// підпис заголовка — щоб упізнати «свій» формат наступного разу
+const headerSig=row=>(row||[]).map(x=>String(x||'').toLowerCase().replace(/\s+/g,' ').trim()).join('|');
 function detectStatement(rows){
+  // спершу — формати, які користувач налаштував сам
+  for(let i=0;i<Math.min(12,rows.length);i++){
+    const sig=headerSig(rows[i]);
+    const f=(customFormats||[]).find(x=>x.sig===sig);
+    if(f) return {bank:'custom',name:f.name,headRow:i,idx:f.idx,cur:f.cur,fmt:f};
+  }
+  return detectBuiltIn(rows);
+}
+function detectBuiltIn(rows){
   for(let i=0;i<Math.min(10,rows.length);i++){
     const h=(rows[i]||[]).map(x=>String(x||'').toLowerCase().trim());
     const at=s=>h.findIndex(c=>c.includes(s));
@@ -4205,13 +4426,24 @@ function detectStatement(rows){
 function parseStatement(rows,det){
   const out=[], ix=det.idx||{};
   for(let i=det.headRow+1;i<rows.length;i++){
-    const r=rows[i]; if(!r||!r[ix.date]) continue;
-    const val=Number(String(r[ix.amt]).replace(/\s/g,'').replace(/ /g,'').replace(',','.'));
+    const r=rows[i]; if(!r) continue;
+    if(r[ix.date]===undefined||r[ix.date]==='') continue;
+    let val=parseNum(r[ix.amt]);
+    if(det.bank==='custom' && ix.inc!=null && ix.inc>=0){   // банк розділив витрати й надходження на дві колонки
+      const income=parseNum(r[ix.inc]);
+      if(isFinite(income)&&income!==0) val=Math.abs(income);
+      else if(isFinite(val)&&val!==0) val=-Math.abs(val);
+    }
+    if(det.bank==='custom' && det.fmt && det.fmt.invert && isFinite(val)) val=-val;
     if(!isFinite(val)||val===0) continue;
-    const {iso,ts}=monoDate(r[ix.date]); if(!iso) continue;
+    const {iso,ts}=parseAnyDate(r[ix.date]); if(!iso) continue;
     const desc=(String(r[ix.desc]||'').trim())||'Операція';
     const rec={date:iso,createdAt:ts,type:val<0?'expense':'income',amount:Math.abs(val),note:desc,desc,mcc:''};
-    if(det.bank==='privat'){
+    if(det.bank==='custom'){
+      rec.cur=(ix.cur!=null&&ix.cur>=0) ? String(r[ix.cur]||'').trim().toUpperCase() : (det.cur||'');
+      if(ix.ts!=null&&ix.ts>=0){ const t2=parseAnyDate(r[ix.ts]); if(t2.ts) rec.createdAt=t2.ts; }
+      if(ix.bal!=null&&ix.bal>=0) rec.bal=String(r[ix.bal]||'').trim();
+    } else if(det.bank==='privat'){
       rec.bankCat=String(r[ix.cat]||'').trim();
       rec.cur=String(r[ix.cur]||'').trim().toUpperCase();
       rec.bal=String(r[ix.bal]||'').trim();      // залишок робить ключ унікальним (автоплатежі з однаковим часом і сумою!)
@@ -4352,13 +4584,21 @@ async function onMonoFile(ev){
   }catch(e){ alert('Не вдалося прочитати файл:\n'+(e&&e.message||e)); return; }
   if(!rows||rows.length<2){ alert('Порожній або нерозпізнаний файл'); return; }
   const det=detectStatement(rows);
-  if(!det){ alert('Не впізнав формат виписки.\n\nПідтримуються: Монобанк (.csv, картка), ПриватБанк (.xlsx), Банк Південний (.csv).'); return; }
+  if(!det){
+    if(confirm('Цей банк застосунку ще не знайомий.\n\nПоказати, де в цьому файлі дата, сума й опис?\nДалі він читатиме такі виписки сам.'))
+      openMapper(rows);
+    return;
+  }
   if(det.bank==='monoIban'){ alert('Це виписка Монобанку по рахунку IBAN — її формат ще не підтримується.\n\nПоки що імпортуй виписку КАРТКИ (.csv).'); return; }
   const parsed=parseStatement(rows,det);
   if(!parsed.length){ alert('Не знайшов жодної операції для імпорту.'); return; }
+  finishStatementLoad(parsed,det);
+}
+/* спільний фінал для обох шляхів: упізнаний банк і власна розмітка */
+function finishStatementLoad(parsed,det){
   // валюта: Моно — із заголовка; Приват — з колонки «Валюта картки» (переважна в файлі)
   let stCur=det.cur||'UAH';
-  if(det.bank==='privat'||det.bank==='pivdenny'){
+  if(det.bank==='privat'||det.bank==='pivdenny'||(det.bank==='custom'&&det.idx&&det.idx.cur>=0)){
     const cnt={}; parsed.forEach(r=>{ if(r.cur) cnt[r.cur]=(cnt[r.cur]||0)+1; });
     stCur=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'UAH';
     window._monoMixed=Object.keys(cnt).length>1?Object.keys(cnt).join('/'):'';
