@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.14</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.15</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.14</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.15</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -1643,7 +1643,17 @@ const KIND_ICON={stock:'📈',fund:'🏦',bond:'📜',alt:'🏨',crypto:'🪙',f
 const KIND_NAME={stock:'Акція',fund:'Фонд/сертифікат',bond:'ОВДП',alt:'Альтернативне',crypto:'Монета',futures:'Ф\'ючерси'};
 const isCryptoVenue=vid=>!!accById(vid)?.crypto;
 const venueHoldings=vid=>holdings.filter(h=>h.venue===vid);
-const hInv=h=>h.invested||0;
+/* Вкладено. Для ОВДП з вторинного ринку в ціні купівлі сидить накопичений купон
+   продавця («брудна ціна»): заплатив 15 738 за папір номіналом 15 000 — то 738 це
+   чужий купон, який повернеться тобі цілим на найближчій виплаті. Якби ми лишали
+   його у «вкладено», то одразу після виплати позиція показувала б збиток на цю суму,
+   хоча гроші вже прийшли на рахунок окремим доходом. Тому рахуємо по ЧИСТІЙ ціні —
+   вкладено не більше номіналу. Куплені з дисконтом лишаються як є. */
+function hInv(h){
+  const inv=h.invested||0;
+  if(h.kind!=='bond'||!h.qty||h.qty<=0||!h.maturityDate) return inv;
+  return Math.min(inv,h.qty*(h.nominal||1000));
+}
 // вартість позиції: якщо ринкової ціни нема (ОВДП, монета без курсу) — беремо вкладене,
 // інакше позиція мовчки зникала б із Чистого капіталу. Для ф'ючерсів 0 = справді нульовий баланс.
 const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
