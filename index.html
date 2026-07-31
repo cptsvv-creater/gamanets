@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.17</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.18</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.17</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.18</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -427,6 +427,28 @@ svg .bar{transition:opacity .2s}
         <button class="btn sm" onclick="openRule()">＋ Правило</button>
         <div class="spacer"></div>
         <button class="btn ghost sm" onclick="applyRulesToExisting()">↻ До наявних</button>
+      </div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleInvSort()">Розібрати вкладення <span id="invSortArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="invSortCard">
+      <p class="muted" style="margin-top:0">Якщо колись поповнення інвестицій записувались як звичайні витрати (напр. після переносу з іншого застосунку) — тут їх можна позначити гуртом. Позначена операція <b>зникає з витрат</b>, але з рахунку списується як завжди: залишки не зміняться.</p>
+      <div><label>Категорія</label><select id="invSortCat" onchange="invSortPick()"></select></div>
+      <div class="muted hidden" id="invSortCatWarn" style="font-size:11px;margin-top:6px;color:var(--red)"></div>
+      <div class="row" style="margin-top:10px;gap:8px">
+        <input id="invSortMin" type="number" step="1" placeholder="напр. 1000" style="max-width:130px">
+        <button class="btn sm" onclick="invSortMarkFrom()">Позначити від суми</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Зручно, коли поповнення великі, а комісії дрібні: вкажи межу — і все, що вище, позначиться одним тапом.</div>
+      <div class="row" style="margin-top:10px;gap:8px">
+        <button class="btn ghost sm" onclick="invSortAll(true)">Позначити все</button>
+        <button class="btn ghost sm" onclick="invSortAll(false)">Зняти все</button>
+      </div>
+      <div id="invSortList" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:12px;align-items:center">
+        <span class="muted" style="font-size:12px" id="invSortSum"></span>
+        <div class="spacer"></div>
+        <button class="btn" onclick="invSortSave()">Зберегти</button>
       </div>
     </div>
 
@@ -2902,6 +2924,67 @@ async function futuresTrade(){
 }
 async function deleteHolding(){
   if(editingHold&&confirm('Видалити позицію?')){await del('holdings',editingHold.id);await loadAll();closeModal('holdModal');renderInvest();}
+}
+/* ===== Розібрати вкладення: масове позначення витрат, що насправді є поповненням інвестицій =====
+   Потрібно тому, що категорія буває змішана в часі: спершу в неї писали поповнення, потім —
+   лише комісії. Прапорець на категорію тут не годиться, бо зачепив би й комісії. */
+let invSortExpanded=false, invSortSel=null;      // invSortSel — робоча копія вибору, поки не натиснуто «Зберегти»
+function toggleInvSort(){
+  invSortExpanded=!invSortExpanded;
+  document.getElementById('invSortCard').classList.toggle('hidden',!invSortExpanded);
+  document.getElementById('invSortArrow').textContent=invSortExpanded?'▾':'▸';
+  if(invSortExpanded) invSortFill();
+}
+function invSortFill(){
+  const sel=document.getElementById('invSortCat'), keep=sel.value;
+  const used=new Set(txs.filter(t=>t.type==='expense'&&t.category).map(t=>t.category));
+  const list=cats.filter(c=>c.type==='expense'&&used.has(c.id))
+    .sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'));
+  sel.innerHTML=list.map(c=>`<option value="${c.id}">${c.icon||'📦'} ${catFullName(c.id)}</option>`).join('')
+    ||'<option value="">— немає витрат —</option>';
+  if(keep&&list.some(c=>c.id===keep)) sel.value=keep;
+  invSortPick();
+}
+function invSortPick(){ invSortSel=null; renderInvSort(); }
+const invSortRows=()=>txs.filter(t=>t.type==='expense'&&t.category===document.getElementById('invSortCat').value&&!t.ext)
+  .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+function renderInvSort(){
+  const rows=invSortRows();
+  if(invSortSel===null) invSortSel=new Set(rows.filter(isInvFlow).map(t=>t.id));   // стартуємо з чинного стану
+  const c=catById(document.getElementById('invSortCat').value);
+  const warn=document.getElementById('invSortCatWarn');
+  warn.classList.toggle('hidden',!c?.invFlow);
+  if(c?.invFlow) warn.textContent='У цієї категорії стоїть «уся категорія — вкладення». Поки він увімкнений, поштучний вибір нижче ролі не грає — зніми його в налаштуваннях категорії.';
+  document.getElementById('invSortList').innerHTML = rows.length? rows.map(t=>{
+    const on=invSortSel.has(t.id), acc=accById(t.account);
+    return `<label class="row" style="gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--surface2);cursor:pointer">
+      <input type="checkbox" style="width:auto;margin:0" ${on?'checked':''} onchange="invSortToggle('${t.id}',this.checked)">
+      <span style="flex:1;min-width:0">
+        <span style="font-size:13px">${fmt(t.amount,acc?.currency)}</span>
+        <span class="muted" style="font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.date} · ${acc?.name||'?'}${t.note?' · '+t.note:''}</span>
+      </span></label>`;
+  }).join('') : '<div class="muted" style="font-size:12px">У цій категорії немає витрат.</div>';
+  const sum=rows.filter(t=>invSortSel.has(t.id)).reduce((s,t)=>s+toBase(t.amount,accById(t.account)?.currency||PIVOT),0);
+  document.getElementById('invSortSum').innerHTML=`Позначено <b>${invSortSel.size}</b> з ${rows.length} — ${fmtDisp(sum)}`;
+}
+function invSortToggle(id,on){ on?invSortSel.add(id):invSortSel.delete(id); renderInvSort(); }
+function invSortAll(on){ invSortSel=new Set(on?invSortRows().map(t=>t.id):[]); renderInvSort(); }
+function invSortMarkFrom(){
+  const min=parseFloat(document.getElementById('invSortMin').value);
+  if(!(min>0)){alert('Вкажи суму, від якої позначати');return;}
+  invSortSel=new Set(invSortRows().filter(t=>t.amount>=min).map(t=>t.id));
+  renderInvSort();
+}
+async function invSortSave(){
+  const rows=invSortRows(); if(!rows.length) return;
+  let n=0;
+  for(const t of rows){
+    const want=invSortSel.has(t.id)?1:0;
+    if(t.inv===want) continue;                       // не чіпаємо те, що вже й так правильне
+    await put('tx',{...t,inv:want}); n++;
+  }
+  await loadAll(); renderInvSort(); go(curTab());
+  toast(n?('✓ Оновлено операцій: '+n):'Нічого не змінилось');
 }
 /* ===== Правила категорій (детерміновані, без ШІ): опис → категорія або переказ ===== */
 let rulesExpanded=false, editingRule=null, ruleAction='category';
