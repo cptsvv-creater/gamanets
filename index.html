@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.13</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.14</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.13</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.14</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -864,6 +864,18 @@ svg .bar{transition:opacity .2s}
       <div class="spacer"></div>
       <button class="btn" onclick="saveFlow()">Зберегти</button>
     </div>
+  </div>
+</div>
+
+<!-- Зіставлення категорій партнерів зі своїми -->
+<div class="modal" id="famCatModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:8px"><h3 style="margin:0">🏷️ Категорії партнерів</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('famCatModal')">✕</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">У кожного свої категорії — покажи, куди класти операції партнера у <b>твоєму</b> обліку.</div>
+    <div id="famCatBody"></div>
+    <div class="row" style="margin-top:14px"><div class="spacer"></div>
+      <button class="btn" onclick="closeModal('famCatModal')">Готово</button></div>
   </div>
 </div>
 
@@ -1825,7 +1837,7 @@ function renderBudgetCard(){
 function budgetRowsHtml(roots){
   const rows=roots.map(c=>{ const sp=monthSpent(c.id)||0, lim=c.limit||0;
     const p=lim?sp/lim*100:0;
-    return {c,sp,lim,p,over:sp>lim,warn:sp<=lim&&p>80}; });
+    return {c,sp,lim,p,over:sp>lim,warn:sp<=lim&&p>80,split:famSplit(c.id)}; });
   const overs=rows.filter(r=>r.over).sort((a,b)=>b.p-a.p);
   const warns=rows.filter(r=>r.warn).sort((a,b)=>b.p-a.p);
   const oks  =rows.filter(r=>!r.over&&!r.warn).sort((a,b)=>b.p-a.p);
@@ -1834,7 +1846,8 @@ function budgetRowsHtml(roots){
       <div class="row" style="font-size:13px;gap:6px"><span style="white-space:nowrap">${r.c.icon||'📦'} ${r.c.name}</span><div class="spacer"></div>
         <b style="color:${cc};white-space:nowrap">${fmt(r.sp)}</b><span class="muted" style="white-space:nowrap;font-size:12px">/ ${fmt(r.lim)}</span></div>
       <div class="limbar"><div style="width:${Math.min(100,r.p)}%;background:${cc}"></div></div>
-      ${r.over?`<div style="font-size:11px;color:var(--red);margin-top:3px">Перевищено на ${fmt(r.sp-r.lim)}</div>`:''}
+      ${r.split?`<div class="muted" style="font-size:11px;margin-top:3px">з них: ти ${fmt(r.split.mine)} · ${r.split.who} ${fmt(r.split.theirs)}</div>`:''}
+      ${r.over?`<div style="font-size:11px;color:var(--red);margin-top:3px">Перевищено на ${fmt(r.sp-r.lim)}${r.split&&r.split.theirs>r.split.mine?' · більшу частину витратив партнер':''}</div>`:''}
     </div>`; };
   const sep='<div style="margin-top:12px;padding-top:4px;border-top:1px solid var(--line)"></div>';
   let html='';
@@ -3385,6 +3398,19 @@ function monthSpent(catId){
     const acc=accById(t.account); s+=toBase(t.amount,acc?.currency||PIVOT);} });
   return s;
 }
+/* Скільки з витрат по категорії — мої, а скільки партнера.
+   Показуємо лише інформативно: ліміти в кожного СВОЇ й не передаються. */
+function famSplit(catId){
+  if(!family) return null;
+  const mk=monthKey(todayISO()), ids=descendantIds(catId);
+  let mine=0, theirs=0, who='';
+  txs.forEach(t=>{
+    if(t.type!=='expense'||monthKey(t.date)!==mk||!ids.includes(t.category)) return;
+    const v=toBase(t.amount,accById(t.account)?.currency||PIVOT);
+    if(t.ext){ theirs+=v; who=who||t.owner||'партнер'; } else mine+=v;
+  });
+  return theirs>0 ? {mine,theirs,who} : null;
+}
 // (ліміти категорій переїхали в Аналітику → картка «Бюджет місяця»)
 
 /* dashboard: курси + конвертер */
@@ -4484,17 +4510,23 @@ function parseStatement(rows,det){
   return out;
 }
 /* Категорії ПриватБанку → мої категорії (за назвою). Прив'язка окремо для витрат і доходів. */
+/* Чужу назву категорії (банку або партнера) зіставляємо зі СВОЄЮ за змістом назви.
+   Спільний механізм: категорії в кожного свої, і нав'язувати чужі не можна. */
+const catNorm=s=>String(s||'').toLowerCase().replace(/[^0-9a-zа-яіїєґ ]/gi,' ').replace(/\s+/g,' ').trim();
+function matchCatByName(name,type){
+  const n=catNorm(name); if(!n) return '';
+  const words=n.split(' ').filter(w=>w.length>3);
+  const pool=cats.filter(c=>c.type===type&&kids(c.id).length===0);
+  const hit=pool.find(c=>catNorm(c.name)===n)
+    || pool.find(c=>{const cn=catNorm(c.name); return cn&&(n.includes(cn)||cn.includes(n));})
+    || pool.find(c=>{const cn=catNorm(c.name); return words.some(w=>cn.includes(w));});
+  return hit?hit.id:'';
+}
 function privatCatMap(rows){
-  const norm=s=>String(s||'').toLowerCase().replace(/[^0-9a-zа-яіїєґ ]/gi,' ').replace(/\s+/g,' ').trim();
-  const leaf=cats.filter(c=>kids(c.id).length===0), map={};
+  const map={};
   [...new Set(rows.filter(r=>r.bankCat).map(r=>r.type+'|'+r.bankCat))].forEach(k=>{
     const type=k.slice(0,k.indexOf('|')), bc=k.slice(k.indexOf('|')+1);
-    const n=norm(bc), words=n.split(' ').filter(w=>w.length>3);
-    const pool=leaf.filter(c=>c.type===type);
-    const hit=pool.find(c=>norm(c.name)===n)
-      || pool.find(c=>{const cn=norm(c.name); return cn&&(n.includes(cn)||cn.includes(n));})
-      || pool.find(c=>{const cn=norm(c.name); return words.some(w=>cn.includes(w));});
-    if(hit) map[k]=hit.id;
+    const id=matchCatByName(bc,type); if(id) map[k]=id;
   });
   return map;
 }
@@ -4845,6 +4877,11 @@ function startVoice(){
 }
 // згорнули застосунок під час слухання — мікрофон має замовкнути, а не працювати далі
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='visible') stopVoice(true); });
+// повернувся у застосунок — тихо підтягуємо родину (не частіше ніж раз на 2 хв)
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && family && navigator.onLine && Date.now()-famLastPull>120000)
+    famPull(true).then(r=>{ if(r&&r.ok&&(r.added||r.removed)) go(curTab()); });
+});
 /* ===== розкладна кнопка ＋ ===== */
 function toggleFabMenu(){
   if(listening){ stopVoice(); return; }        // кнопка червона = слухає; тап по ній глушить, а не відкриває меню
@@ -5213,6 +5250,7 @@ async function migrateCash(){
    Шифрування те саме, що в бекапі: у хмару летить нечитабельний шматок. */
 let family=null;            // {id, pass, member, name} або null — фіча спить
 let famMembers=[];          // хто ще в родині (з їхніх поличок): [{member,name,at,count}]
+let famCatMap={};           // ручні зіставлення чужих категорій: {'expense|Їжа': 'мій_id'}
 let _famTimer=null, famBusy=false, famLastPull=0;
 
 const famSlotId=async(famId,member)=>(await sha(famId+':slot:'+member)).slice(0,32);
@@ -5268,7 +5306,14 @@ async function famPull(silent){
       for(const t of old) await del('tx',t.id);
       removed+=old.length;
       for(const t of data.tx){
-        await put('tx',{...t, ext:1, owner:who, by:t.by||who});
+        // категорію партнера кладемо у СВОЮ: спершу ручне зіставлення, далі автоматичне за назвою
+        let myCat='';
+        if(t.cat){
+          const key=t.type+'|'+t.cat;
+          myCat = (famCatMap[key]!==undefined) ? famCatMap[key] : matchCatByName(t.cat,t.type);
+          if(myCat && !catById(myCat)) myCat='';
+        }
+        await put('tx',{...t, category:myCat, ext:1, owner:who, by:t.by||who});
         added++;
       }
     }
@@ -5324,8 +5369,8 @@ async function famLeave(){
   }
   for(const a of accounts.filter(a=>a.shared&&!a.ext)) await put('accounts',{...a,shared:false});
   for(const t of txs.filter(t=>!t.ext&&t.by)){ const {by,...rest}=t; await put('tx',rest); }
-  family=null; famMembers=[];
-  await setMeta('family',null); await setMeta('famMembers',[]);
+  family=null; famMembers=[]; famCatMap={};
+  await setMeta('family',null); await setMeta('famMembers',[]); await setMeta('famCatMap',{});
   await loadAll(); renderFamCard(); go(curTab());
   toast('Ти вийшов з родини — записи лишились твоїми');
 }
@@ -5360,11 +5405,59 @@ function renderFamCard(){
     <div style="margin-top:10px;font-size:13px;font-weight:600">Спільні рахунки (${sh.length})</div>
     ${sh.length?sh.map(a=>`<div style="font-size:13px;margin:4px 0">${a.icon||'💳'} ${a.name}</div>`).join('')
       :'<div class="muted" style="font-size:12px">Ще жодного. Постав позначку «Спільний» у потрібному рахунку.</div>'}
+    ${(()=>{const un=famUnmapped().length; return un
+      ? `<div class="row" style="margin-top:12px;padding:8px 10px;background:var(--surface2);border-radius:10px;font-size:12px">
+           <span>🏷️ Категорій партнерів без пари: <b>${un}</b></span><div class="spacer"></div>
+           <button class="btn sm" onclick="openFamCats()">Зіставити</button></div>`
+      : `<div style="margin-top:12px"><span onclick="openFamCats()" style="cursor:pointer;font-size:12px;color:var(--brand)">🏷️ Категорії партнерів</span></div>`;})()}
     <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">
       <button class="btn ghost sm" onclick="famPullNow()">↻ Оновити</button>
       <button class="btn ghost sm" onclick="showFamKey()">🔑 Показати ключ</button>
       <div class="spacer"></div>
       <button class="btn danger sm" onclick="famLeave()">Вийти</button></div>`;
+}
+/* ---- зіставлення категорій партнерів ---- */
+// які чужі категорії ще нікуди не лягли
+function famUnmapped(){
+  const seen=new Map();
+  txs.filter(t=>t.ext&&t.cat&&!t.category).forEach(t=>{
+    const k=t.type+'|'+t.cat;
+    seen.set(k,(seen.get(k)||0)+1);
+  });
+  return [...seen.entries()].map(([k,n])=>({key:k,type:k.slice(0,k.indexOf('|')),name:k.slice(k.indexOf('|')+1),n}))
+    .sort((a,b)=>b.n-a.n);
+}
+function openFamCats(){
+  renderFamCats(); openModal('famCatModal');
+}
+function renderFamCats(){
+  const box=document.getElementById('famCatBody');
+  const un=famUnmapped();
+  // усі чужі категорії: і незіставлені, і вже зіставлені (щоб можна було переграти)
+  const done=Object.keys(famCatMap).filter(k=>famCatMap[k]).map(k=>({key:k,type:k.slice(0,k.indexOf('|')),name:k.slice(k.indexOf('|')+1),n:0}));
+  const all=[...un,...done.filter(d=>!un.some(u=>u.key===d.key))];
+  if(!all.length){ box.innerHTML='<div class="muted" style="font-size:13px">Усі категорії партнерів уже лягли у твої 👌</div>'; return; }
+  box.innerHTML=all.map(x=>{
+    const leaf=cats.filter(c=>c.type===x.type&&kids(c.id).length===0)
+      .sort((a,b)=>catFullName(a.id).localeCompare(catFullName(b.id),'uk'));
+    const cur=famCatMap[x.key]||'';
+    return `<div class="row" style="gap:8px;margin:8px 0;font-size:13px;flex-wrap:wrap">
+      <div style="min-width:110px">${x.type==='income'?'🔺':'🔻'} <b>${x.name}</b>${x.n?` <span class="muted">(${x.n})</span>`:''}</div>
+      <div class="spacer"></div>
+      <select style="flex:1;min-width:150px" onchange="famSetCat('${x.key.replace(/'/g,"\\'")}',this.value)">
+        <option value="">— не зіставляти —</option>
+        ${leaf.map(c=>`<option value="${c.id}" ${cur===c.id?'selected':''}>${c.icon||''} ${catFullName(c.id)}</option>`).join('')}
+      </select></div>`;
+  }).join('')+`<div class="muted" style="font-size:11px;margin-top:10px">Зіставлення запам'ятовується: наступні операції партнера з цією категорією лягатимуть автоматично.</div>`;
+}
+async function famSetCat(key,catId){
+  famCatMap[key]=catId;
+  await setMeta('famCatMap',famCatMap);
+  // застосовуємо одразу до вже отриманих операцій
+  const [type,name]=[key.slice(0,key.indexOf('|')),key.slice(key.indexOf('|')+1)];
+  for(const t of txs.filter(t=>t.ext&&t.type===type&&t.cat===name)) await put('tx',{...t,category:catId});
+  await loadAll(); renderFamCats(); renderFamCard();
+  toast(catId?'✓ Зіставлено':'Зв\'язок прибрано');
 }
 async function famPullNow(){
   toast('Оновлюю…');
@@ -5391,6 +5484,7 @@ function makeRecoveryCode(){
 async function loadFamily(){
   family=await getMeta('family')||null;
   famMembers=await getMeta('famMembers')||[];
+  famCatMap=await getMeta('famCatMap')||{};
 }
 async function loadLock(){
   lockOn=!!(await getMeta('lockOn')); pinHash=await getMeta('pinHash')||''; pinSalt=await getMeta('pinSalt')||'';
