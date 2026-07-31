@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.19</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.21</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.19</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.21</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -529,7 +529,7 @@ svg .bar{transition:opacity .2s}
       <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
     </div>
 
-    <h2 style="cursor:pointer;user-select:none" onclick="toggleFam()">Сімейний бюджет <span id="famArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleFam()">Сімейний бюджет <span onclick="event.stopPropagation();openModal('famHelpModal')" title="Як почати вдвох" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;vertical-align:middle;margin-left:2px">?</span> <span id="famArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="famCard">
       <p class="muted" style="margin-top:0">Спільні рахунки видно всій родині — хто скільки вніс і витратив. <b>Решта рахунків лишається лише твоєю</b>: приватне взагалі не передається.</p>
       <div id="famStatus"></div>
@@ -985,6 +985,31 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <!-- Returns help modal (пояснення TWRR / MWRR) -->
+<!-- Family help modal (як почати вдвох) -->
+<div class="modal" id="famHelpModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">👨‍👩‍👧 Як почати вдвох</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('famHelpModal')">✕</button></div>
+    <div style="font-size:12.5px;line-height:1.55">
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">1. На своєму телефоні</div>
+        <div class="muted" style="font-size:11.5px">Ще → Сімейний бюджет → <b style="color:var(--text)">Створити родину</b> → своє ім'я + пароль, який ти сам придумаєш. Далі побачиш <b style="color:var(--text)">ключ</b> — 32 символи, копіюється кнопкою.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">2. На телефоні партнера</div>
+        <div class="muted" style="font-size:11.5px">Ще → Сімейний бюджет → <b style="color:var(--text)">Приєднатись за ключем</b> → своє ім'я, потім твій ключ і <b style="color:var(--text)">той самий пароль</b>. Пароль не вигадується наново — це той, що ти придумав у кроці 1.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
+        <div style="font-weight:700">3. Обрати спільні рахунки</div>
+        <div class="muted" style="font-size:11.5px">Рахунки → відкрий потрібний → позначка <b style="color:var(--text)">👨‍👩‍👧 Спільний рахунок</b>. Позначка з'являється лише після кроку 1. Спільних рахунків може бути скільки завгодно — поточний, накопичувальний, банка.</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:0 0 8px"><b style="color:var(--text)">Що бачить партнер:</b> лише операції зі спільних рахунків. Решта — твої рахунки, готівка, інвестиції, уся історія — лишається невидимою. Приватність за замовчуванням, спільне за вибором.</p>
+      <p class="muted" style="font-size:11.5px;margin:0 0 8px"><b style="color:var(--text)">Оновлення:</b> само собою — при відкритті застосунку й коли повертаєшся в нього. Не миттєво: якщо партнер додав щось просто зараз, тисни <b style="color:var(--text)">↻ Оновити</b>.</p>
+      <p class="muted" style="font-size:11.5px;margin:0"><b style="color:var(--text)">Вийти можна будь-коли:</b> зникнуть операції партнерів і позначки «спільний», а твої власні записи й історія лишаться недоторканими.</p>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="returnsHelpModal">
   <div class="sheet">
     <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">📈 Дохідність: TWRR і MWRR</h3>
@@ -1715,7 +1740,18 @@ function bondAccruedValue(h){
     coupons=h.payments.filter(p=>String(p.pay_type)==='1').map(p=>({date:p.pay_date,val:+p.pay_val||0})).sort((a,b)=>a.date.localeCompare(b.date));
   else if(h.couponRate&&h.couponFreq){ const per=nominal*(h.couponRate/100)/h.couponFreq;
     coupons=couponDates(h.maturityDate,h.couponFreq,h.buyDate).map(d=>({date:ymd(d),val:per})); }
-  if(!coupons||!coupons.length) return qty*nominal;
+  /* Дисконтна ОВДП: купонів нема взагалі, лише погашення наприкінці. Дохід — різниця між
+     ціною купівлі й номіналом, і він набігає ПОСТУПОВО, а не в день купівлі. Тому тягнемо
+     пряму від ціни купівлі до номіналу. Без дати купівлі рахувати нема від чого — тоді
+     тримаємо вкладену суму, щоб не показати прибуток, якого ще нема. */
+  if(!coupons||!coupons.length){
+    const paid=h.invested||0;
+    if(paid<=0||paid>=qty*nominal) return qty*nominal;      // куплено по номіналу або дорожче
+    if(!h.buyDate||h.buyDate>=h.maturityDate) return paid;  // нема від чого будувати пряму
+    const all=daysBetween(h.buyDate,h.maturityDate), gone=daysBetween(h.buyDate,today);
+    const k=Math.max(0,Math.min(1,gone/Math.max(1,all)));
+    return +(paid+(qty*nominal-paid)*k).toFixed(2);
+  }
   let prev=null,next=null;
   for(const c of coupons){ if(c.date<=today) prev=c; else { next=c; break; } }
   let accrued=0;
@@ -5472,9 +5508,10 @@ async function famCreate(){
 }
 async function famJoin(){
   const name=(prompt('Як тебе звати в родині?','Десктоп')||'').trim(); if(!name) return;
-  const id=(prompt('Сімейний ключ (32 символи від партнера):')||'').trim().toLowerCase();
+  const id=(prompt('Сімейний ключ — 32 символи, партнер бере його кнопкою «🔑 Показати ключ»:')||'').trim().toLowerCase();
   if(!/^[a-f0-9]{32}$/.test(id)){ alert('Ключ має бути 32 символи (a-f, 0-9)'); return; }
-  const pass=prompt('Сімейний пароль:'); if(!pass) return;
+  // «той самий» тут критичне: без цього слова люди вигадують СВІЙ пароль і впираються в незрозуміле «не знайшов учасників»
+  const pass=prompt('Сімейний пароль — ТОЙ САМИЙ, що придумав партнер (не вигадуй новий):'); if(!pass) return;
   // шукаємо вільний номер: перевіряємо, чиї полички вже зайняті
   let member=0;
   for(let m=2;m<=6;m++){
