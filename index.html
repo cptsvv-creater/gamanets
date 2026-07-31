@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.16</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.17</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.16</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.17</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -2543,13 +2543,12 @@ let editingFlow=null, flowDir='in', flowsListOpen=false;
 function autoFlows(){
   const isInv=id=>accById(id)?.type==='invest', out=[];
   for(const t of txs){
-    // списання, позначене як «вкладення»: майданчик невідомий, але для дохідності важливі
-    // лише дата й сума — саме цього бракувало історії, завезеній з інших застосунків
-    if(t.type==='expense'&&isInvFlow(t)){
-      out.push({id:'inv:'+t.id,d:t.date,dir:'in',base:+toBase(Number(t.amount)||0,accById(t.account)?.currency||PIVOT).toFixed(2),
-        auto:true,note:`${accById(t.account)?.name||'?'} → вкладення`});
-      continue;
-    }
+    /* Позначені «вкладенням» витрати сюди НЕ потрапляють, і це навмисно.
+       «Гроші пішли з кишені в бік інвестицій» — це не те саме, що «гроші зайшли у ВІДСТЕЖУВАНИЙ
+       портфель цього дня»: частина таких платежів припадає на час до початку історії портфеля
+       (вони вже всередині стартової вартості), частина взагалі не осіла в заведених позиціях.
+       Підмішування їх у потоки завищувало заведення втричі й робило дохідність від'ємною.
+       Заведення бачимо лише через справжні перекази на майданчик — там сума й адресат достеменні. */
     if(t.type!=='transfer') continue;
     const fromInv=isInv(t.account), toInv=isInv(t.to);
     if(fromInv===toInv) continue;                       // обидва або жоден майданчики → внутрішнє/не стосується
