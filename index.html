@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.15</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.16</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.15</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.16</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -617,8 +617,14 @@ svg .bar{transition:opacity .2s}
         <div class="muted" style="font-size:11px;margin-top:4px">Комісія запишеться окремою витратою в обраній категорії.</div>
       </div></div>
     <div style="margin-top:10px" id="wrapCat"><label>Категорія</label>
-      <select id="txCat"></select></div>
+      <select id="txCat" onchange="syncTxInv()"></select></div>
     <div style="margin-top:10px"><label>Нотатка</label><input id="txNote" placeholder="необов'язково"></div>
+    <div style="margin-top:10px" id="wrapTxInv" class="hidden">
+      <label class="row" style="gap:8px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="txInv" style="width:auto;margin:0">
+        <span>Це вкладення, не витрата</span></label>
+      <div class="muted" style="font-size:11px;margin-top:4px">Гроші пішли з рахунку, але не зникли — переказ на інвестиційний майданчик, депозит, ОВДП. Залишок по рахунку зміниться як завжди, але у витратах ця сума не рахуватиметься.</div>
+    </div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="txDelBtn" onclick="deleteTx()">Видалити</button>
       <div class="spacer"></div>
@@ -753,6 +759,12 @@ svg .bar{transition:opacity .2s}
     <div style="margin-top:10px"><label>Колір</label><div class="colorrow" id="colorRow"></div></div>
     <div style="margin-top:10px" id="catLimitWrap"><label>Місячний ліміт, ₴ (необов'язково)</label>
       <input id="catLimit" type="number" step="1" placeholder="напр. 3000"></div>
+    <div style="margin-top:10px" id="catInvWrap">
+      <label class="row" style="gap:8px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="catInv" style="width:auto;margin:0">
+        <span>Уся категорія — вкладення, не витрати</span></label>
+      <div class="muted" style="font-size:11px;margin-top:4px">Усі операції цієї категорії одразу перестануть рахуватись як витрати. Зручно для категорії на кшталт «Інвестиції».</div>
+    </div>
     <div class="row" style="margin-top:16px">
       <button class="btn danger sm hidden" id="catDelBtn" onclick="deleteCat()">Видалити</button>
       <div class="spacer"></div>
@@ -1222,6 +1234,16 @@ const dispVal = base => base/(rates[dispCur]||1);
 const fmtDisp = base => fmt(dispVal(base), dispCur);
 
 /* ---------- balances ---------- */
+/* Вкладення vs витрата. Переказ грошей на інвестиційний майданчик — це НЕ витрата:
+   гроші не зникли, вони перейшли в іншу форму. Але для балансу рахунку це звичайне
+   списання, тому тип лишається 'expense', а прапорець t.inv лише виводить операцію
+   зі статистики витрат і подає її як рух капіталу. Балансова математика прапорця
+   не бачить навмисно — інакше залишки по рахунках поїхали б. */
+// прапорець на самій операції завжди сильніший за категорію: inv=1 — вкладення попри все,
+// inv=0 — звичайна витрата попри позначену категорію (напр. комісія всередині «Інвестицій»)
+const isInvFlow=t=>(t.inv===0||t.inv===1)?!!t.inv:!!(t.category&&catById(t.category)?.invFlow);
+const isSpend=t=>t.type==='expense'&&!isInvFlow(t);
+const isEarn =t=>t.type==='income' &&!isInvFlow(t);
 function accBalance(a){
   let b=Number(a.balance||0);
   for(const t of txs){
@@ -1352,7 +1374,7 @@ function renderDash(){
   let inc=0,exp=0;
   txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
     const acc=accById(t.account); const v=toBase(t.amount,acc?.currency||PIVOT);
-    if(t.type==='income') inc+=v; if(t.type==='expense') exp+=v; });
+    if(isEarn(t)) inc+=v; if(isSpend(t)) exp+=v; });
   setStat('mIncome','+'+fmtDisp(inc));
   setStat('mExpense','−'+fmtDisp(exp));
   const P=portfolioTotals(), tile=document.getElementById('investTile');
@@ -1375,7 +1397,7 @@ function avgMonthly(){
   let inc=0,exp=0; const has=new Set();
   txs.forEach(t=>{ const mk=monthKey(t.date); if(!set.has(mk))return; has.add(mk);
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
-    if(t.type==='income')inc+=v; else if(t.type==='expense')exp+=v; });
+    if(isEarn(t))inc+=v; else if(isSpend(t))exp+=v; });
   const n=Math.max(1,has.size);
   return {inc:inc/n, exp:exp/n, net:(inc-exp)/n, months:has.size};
 }
@@ -1391,7 +1413,7 @@ function renderPace(spent,moneyTotal){
   if(!(ref>0)){
     const now2=new Date(); let tot=0,n=0;
     for(let i=1;i<=3;i++){ const mk=ymKey(new Date(now2.getFullYear(),now2.getMonth()-i,1));
-      let s=0,has=false; txs.forEach(t=>{ if(t.type==='expense'&&monthKey(t.date)===mk){ s+=toBase(t.amount,accById(t.account)?.currency||PIVOT); has=true; } });
+      let s=0,has=false; txs.forEach(t=>{ if(isSpend(t)&&monthKey(t.date)===mk){ s+=toBase(t.amount,accById(t.account)?.currency||PIVOT); has=true; } });
       if(has){ tot+=s; n++; } }
     if(n){ ref=tot/n; refLabel='середнє за '+n+' міс.'; }
   }
@@ -1517,7 +1539,7 @@ function renderMonthlyChart(){
   const months=monthsForRange(), rate=rates[dispCur]||1;
   const raw=months.map(m=>{let inc=0,exp=0;
     txs.forEach(t=>{if(monthKey(t.date)!==m)return;const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||PIVOT);
-      if(t.type==='income')inc+=v;if(t.type==='expense')exp+=v;});
+      if(isEarn(t))inc+=v;if(isSpend(t))exp+=v;});
     return {m,inc:inc/rate,exp:exp/rate};});
   const data=groupPeriods(raw);
   const n=data.length;
@@ -1574,7 +1596,7 @@ function renderCatChart(){
   const mk=catMonth;
   document.getElementById('catMonthLbl').textContent=monthLabel(mk);
   const map={};
-  txs.forEach(t=>{if(t.type!=='expense'||monthKey(t.date)!==mk)return;
+  txs.forEach(t=>{if(!isSpend(t)||monthKey(t.date)!==mk)return;
     const acc=accById(t.account);const v=toBase(t.amount,acc?.currency||PIVOT);
     map[t.category]=(map[t.category]||0)+v;});
   const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]);
@@ -1609,19 +1631,21 @@ function txRow(t){
     ic='⚖️'; title='Коригування балансу'; sub=acc?.name||'?';
     amtHtml=`<span class="amt ${pos?'pos':'neg'}">${pos?'+':'−'}${fmt(Math.abs(t.amount),acc?.currency)}</span>`;
   }else{
-    const c=catById(t.category);
-    ic=c?.icon||(t.type==='income'?'💰':'📦');
-    title=c?.name||(t.type==='income'?'Дохід':'Витрата');
+    const c=catById(t.category), inc=t.type==='income';        // знак і підпис — за типом, не за прапорцем
+    ic=c?.icon||(inc?'💰':'📦');
+    title=c?.name||(inc?'Дохід':'Витрата');
     sub=`${acc?.name||'?'}${t.note?' · '+t.note:''}`;
-    const sign=t.type==='income'?'+':'−';
-    amtHtml=`<span class="amt ${t.type==='income'?'pos':'neg'}">${sign}${fmt(t.amount,acc?.currency)}</span>`;
+    const sign=inc?'+':'−';
+    // вкладення списується з рахунку, але це не втрата — показуємо нейтрально, без червоного
+    amtHtml=`<span class="amt ${isInvFlow(t)?'':(inc?'pos':'neg')}">${sign}${fmt(t.amount,acc?.currency)}</span>`;
   }
+  const invTag=isInvFlow(t)?`<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:var(--surface2);color:var(--muted);margin-left:6px">📈 вкладення</span>`:'';
   // на спільному рахунку показуємо, ХТО зробив операцію; чужі не редагуються
   const who=t.by?`<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:var(--surface2);color:var(--muted);margin-left:6px">👤 ${t.by}</span>`:'';
   const foreignCat=(t.ext&&t.cat&&!t.category)?` · <span style="color:var(--muted)">партнер: ${t.cat}</span>`:'';
   return `<div class="tx" ${t.ext?'style="opacity:.92"':`onclick="openTx('${t.id}')"`}>
     <div class="ic">${ic}</div>
-    <div class="mid"><div class="t">${title}${who}</div><div class="s">${t.date} · ${sub}${foreignCat}</div></div>
+    <div class="mid"><div class="t">${title}${who}${invTag}</div><div class="s">${t.date} · ${sub}${foreignCat}</div></div>
     ${amtHtml}</div>`;
 }
 
@@ -1797,7 +1821,7 @@ function budgetRoots(){
 function unbudgeted(){
   const inB=new Set(); budgetRoots().forEach(c=>descendantIds(c.id).forEach(id=>inB.add(id)));
   const mk=monthKey(todayISO()); const map={}; let total=0;
-  txs.forEach(t=>{ if(t.type!=='expense'||monthKey(t.date)!==mk||inB.has(t.category)) return;
+  txs.forEach(t=>{ if(!isSpend(t)||monthKey(t.date)!==mk||inB.has(t.category)) return;
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
     total+=v; map[t.category||'']=(map[t.category||'']||0)+v; });
   return {total, rows:Object.entries(map).sort((a,b)=>b[1]-a[1])};
@@ -1950,7 +1974,7 @@ function recurringGroups(){
   const now=new Date(), from=ymKey(new Date(now.getFullYear(),now.getMonth()-5,1));
   const map={};
   txs.forEach(t=>{
-    if(t.type!=='expense'&&t.type!=='income') return;
+    if(!isSpend(t)&&!isEarn(t)) return;
     const mk=monthKey(t.date); if(mk<from) return;
     const key=t.type+'|'+(t.category||'')+'|'+String(t.note||'').trim().toLowerCase().slice(0,24);
     (map[key]=map[key]||[]).push(t);
@@ -1998,7 +2022,7 @@ function renderRecurring(){
 function renderMonthCompare(){
   const now=new Date(), curMk=ymKey(now), prevMk=ymKey(new Date(now.getFullYear(),now.getMonth()-1,1));
   const sum={};
-  txs.forEach(t=>{ if(t.type!=='expense') return; const mk=monthKey(t.date);
+  txs.forEach(t=>{ if(!isSpend(t)) return; const mk=monthKey(t.date);
     if(mk!==curMk&&mk!==prevMk) return;
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
     const s=sum[t.category]=sum[t.category]||{cur:0,prev:0};
@@ -2038,8 +2062,8 @@ function renderHeatmap(){
   const exp={}, inc={}; let mxE=0,mxI=0,tE=0,tI=0;
   txs.forEach(t=>{ if(monthKey(t.date)!==mk) return;
     const d=Number(t.date.slice(8,10)); const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
-    if(t.type==='expense'){ exp[d]=(exp[d]||0)+v; tE+=v; if(exp[d]>mxE)mxE=exp[d]; }
-    else if(t.type==='income'){ inc[d]=(inc[d]||0)+v; tI+=v; if(inc[d]>mxI)mxI=inc[d]; } });
+    if(isSpend(t)){ exp[d]=(exp[d]||0)+v; tE+=v; if(exp[d]>mxE)mxE=exp[d]; }
+    else if(isEarn(t)){ inc[d]=(inc[d]||0)+v; tI+=v; if(inc[d]>mxI)mxI=inc[d]; } });
   if(!tE && !tI && !hmMonth) return '';                      // поточний місяць порожній і не гортали — ховаємось
   const firstDow=(new Date(y,m-1,1).getDay()+6)%7;           // пн=0
   let cells='';
@@ -2056,10 +2080,10 @@ function renderHeatmap(){
   let dayBox='';
   if(hmDay){
     const dstr=`${y}-${pad2(m)}-${pad2(hmDay)}`;
-    const ops=txs.filter(t=>t.date===dstr && (t.type==='expense'||t.type==='income'))
+    const ops=txs.filter(t=>t.date===dstr && (isSpend(t)||isEarn(t)))
       .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    const de=ops.filter(t=>t.type==='expense').reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
-    const di=ops.filter(t=>t.type==='income').reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
+    const de=ops.filter(t=>isSpend(t)).reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
+    const di=ops.filter(t=>isEarn(t)).reduce((s,t)=>s+(toBase(t.amount,accById(t.account)?.currency||PIVOT)||0),0);
     dayBox=`<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--line)">
       <div class="row" style="font-size:13px"><b>${hmDay} ${monthLabel(mk).split(' ')[0]}</b>
         <div class="spacer"></div>
@@ -2091,8 +2115,8 @@ function renderYearReport(){
   txs.forEach(t=>{ if(!String(t.date).startsWith(yr)) return;
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0, mk=monthKey(t.date);
     const mm=byM[mk]=byM[mk]||{i:0,e:0};
-    if(t.type==='income'){ inc+=v; mm.i+=v; }
-    else if(t.type==='expense'){ exp+=v; mm.e+=v; byCat[t.category]=(byCat[t.category]||0)+v; } });
+    if(isEarn(t)){ inc+=v; mm.i+=v; }
+    else if(isSpend(t)){ exp+=v; mm.e+=v; byCat[t.category]=(byCat[t.category]||0)+v; } });
   const months=Object.keys(byM).sort();
   if(months.length<2) return '';
   const net=inc-exp;
@@ -2136,8 +2160,8 @@ function accFlow(accId,from,to){
   txs.forEach(t=>{
     const mk=monthKey(t.date); if(mk<from||mk>to) return;
     const amt=Number(t.amount)||0;
-    if(t.type==='income'&&t.account===accId){ inc+=amt; bump(mk,'in',amt); n++; }
-    else if(t.type==='expense'&&t.account===accId){ out+=amt; bump(mk,'out',amt); n++; }
+    if(isEarn(t)&&t.account===accId){ inc+=amt; bump(mk,'in',amt); n++; }
+    else if(isSpend(t)&&t.account===accId){ out+=amt; bump(mk,'out',amt); n++; }
     else if(t.type==='adjust'&&t.account===accId){ adj+=amt; n++; }          // коригування — не рух грошей
     else if(t.type==='transfer'){                                            // переказ теж рух по рахунку
       if(t.account===accId){ out+=amt; bump(mk,'out',amt); n++; }
@@ -2519,6 +2543,13 @@ let editingFlow=null, flowDir='in', flowsListOpen=false;
 function autoFlows(){
   const isInv=id=>accById(id)?.type==='invest', out=[];
   for(const t of txs){
+    // списання, позначене як «вкладення»: майданчик невідомий, але для дохідності важливі
+    // лише дата й сума — саме цього бракувало історії, завезеній з інших застосунків
+    if(t.type==='expense'&&isInvFlow(t)){
+      out.push({id:'inv:'+t.id,d:t.date,dir:'in',base:+toBase(Number(t.amount)||0,accById(t.account)?.currency||PIVOT).toFixed(2),
+        auto:true,note:`${accById(t.account)?.name||'?'} → вкладення`});
+      continue;
+    }
     if(t.type!=='transfer') continue;
     const fromInv=isInv(t.account), toInv=isInv(t.to);
     if(fromInv===toInv) continue;                       // обидва або жоден майданчики → внутрішнє/не стосується
@@ -2952,7 +2983,7 @@ async function applyRulesToExisting(){
     const r=matchRule(t.note); if(!r) continue;
     if(r.action==='category' && r.category && catById(r.category)?.type===t.type && t.category!==r.category){
       t.category=r.category; await put('tx',t); changed++;
-    } else if(r.action==='transfer' && r.toAcc && t.type==='expense' && r.toAcc!==t.account){
+    } else if(r.action==='transfer' && r.toAcc && isSpend(t) && r.toAcc!==t.account){
       t.type='transfer'; t.to=r.toAcc; t.category='';           // витрата → переказ (банка): гроші не витрачені
       await put('tx',t); changed++;
     }
@@ -3404,7 +3435,7 @@ function renderCats(){
 /* dashboard: monthly spend per category incl. subcategories */
 function monthSpent(catId){
   const mk=monthKey(todayISO()), ids=descendantIds(catId); let s=0;
-  txs.forEach(t=>{ if(t.type==='expense'&&monthKey(t.date)===mk&&ids.includes(t.category)){
+  txs.forEach(t=>{ if(isSpend(t)&&monthKey(t.date)===mk&&ids.includes(t.category)){
     const acc=accById(t.account); s+=toBase(t.amount,acc?.currency||PIVOT);} });
   return s;
 }
@@ -3415,7 +3446,7 @@ function famSplit(catId){
   const mk=monthKey(todayISO()), ids=descendantIds(catId);
   let mine=0, theirs=0, who='';
   txs.forEach(t=>{
-    if(t.type!=='expense'||monthKey(t.date)!==mk||!ids.includes(t.category)) return;
+    if(!isSpend(t)||monthKey(t.date)!==mk||!ids.includes(t.category)) return;
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT);
     if(t.ext){ theirs+=v; who=who||t.owner||'партнер'; } else mine+=v;
   });
@@ -3626,7 +3657,15 @@ function setTxKind(k){
   document.getElementById('wrapAccTo').classList.toggle('hidden',k!=='transfer');
   document.getElementById('wrapFee').classList.remove('hidden');   // комісія доступна для всіх типів
   document.getElementById('lblAccFrom').textContent = k==='transfer'?'Звідки':'Рахунок';
-  if(k!=='transfer') fillCatSelect(document.getElementById('txCat'),k);
+  document.getElementById('wrapTxInv').classList.toggle('hidden',k!=='expense');   // «вкладення» має сенс лише для списань
+  if(k!=='transfer'){ fillCatSelect(document.getElementById('txCat'),k); syncTxInv(); }
+}
+/* Нова операція підхоплює налаштування категорії; у вже збереженої нічого не чіпаємо,
+   бо там людина могла свідомо поставити виняток. */
+function syncTxInv(){
+  if(editingTx) return;
+  const c=catById(document.getElementById('txCat').value);
+  document.getElementById('txInv').checked=!!c?.invFlow;
 }
 function toggleFee(){
   const on=document.getElementById('txFeeOn').checked;
@@ -3658,8 +3697,10 @@ function openTx(id){
     toggleFee();
     if(feeTx){document.getElementById('txFee').value=feeTx.amount; document.getElementById('txFeeCat').value=feeTx.category;}
     document.getElementById('txNote').value=editingTx.note||'';
+    document.getElementById('txInv').checked=isInvFlow(editingTx);   // показуємо чинний стан з урахуванням категорії
   }else{
     setTxKind('expense');
+    document.getElementById('txInv').checked=false;
     document.getElementById('txAmount').value='';
     document.getElementById('txDate').value=todayISO();
     document.getElementById('txNote').value='';
@@ -3683,6 +3724,7 @@ async function saveTx(){
     if(from.currency!==to.currency) rec.amountTo=+(toBase(amount,from.currency)/rates[to.currency]).toFixed(2);
   }else{
     rec.category=document.getElementById('txCat').value;
+    if(txKind==='expense') rec.inv=document.getElementById('txInv').checked?1:0;   // явна відповідь, щоб перебивати категорію
   }
   // операція на спільному рахунку підписується автором — щоб родина бачила, хто це зробив
   if(family && (accById(rec.account)?.shared || (rec.to&&accById(rec.to)?.shared))) rec.by=family.name;
@@ -3923,6 +3965,8 @@ function openCat(id){
   psel.disabled=hasKids;
   document.getElementById('catParentHint').textContent=hasKids?'Має підкатегорії, тож лишається верхнім рівнем.':'';
   document.getElementById('catLimitWrap').style.display=type==='income'?'none':'';
+  document.getElementById('catInv').checked=!!editingCat?.invFlow;
+  document.getElementById('catInvWrap').style.display=type==='income'?'none':'';
   renderIconPicker(); renderColorRow(); openModal('catModal');
 }
 async function saveCat(){
@@ -3933,6 +3977,7 @@ async function saveCat(){
     parent:document.getElementById('catParent').value||null};
   const lim=parseFloat(document.getElementById('catLimit').value);
   if(type==='expense'&&lim>0)rec.limit=lim;
+  if(type==='expense'&&document.getElementById('catInv').checked)rec.invFlow=1;
   await put('categories',rec);await loadAll();closeModal('catModal');renderCats();
 }
 let reassignCatId=null;
@@ -4943,8 +4988,8 @@ function aiSnapshot(){
     const mk=monthKey(t.date); if(!mk) return;
     const m=byM[mk]=byM[mk]||{income:{},expense:0};
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
-    if(t.type==='income'){ const c=catById(t.category)?.name||'інше'; m.income[c]=+((m.income[c]||0)+v).toFixed(0); }
-    else if(t.type==='expense') m.expense=+(m.expense+v).toFixed(0);
+    if(isEarn(t)){ const c=catById(t.category)?.name||'інше'; m.income[c]=+((m.income[c]||0)+v).toFixed(0); }
+    else if(isSpend(t)) m.expense=+(m.expense+v).toFixed(0);
   });
   // рівно останні 12 календарних місяців: операції з помилковими датами (2023 рік тощо)
   // інакше потрапляли в знімок і збивали радника з пантелику
@@ -4955,7 +5000,7 @@ function aiSnapshot(){
   txs.forEach(t=>{ const y=String(t.date||'').slice(0,4); if(y.length!==4) return;
     const v=toBase(t.amount,accById(t.account)?.currency||PIVOT)||0;
     const r=byY[y]=byY[y]||{income:0,expense:0};
-    if(t.type==='income') r.income+=v; else if(t.type==='expense') r.expense+=v; });
+    if(isEarn(t)) r.income+=v; else if(isSpend(t)) r.expense+=v; });
   const cashflowByYear={};
   Object.keys(byY).sort().forEach(y=>{const r=byY[y];
     cashflowByYear[y]={income:Math.round(r.income),expense:Math.round(r.expense),net:Math.round(r.income-r.expense)};});
