@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.22</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.23</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.22</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.23</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -444,7 +444,7 @@ svg .bar{transition:opacity .2s}
         <button class="btn ghost sm" onclick="invSortAll(true)">Позначити все</button>
         <button class="btn ghost sm" onclick="invSortAll(false)">Зняти все</button>
       </div>
-      <div id="invSortList" style="margin-top:10px"></div>
+      <div id="invSortList" style="margin-top:10px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
       <div class="row" style="margin-top:12px;align-items:center">
         <span class="muted" style="font-size:12px" id="invSortSum"></span>
         <div class="spacer"></div>
@@ -1225,7 +1225,7 @@ let catTab='expense', txFilter='all', txShowAll=false;
 let dispCur='UAH', chartRange='6m', customFrom=null, customTo=null;
 let curNames={}, catMonth=monthKey(todayISO());
 let backupId='', backupPass='', backupSalt='', lastBackupAt=0, autoBackup=true, backupPending=false, lastBackupErr='';
-let lastChangeAt=0, lastCloudVer='', syncDismissedVer='';   // синхронізація: остання локальна зміна / остання відома версія у хмарі
+let lastChangeAt=0, lastCloudVer='', syncDismissedVer='', bkAttemptAt=0;   // синхронізація: остання локальна зміна / остання відома версія у хмарі / коли востаннє ПОЧАЛИ вивантаження
 let goalTargetUSD=0, goalDate='', txSearch='';   // ціль капіталу + бажана дата; пошук по операціях
 let coinIdCache={};   // символ монети → id CoinGecko (щоб не шукати щоразу)
 let fhKey='', tdKey='', fmpKey='', proxyUrl='', pricesUpdatedAt=0, baseCur='UAH', catsExpanded=false, closedExpanded=false, curExpanded=false, apiExpanded=false, bkExpanded=false, aiExpanded=false, budgetAllOpen=false, restoreOpen=false, unbudgetedOpen=false, bondsOpen=false, venueOpen={}, aiKey='', aiUsage={in:0,out:0,calls:0};
@@ -1238,6 +1238,7 @@ async function loadAll(){
   backupId=await getMeta('backupId')||''; backupPass=await getMeta('backupPass')||''; backupSalt=await getMeta('backupSalt')||'';
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
   lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
+  bkAttemptAt=await getMeta('bkAttemptAt')||0;
   goalTargetUSD=await getMeta('goalTargetUSD')||0; goalDate=await getMeta('goalDate')||'';
   pfFlows=await getMeta('pfFlows')||[];
   catRules=await getMeta('catRules')||[];
@@ -3774,7 +3775,10 @@ function setTxKind(k){
   document.getElementById('wrapAccTo').classList.toggle('hidden',k!=='transfer');
   document.getElementById('wrapFee').classList.remove('hidden');   // комісія доступна для всіх типів
   document.getElementById('lblAccFrom').textContent = k==='transfer'?'Звідки':'Рахунок';
-  document.getElementById('wrapTxInv').classList.toggle('hidden',k!=='expense');   // «вкладення» має сенс лише для списань
+  // Галочку «вкладення» показуємо ЛИШЕ при редагуванні: у новій операції вона плутала —
+  // щоденна витрата не має питати, чи вона часом не інвестиція. Для нових усе одно
+  // спрацює налаштування категорії (syncTxInv), просто мовчки.
+  document.getElementById('wrapTxInv').classList.toggle('hidden',k!=='expense'||!editingTx);
   if(k!=='transfer'){ fillCatSelect(document.getElementById('txCat'),k); syncTxInv(); }
 }
 /* Нова операція підхоплює налаштування категорії; у вже збереженої нічого не чіпаємо,
@@ -4271,6 +4275,11 @@ async function cloudBackupNow(silent){
     // і бекап з нього НІКОЛИ не відлітав. Сіль лежить усередині блоба, тож нова — безпечна.
     if(!backupSalt){ backupSalt=hex(crypto.getRandomValues(new Uint8Array(16))); await setMeta('backupSalt',backupSalt); }
     const blob=await bkEncrypt(bkPayload(), backupPass, backupSalt);
+    /* Позначаємо НАМІР до запиту. Коли застосунок згортають, iOS присипляє сторінку і
+       відповідь на PUT уже нікуди повертатись — рядки нижче не виконаються, хоча бекап
+       у хмару долетів. Без цієї мітки застосунок потім побачить власну ж копію як «чужу
+       новішу версію» і запропонує оновитись сам із себе. */
+    bkAttemptAt=Date.now(); await setMeta('bkAttemptAt',bkAttemptAt);
     const r=await fetch(bkUrl('id='+backupId),{method:'PUT',body:blob});
     let d={}; try{ d=await r.json(); }catch(_){}
     if(!r.ok||d.error) throw new Error(d.error||('HTTP '+r.status));
@@ -4345,6 +4354,14 @@ async function syncCheck(){
       }
     }
     if(newest.v<=lastCloudVer || newest.v===syncDismissedVer) return;
+    /* Наш власний бекап, про долю якого ми не дізнались (сторінку приспали до відповіді).
+       Мітка часу з хмари поруч із моментом, коли МИ починали вивантаження, — значить копія наша. */
+    const nAt=newest.at?Date.parse(newest.at):0;
+    if(bkAttemptAt && nAt && Math.abs(nAt-bkAttemptAt)<10*60*1000){
+      lastCloudVer=newest.v; await setMeta('lastCloudVer',lastCloudVer);
+      if(nAt>lastBackupAt){ lastBackupAt=nAt; await setMeta('lastBackupAt',lastBackupAt); }   // вивантаження таки відбулось
+      return;
+    }
     showSyncBanner(newest);
   }catch(_){ /* тихо: без інтернету чи хмара недоступна — спробуємо наступного разу */ }
   finally{ _syncBusy=false; }
