@@ -236,7 +236,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.21</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.22</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +247,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.21</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.22</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -3101,8 +3101,10 @@ async function applyRulesToExisting(){
     const r=matchRule(t.note); if(!r) continue;
     if(r.action==='category' && r.category && catById(r.category)?.type===t.type && t.category!==r.category){
       t.category=r.category; await put('tx',t); changed++;
-    } else if(r.action==='transfer' && r.toAcc && isSpend(t) && r.toAcc!==t.account){
-      t.type='transfer'; t.to=r.toAcc; t.category='';           // витрата → переказ (банка): гроші не витрачені
+    } else if(r.action==='transfer' && r.toAcc && r.toAcc!==t.account && (isSpend(t)||isEarn(t))){
+      if(t.type==='expense'){ t.type='transfer'; t.to=r.toAcc; }      // картка → банка
+      else { t.to=t.account; t.account=r.toAcc; t.type='transfer'; }  // банка → картка (зняття приходило доходом)
+      t.category='';
       await put('tx',t); changed++;
     }
   }
@@ -4919,8 +4921,11 @@ async function runMonoImport(){
       seen.add(k);
       const rule=matchRule(r.note);                           // правила спрацьовують ПЕРШИМИ й точно
       const tx={id:uid(),type:r.type,amount:r.amount,date:r.date,account:acc,category:'',note:r.note,createdAt:r.createdAt,impKey:k};
-      if(rule && rule.action==='transfer' && rule.toAcc && r.type==='expense' && rule.toAcc!==acc){
-        tx.type='transfer'; tx.to=rule.toAcc;                 // напр. поповнення банки → переказ, а не витрата
+      if(rule && rule.action==='transfer' && rule.toAcc && rule.toAcc!==acc && (r.type==='expense'||r.type==='income')){
+        // банка працює в ОБИДВА боки: поповнення — витрата на картці, зняття — дохід.
+        // Якщо ловити лише витрати, гроші заходять у банку й не виходять — залишок росте вічно.
+        if(r.type==='expense'){ tx.type='transfer'; tx.to=rule.toAcc; }        // картка → банка
+        else { tx.type='transfer'; tx.account=rule.toAcc; tx.to=acc; }         // банка → картка
         ruled++;
       } else if(rule && rule.action==='category' && rule.category && catById(rule.category)?.type===r.type){
         tx.category=rule.category; ruled++;
