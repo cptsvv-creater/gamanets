@@ -240,7 +240,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.25</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.26</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -251,7 +251,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.25</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.26</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -1001,6 +1001,49 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <!-- Returns help modal (пояснення TWRR / MWRR) -->
+<!-- Pace help modal -->
+<div class="modal" id="paceHelpModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">⏱ Як працює темп витрат</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('paceHelpModal')">✕</button></div>
+    <div style="font-size:12.5px;line-height:1.55">
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">З'являється на 3-й день місяця</div>
+        <div class="muted" style="font-size:11.5px">1-го й 2-го це було б ворожіння: витрати одного дня помножились би на весь місяць. Заправився на 3 000 — застосунок пообіцяв би 90 000. Тому мовчить, доки не набереться хоч трохи даних.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">«За темпом вийде»</div>
+        <div class="muted" style="font-size:11.5px">Витрачено з початку місяця ÷ на прожиті дні × на всі дні місяця. Просто відповідь на питання «якщо так і піде далі — скільки вийде?».</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
+        <div style="font-weight:700">З чим порівнюється</div>
+        <div class="muted" style="font-size:11.5px">Якщо є ліміти категорій — з їхньою сумою (підпис «бюджет»). Якщо лімітів нема — із середніми витратами за 3 попередні місяці. Зелений колір означає, що вкладаєшся, червоний — що ні.</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:0">Останній рядок каже, <b style="color:var(--text)">скільки можна витрачати щодня</b>, щоб дотягнути до кінця місяця й не вийти за межу: залишок від бюджету ділиться на дні, що лишились.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Budget pace help modal -->
+<div class="modal" id="budgetHelpModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">📊 Бюджет і риска «темп на сьогодні»</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('budgetHelpModal')">✕</button></div>
+    <div style="font-size:12.5px;line-height:1.55">
+      <p class="muted" style="margin:0 0 10px">Кольорова смуга — скільки з бюджету вже витрачено. Сіра риска на ній — <b style="color:var(--text)">де ти мав би бути сьогодні</b>, якби витрачав рівномірно. 10-го числа з 30 вона стоїть на третині.</p>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">Смуга не дійшла до риски</div>
+        <div class="muted" style="font-size:11.5px">Витрачаєш повільніше за рівний темп — є запас.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
+        <div style="font-weight:700">Смуга обігнала риску</div>
+        <div class="muted" style="font-size:11.5px">Витрачаєш швидше, ніж місяць минає. Не біда сама по собі — велика покупка на початку місяця виглядає саме так, і далі риска тебе наздожене.</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:0"><b style="color:var(--text)">Важливо:</b> у смузі рахуються лише категорії, яким ти поставив <b style="color:var(--text)">місячний ліміт</b>. Решта витрат показана окремо, під смугою — вони в неї не входять, тому «Бюджет в порядку» ще не означає, що місяць у плюс.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Passive income help modal -->
 <div class="modal" id="passiveHelpModal">
   <div class="sheet">
@@ -1516,7 +1559,9 @@ function renderPace(spent,moneyTotal){
   if(!(ref>0)){ box.innerHTML=''; return; }
   const over=proj>ref, rest=ref-spent, perDay=left>0?rest/left:0;
   box.innerHTML=`<div class="card" style="margin-bottom:14px">
-    <div class="row" style="font-size:13px"><span>⏱ Темп витрат</span><div class="spacer"></div>
+    <div class="row" style="font-size:13px"><span>⏱ Темп витрат</span>
+      <span onclick="openModal('paceHelpModal')" title="Як це працює" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;flex:0 0 auto">?</span>
+      <div class="spacer"></div>
       <span class="muted" style="font-size:11px">${day} з ${dim} днів</span></div>
     <div class="row" style="margin-top:6px;font-size:13px;gap:6px">
       <span class="muted">За темпом вийде</span><div class="spacer"></div>
@@ -1951,7 +1996,8 @@ function renderBudgetCard(){
     : `✓ Бюджет в порядку`;
   const ub=unbudgeted();
   return `<div class="card">
-    <h3 style="margin:0 0 10px">Бюджет</h3>
+    <div class="row" style="margin:0 0 10px"><h3 style="margin:0">Бюджет</h3>
+      <span onclick="openModal('budgetHelpModal')" title="Як читати смугу й риску" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;flex:0 0 auto">?</span></div>
     <div class="row" style="align-items:baseline;gap:8px">
       <span style="font-size:22px;font-weight:700;white-space:nowrap;color:${over?'var(--red)':'inherit'}">${fmt(spent)}</span>
       <div class="spacer"></div>
