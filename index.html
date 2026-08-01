@@ -82,9 +82,14 @@ header .logo b{color:var(--brand-t)}
 .empty{text-align:center;color:var(--muted);padding:26px 10px}
 
 /* tabs / bottom nav */
+/* translateZ(0) — не косметика: піднімає таббар на власний шар композитора.
+   Без цього iOS Safari іноді домальовує position:fixed у полотно СТОРІНКИ за старою
+   висотою вікна (коли згортається адресний рядок) — і таббар опиняється посеред
+   екрана, а вміст іде далі під ним. Власний шар змушує зіставляти його з вікном. */
 nav.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);
   border-top:1px solid var(--line);display:flex;justify-content:space-around;
-  padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20}
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20;
+  transform:translateZ(0);will-change:transform}
 nav.tabbar button{background:none;border:none;flex:1;padding:6px 1px;color:var(--muted);
   display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;white-space:nowrap;
   border-radius:12px;margin:0 2px}
@@ -115,9 +120,12 @@ input[type=date],input[type=month]{-webkit-appearance:none;appearance:none}
    а зі scale(1.2) ще й вилазить за свої межі й обрізається в прокрутних списках. */
 input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--brand);transform:scale(1.2);
   padding:0;border:none;border-radius:0;background:none;margin-left:2px}
+/* will-change, а не translateZ: у .fab власний transform (.rot повертає в хрестик),
+   тож шар просимо натяком, щоб не перебити поворот. Причина та сама, що в таббара. */
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));
   width:56px;height:56px;border-radius:50%;background:var(--brand);color:#04211d;
-  border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25}
+  border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25;
+  will-change:transform}
 
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
   border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;margin:0 6px 6px 0;cursor:pointer}
@@ -240,7 +248,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.26</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.27</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -251,7 +259,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.26</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.27</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
