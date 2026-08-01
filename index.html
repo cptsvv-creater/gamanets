@@ -240,7 +240,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.24</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.25</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -251,8 +251,9 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.24</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.25</span></div>
     <div class="row">
+      <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
     </div>
@@ -547,6 +548,17 @@ svg .bar{transition:opacity .2s}
       <div id="lockStatus"></div>
       <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
         Це <b>фіранка, а не сейф</b>: дані на пристрої лежать незашифровані, тож технічно підкована людина обійде. Захищає від цікавих очей, не від хакера.</div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleHidden()">Сховати суми <span id="hiddenArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="hiddenCard">
+      <p class="muted" style="margin-top:0">Замінює всі суми на <b>•••</b>, а решту лишає як є: рахунки, категорії, дати, нотатки, форму графіків. Щоб показати застосунок комусь, не показуючи, скільки в тебе грошей.</p>
+      <label class="row" style="gap:8px;align-items:center;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="hideAmountsChk" onchange="setHideAmounts(this.checked)">
+        <span>Ховати суми</span></label>
+      <div class="muted" style="font-size:11px;margin-top:8px">Швидше за все — <b>оком 👁 у шапці</b>, там один тап. Стан запам'ятовується, тож після перезапуску суми лишаться схованими, доки не вимкнеш.</div>
+      <div class="muted" style="font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+        Поля вводу не ховаються ніколи — інакше не можна було б ані внести операцію, ані перевірити, що ввів. І це <b>не заміна замку</b>: PIN та Face ID не пускають чужого, а це навпаки — дає показати застосунок спокійно.</div>
     </div>
 
     <h2 style="cursor:pointer;user-select:none" onclick="toggleDataSec()">Дані <span id="dataArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
@@ -989,6 +1001,30 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <!-- Returns help modal (пояснення TWRR / MWRR) -->
+<!-- Passive income help modal -->
+<div class="modal" id="passiveHelpModal">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:12px"><h3 style="margin:0;font-size:16px">🔮 Як рахується дохід наперед</h3>
+      <div class="spacer"></div><button class="btn ghost sm" onclick="closeModal('passiveHelpModal')">✕</button></div>
+    <div style="font-size:12.5px;line-height:1.55">
+      <p class="muted" style="margin:0 0 10px">Три складові рахуються по-різному: <b style="color:var(--text)">ОВДП</b> — за реальними датами купонів і погашень, <b style="color:var(--text)">регулярні надходження</b> — за виявленим патерном, і лише <b style="color:var(--text)">зарплатня</b> — за середнім.</p>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">Ділиться на місяці з даними, не на 12</div>
+        <div class="muted" style="font-size:11.5px">Завантажив виписки за пів року — ділить на 6. Порожні місяці середнє не занижують.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">Поточний місяць не рахується</div>
+        <div class="muted" style="font-size:11.5px">Він ще в розпалі — зарплатня могла не прийти, і середнє провалилося б. Серпень почне враховуватись у вересні.</div>
+      </div>
+      <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:8px">
+        <div style="font-weight:700">Місяць рахується навіть без доходу</div>
+        <div class="muted" style="font-size:11.5px">Якщо в місяці були самі витрати, він усе одно в знаменнику — середній дохід просяде.</div>
+      </div>
+      <p class="muted" style="font-size:11.5px;margin:0"><b style="color:var(--text)">Порада:</b> качай виписку від першого числа місяця. Неповний найстаріший місяць рахується як цілий, і це занижує результат.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Family help modal (як почати вдвох) -->
 <div class="modal" id="famHelpModal">
   <div class="sheet">
@@ -1126,8 +1162,15 @@ const DEFAULT_PROXY = 'https://quiet-tooth-d62b.nd4vp65rtg.workers.dev/';
 const activeProxy = ()=> (proxyUrl || DEFAULT_PROXY);
 /* Копійчані «хвости» від float (0.1-0.1 = -1e-16) друкувалися як «−0,00».
    Усе, що менше півкопійки, — це нуль, і знака в нього немає. */
+/* Режим «сховати суми»: маскуємо в ЄДИНІЙ точці, через яку йдуть усі гроші застосунку.
+   Валютний знак лишаємо — так видно, що це сума, а не поламана верстка. Поля вводу
+   не зачіпає навмисно: ховається те, що застосунок малює, а не те, що ти редагуєш. */
+let hideAmounts=false;
 const fmt = (v,c=PIVOT)=>{ const n=Number(v)||0;
+  if(hideAmounts) return (CUR[c]?.s||c)+' •••';
   return (CUR[c]?.s||c)+' '+(Math.abs(n)<0.005?0:n).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+// доларові суми в картці цілі йдуть повз fmt() — маскуємо їх тим самим прапорцем
+const usd0 = v => hideAmounts ? '•••' : Math.round(Number(v)||0).toLocaleString('uk-UA');
 const pad2 = n => String(n).padStart(2,'0');
 const ymKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
 const todayISO = ()=>{const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;};
@@ -1243,6 +1286,7 @@ async function loadAll(){
   lastBackupAt=await getMeta('lastBackupAt')||0; autoBackup=(await getMeta('autoBackup'))!==false;
   lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
   bkAttemptAt=await getMeta('bkAttemptAt')||0;
+  hideAmounts=!!(await getMeta('hideAmounts'));
   goalTargetUSD=await getMeta('goalTargetUSD')||0; goalDate=await getMeta('goalDate')||'';
   pfFlows=await getMeta('pfFlows')||[];
   catRules=await getMeta('catRules')||[];
@@ -1503,8 +1547,8 @@ function renderGoal(moneyTotal,P){
   const pct=Math.max(0,Math.min(100,liquid/t*100));
   box.innerHTML=`<div class="card" style="margin-bottom:14px" onclick="go('ai')" role="button" style="cursor:pointer">
     <div class="row" style="font-size:13px"><span>🎯 До цілі капіталу</span><div class="spacer"></div>
-      <b style="white-space:nowrap">$${liquid.toLocaleString('uk-UA',{maximumFractionDigits:0})}</b>
-      <span class="muted" style="white-space:nowrap">/ $${t.toLocaleString('uk-UA')}</span></div>
+      <b style="white-space:nowrap">$${usd0(liquid)}</b>
+      <span class="muted" style="white-space:nowrap">/ $${usd0(t)}</span></div>
     <div style="height:8px;background:var(--surface2);border-radius:6px;margin-top:6px;overflow:hidden">
       <div style="width:${pct}%;height:100%;background:#eab308"></div></div>
     <div class="muted" style="font-size:11px;margin-top:4px">${pct.toFixed(1)}% · ліквідний капітал без майна · ціль міняється на екрані 🔮</div>
@@ -1513,13 +1557,13 @@ function renderGoal(moneyTotal,P){
       const net=avgMonthly().net/usd;                   // середній місячний приріст (дохід−витрати) у $
       let out='';
       if(net>0){ const months=Math.ceil(remain/net); const d=new Date(); d.setMonth(d.getMonth()+months);
-        out+=`<div style="font-size:12px;margin-top:6px">🔮 За темпом заощаджень (~$${Math.round(net)}/міс) — досягнеш <b style="text-transform:capitalize">${d.toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(/\s*р\.\s*$/,'')}</b></div>`;
+        out+=`<div style="font-size:12px;margin-top:6px">🔮 За темпом заощаджень (~$${usd0(net)}/міс) — досягнеш <b style="text-transform:capitalize">${d.toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(/\s*р\.\s*$/,'')}</b></div>`;
       } else out+=`<div style="font-size:12px;margin-top:6px;color:var(--muted)">🔮 Зараз середній місяць у мінус — ціль не наближається. Потрібні заощадження.</div>`;
       if(goalDate){ const [gy,gm]=goalDate.split('-').map(Number); const now=new Date();
         const monthsTo=(gy-now.getFullYear())*12+(gm-1-now.getMonth());
         if(monthsTo>0){ const need=remain/monthsTo;
           const ok=net>=need;
-          out+=`<div style="font-size:12px;margin-top:4px;color:${ok?'var(--green)':'var(--red)'}">📅 Щоб встигнути до ${goalDate}: відкладати <b>$${Math.round(need)}/міс</b> ${ok?'✓ встигаєш':'— зараз '+(net>0?'$'+Math.round(net):'0')+'/міс'}</div>`;
+          out+=`<div style="font-size:12px;margin-top:4px;color:${ok?'var(--green)':'var(--red)'}">📅 Щоб встигнути до ${goalDate}: відкладати <b>$${usd0(need)}/міс</b> ${ok?'✓ встигаєш':'— зараз '+(net>0?'$'+usd0(net):'0')+'/міс'}</div>`;
         }}
       return out;})()}
   </div>`;
@@ -1824,7 +1868,8 @@ function renderPassiveIncome(){
     rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>${c?.icon||'💰'} ${r.note||c?.name||'дохід'}</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(r.perMonth*12)}</span></div>`);});
   if(work>0) rows.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>💼 Зарплатня (сер. за 12 міс)</span><div class="spacer"></div><span class="muted" style="white-space:nowrap">+${fmtDisp(work)}</span></div>`);
   return `<div class="card">
-    <div class="row"><h3 style="margin:0;white-space:nowrap">🔮 Дохід наперед · 12 міс</h3></div>
+    <div class="row"><h3 style="margin:0;white-space:nowrap">🔮 Дохід наперед · 12 міс</h3>
+      <span onclick="openModal('passiveHelpModal')" title="Як це рахується" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;margin-left:6px;flex:0 0 auto">?</span></div>
     <div class="row" style="margin-top:4px"><span class="muted" style="font-size:12px">орієнтовно</span><div class="spacer"></div>
       <b style="color:var(--green);white-space:nowrap">+${fmtDisp(total)}</b></div>
     <div class="muted" style="font-size:11px;margin:2px 0 6px">≈${fmtDisp(total/12)}/міс. ОВДП — певні дати; регулярні й праця — за середнім патерном 12 міс.</div>
@@ -4962,6 +5007,29 @@ async function runMonoImport(){
   finally{ btn.disabled=false; btn.textContent='Імпортувати'; }
 }
 
+/* ===== Сховати суми: «фіранка для показу» (не плутати із замком — той не пускає, цей дозволяє показати) ===== */
+let hiddenExpanded=false;
+function toggleHidden(){
+  hiddenExpanded=!hiddenExpanded;
+  document.getElementById('hiddenCard').classList.toggle('hidden',!hiddenExpanded);
+  document.getElementById('hiddenArrow').textContent=hiddenExpanded?'▾':'▸';
+  document.getElementById('hideAmountsChk').checked=hideAmounts;
+}
+function toggleHideAmounts(){ setHideAmounts(!hideAmounts); }
+async function setHideAmounts(on){
+  hideAmounts=!!on; await setMeta('hideAmounts',hideAmounts);
+  refreshHideBtn();
+  const cb=document.getElementById('hideAmountsChk'); if(cb) cb.checked=hideAmounts;
+  go(curTab());                                  // перемальовуємо все: суми йдуть через fmt()
+  toast(hideAmounts?'🙈 Суми сховані':'👁 Суми видно');
+}
+function refreshHideBtn(){
+  const b=document.getElementById('hideBtn'); if(!b) return;
+  b.textContent=hideAmounts?'🙈':'👁';
+  b.style.background=hideAmounts?'var(--brand)':'';
+  b.style.color=hideAmounts?'#04211d':'';
+  b.title=hideAmounts?'Суми сховані — показати':'Сховати суми';
+}
 /* ========================= MODAL HELPERS ========================= */
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -5854,7 +5922,7 @@ document.addEventListener('visibilitychange',()=>{
   await seed(); await loadAll(); await ensureCurrencies(); await migrateAccountTypes(); await migrateCash(); await normalizeOrder();
   dispCur=baseCur;
   await pfSnapshot();   // щоденна крапка історії портфеля
-  updateNet(); go('dash');
+  updateNet(); refreshHideBtn(); go('dash');
   // нагадування спливають РАЗ за запуск (лише якщо є що показати) — далі доступні по 🔔
   if(dueReminders().length) setTimeout(openDueModal,600);
   if(family) setTimeout(()=>famPull(true).then(()=>go(curTab())),1200);   // тихо підтягуємо родину
