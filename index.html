@@ -110,7 +110,11 @@ nav.tabbar .gi{font-size:20px}
 .seg button.on[data-k="transfer"]{background:var(--text);color:var(--bg)}
 .grid.cols2>div{min-width:0}
 input[type=date],input[type=month]{-webkit-appearance:none;appearance:none}
-input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--brand);transform:scale(1.2)}
+/* Чекбокс — не текстове поле: знімаємо з нього рамку, заокруглення й padding, які
+   загальне правило для input ставить усім. Інакше він малюється широкою плашкою,
+   а зі scale(1.2) ще й вилазить за свої межі й обрізається в прокрутних списках. */
+input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--brand);transform:scale(1.2);
+  padding:0;border:none;border-radius:0;background:none;margin-left:2px}
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));
   width:56px;height:56px;border-radius:50%;background:var(--brand);color:#04211d;
   border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25}
@@ -236,7 +240,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.23</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.24</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -247,7 +251,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.23</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.24</span></div>
     <div class="row">
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
       <span class="pill" id="netStatus">офлайн</span>
@@ -444,7 +448,7 @@ svg .bar{transition:opacity .2s}
         <button class="btn ghost sm" onclick="invSortAll(true)">Позначити все</button>
         <button class="btn ghost sm" onclick="invSortAll(false)">Зняти все</button>
       </div>
-      <div id="invSortList" style="margin-top:10px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
+      <div id="invSortList" style="margin-top:10px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-left:4px"></div>
       <div class="row" style="margin-top:12px;align-items:center">
         <span class="muted" style="font-size:12px" id="invSortSum"></span>
         <div class="spacer"></div>
