@@ -122,6 +122,23 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
   padding:0;border:none;border-radius:0;background:none;margin-left:2px}
 /* will-change, а не translateZ: у .fab власний transform (.rot повертає в хрестик),
    тож шар просимо натяком, щоб не перебити поворот. Причина та сама, що в таббара. */
+/* ДРУК: на папір іде лише сама виписка. Кольори примусово в чорне по білому —
+   темна тема на папері з'їдає тонер і робить цифри нечитабельними.
+   thead як table-header-group — шапка таблиці повторюється на КОЖНІЙ сторінці. */
+@media print{
+  body{background:#fff!important;color:#000!important}
+  .sidebar,nav.tabbar,.fab,header,.noprint,#syncBanner,#toast{display:none!important}
+  .app{padding:0!important;max-width:none!important}
+  .view{padding:0!important}
+  .card{background:none!important;border:none!important;box-shadow:none!important;padding:0 0 10px!important;margin:0!important}
+  #repOut *{color:#000!important}
+  #repTable{font-size:10pt!important}
+  #repTable th,#repTable td{border:1px solid #999;padding:3px 5px}
+  #repTable thead{display:table-header-group}
+  #repTable tr{page-break-inside:avoid}
+  #view-report .row button{display:none!important}
+  @page{margin:12mm}
+}
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));
   width:56px;height:56px;border-radius:50%;background:var(--brand);color:#04211d;
   border:none;font-size:28px;box-shadow:0 8px 24px rgba(20,184,166,.4);z-index:25;
@@ -248,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.27</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.29</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -259,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.27</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.29</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -341,6 +358,7 @@ svg .bar{transition:opacity .2s}
   <section id="view-acc" class="view hidden">
     <div class="row" style="margin-bottom:12px">
       <h2 style="margin:0">Рахунки</h2><div class="spacer"></div>
+      <button class="btn ghost sm" onclick="openReport()">📄 Виписка</button>
       <button class="btn ghost sm" id="reorderBtnAcc" onclick="toggleReorder()">↕ Порядок</button>
       <button class="btn sm" onclick="openAccount()">+ Рахунок</button>
     </div>
@@ -359,6 +377,29 @@ svg .bar{transition:opacity .2s}
   </section>
 
   <!-- ============ AI-РАДНИК ============ -->
+  <section id="view-report" class="view hidden">
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn ghost sm" onclick="go('acc')">‹ Назад</button>
+      <h2 style="margin:0">📄 Виписка</h2>
+    </div>
+    <div class="card noprint">
+      <div><label>Рахунок</label><select id="repAcc" onchange="renderReport()"></select></div>
+      <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="repPreset('m')">Цей місяць</button>
+        <button class="btn ghost sm" onclick="repPreset('pm')">Минулий</button>
+        <button class="btn ghost sm" onclick="repPreset('3m')">3 місяці</button>
+        <button class="btn ghost sm" onclick="repPreset('all')">Весь час</button>
+      </div>
+      <div class="grid cols2" style="margin-top:10px">
+        <div><label>Від</label><input id="repFrom" type="date" onchange="renderReport()"></div>
+        <div><label>До</label><input id="repTo" type="date" onchange="renderReport()"></div>
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="printReport()">🖨 Друк / зберегти PDF</button>
+      <div class="muted" style="font-size:11px;margin-top:6px">На айфоні: кнопка друку → «Поділитися» → зберегти у Файли. На комп'ютері у вікні друку обери «Зберегти як PDF».</div>
+    </div>
+    <div id="repOut"></div>
+  </section>
+
   <section id="view-ai" class="view hidden">
     <div class="row" style="margin-bottom:12px">
       <button class="btn ghost sm" onclick="go('set')">‹ Назад</button>
@@ -542,20 +583,23 @@ svg .bar{transition:opacity .2s}
       <div id="bkVersions" class="hidden" style="margin-top:14px"></div>
     </div>
 
-    <h2 style="cursor:pointer;user-select:none" onclick="toggleFam()">Сімейний бюджет <span onclick="event.stopPropagation();openModal('famHelpModal')" title="Як почати вдвох" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;vertical-align:middle;margin-left:2px">?</span> <span id="famArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
-    <div class="card hidden" id="famCard">
-      <p class="muted" style="margin-top:0">Спільні рахунки видно всій родині — хто скільки вніс і витратив. <b>Решта рахунків лишається лише твоєю</b>: приватне взагалі не передається.</p>
-      <div id="famStatus"></div>
-      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
-        Категорії, ліміти й бюджети в кожного <b>свої</b> — синхронізуються тільки самі операції.</div>
-    </div>
-
     <h2 style="cursor:pointer;user-select:none" onclick="toggleLock()">Захист входу <span id="lockArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
     <div class="card hidden" id="lockCard">
       <p class="muted" style="margin-top:0">Щоб з твого <b>розблокованого</b> телефона ніхто не зазирнув у фінанси. Питає Face ID або PIN при відкритті застосунку.</p>
       <div id="lockStatus"></div>
       <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
         Це <b>фіранка, а не сейф</b>: дані на пристрої лежать незашифровані, тож технічно підкована людина обійде. Захищає від цікавих очей, не від хакера.</div>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleSnd()">Звук <span id="sndArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="sndCard">
+      <p class="muted" style="margin-top:0">Коротке «дзинь», коли дія завершилась: оновлення курсів НБУ, оновлення цін акцій, ручне збереження в хмару. Якщо не вийшло — тон нижчий, спадний.</p>
+      <label class="row" style="gap:8px;align-items:center;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="sndChk" onchange="setSound(this.checked)">
+        <span>Звукове підтвердження</span></label>
+      <div class="muted" style="font-size:11px;margin-top:8px">Сигнал лише там, де ти сам натиснув кнопку. Фонові збереження й тихе оновлення родини лишаються беззвучними — інакше телефон дзинчав би в кишені.</div>
+      <div class="muted" style="font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+        На айфоні з увімкненим беззвучним режимом сигналу може не бути — це обмеження системи, не застосунку.</div>
     </div>
 
     <h2 style="cursor:pointer;user-select:none" onclick="toggleHidden()">Сховати суми <span id="hiddenArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
@@ -589,6 +633,14 @@ svg .bar{transition:opacity .2s}
       <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
+    </div>
+
+    <h2 style="cursor:pointer;user-select:none" onclick="toggleFam()">Сімейний бюджет <span onclick="event.stopPropagation();openModal('famHelpModal')" title="Як почати вдвох" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;vertical-align:middle;margin-left:2px">?</span> <span id="famArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
+    <div class="card hidden" id="famCard">
+      <p class="muted" style="margin-top:0">Спільні рахунки видно всій родині — хто скільки вніс і витратив. <b>Решта рахунків лишається лише твоєю</b>: приватне взагалі не передається.</p>
+      <div id="famStatus"></div>
+      <div class="muted" style="font-size:11px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+        Категорії, ліміти й бюджети в кожного <b>свої</b> — синхронізуються тільки самі операції.</div>
     </div>
 
     <h2 style="cursor:pointer;user-select:none;color:#eab308" onclick="go('ai')">🔮 AI — крок у майбутнє</h2>
@@ -1338,6 +1390,7 @@ async function loadAll(){
   lastChangeAt=await getMeta('lastChangeAt')||0; lastCloudVer=await getMeta('lastCloudVer')||''; syncDismissedVer=await getMeta('syncDismissedVer')||'';
   bkAttemptAt=await getMeta('bkAttemptAt')||0;
   hideAmounts=!!(await getMeta('hideAmounts'));
+  soundOn=(await getMeta('soundOn'))!==false;      // за замовчуванням увімкнено
   goalTargetUSD=await getMeta('goalTargetUSD')||0; goalDate=await getMeta('goalDate')||'';
   pfFlows=await getMeta('pfFlows')||[];
   catRules=await getMeta('catRules')||[];
@@ -3561,6 +3614,7 @@ async function updatePrices(){
       else failed.push(raw);
     }
     await setMeta('pricesUpdated',Date.now()); await loadAll(); renderInvest();
+    beep(updated>0);                        // жодної ціни не оновилось — сигнал «не вийшло»
     toast('✓ Оновлено '+updated+' поз.'+(failed.length?' · без ціни: '+failed.join(','):'')+(skipped.length?' · пропущено: '+skipped.join(','):''));
     if(curWarn.length) alert('⚠️ Увага, валюта не збігається:\n\n'+curWarn.join('\n')+'\n\nНапр. Лондон часто котирує в пенсах (GBp), а не фунтах. Або зміни валюту позиції, або візьми лістинг у потрібній валюті.');
     if(tdErr.length) alert('Не вдалось отримати ціну для:\n\n'+tdErr.join('\n')+'\n\nЯкщо пише про план/доступ — біржа не входить у безкоштовний тариф. Якщо «не знайдено» — спробуй інший символ (Yahoo/FMP: MHPC.L, EMIM.AS; Twelve Data: MHPC:XLON).');
@@ -3570,6 +3624,7 @@ async function updatePrices(){
     else if(m==='FH_LIMIT') alert('Finnhub: забагато запитів — зачекай хвилину.');
     else if(m==='TD_LIMIT') alert('Twelve Data: вичерпано ліміт запитів на сьогодні/хвилину — спробуй пізніше.');
     else alert('Не вдалося оновити ціни:\n'+(m||e));
+    beep(false);
   }
 }
 
@@ -3718,7 +3773,7 @@ function go(tab){
   document.querySelectorAll('.view').forEach(v=>{ v.classList.add('hidden'); if(v.style.cssText) v.style.cssText=''; });
   document.getElementById('view-'+tab).classList.remove('hidden');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  const hideFab = tab==='set'||tab==='invest'||tab==='analytics'||tab==='ai';
+  const hideFab = tab==='set'||tab==='invest'||tab==='analytics'||tab==='ai'||tab==='report';
   document.getElementById('fab').classList.toggle('hidden', hideFab);
   closeFabMenu();
   if(tab==='dash')renderDash();
@@ -3726,6 +3781,7 @@ function go(tab){
   if(tab==='invest')renderInvest();
   if(tab==='analytics'){ if(!hmMonth) hmDay=Number(todayISO().slice(8,10)); renderAnalytics(); }  // відкрив → сьогодні в фокусі
   if(tab==='ai')renderAdvisor();
+  if(tab==='report')renderReport();
   window.scrollTo(0,0);
 }
 /* Свайп між вкладками — «живий», як у нативних застосунках:
@@ -4253,8 +4309,8 @@ async function fetchRates(){
       }
     }catch(_){}
     document.getElementById('ratesDate').textContent='Оновлено: '+new Date().toLocaleString('uk-UA');
-    renderAccounts();
-  }catch(e){alert('Не вдалося завантажити курси НБУ.');}
+    renderAccounts(); beep(true);
+  }catch(e){ beep(false); alert('Не вдалося завантажити курси НБУ.');}
 }
 
 /* ========================= EXPORT / IMPORT ========================= */
@@ -4389,11 +4445,11 @@ async function cloudBackupNow(silent){
     lastBackupAt=Date.now(); await setMeta('lastBackupAt',lastBackupAt);
     if(d.version){ lastCloudVer=d.version; await setMeta('lastCloudVer',lastCloudVer); }   // тепер знаємо «свою» версію в хмарі
     backupPending=false; lastBackupErr='';
-    if(!silent) toast('✓ Збережено в хмару · '+(blob.length/1024).toFixed(1)+' KB');
+    if(!silent){ beep(true); toast('✓ Збережено в хмару · '+(blob.length/1024).toFixed(1)+' KB'); }
     renderSettings(); return true;
   }catch(e){
     backupPending=true; lastBackupErr=e&&e.message||String(e);
-    if(!silent) alert('Не вдалось зберегти в хмару:\n'+lastBackupErr);
+    if(!silent){ beep(false); alert('Не вдалось зберегти в хмару:\n'+lastBackupErr); }
     renderSettings(); return false;
   }
 }
@@ -5062,6 +5118,13 @@ async function runMonoImport(){
 }
 
 /* ===== Сховати суми: «фіранка для показу» (не плутати із замком — той не пускає, цей дозволяє показати) ===== */
+let sndExpanded=false;
+function toggleSnd(){
+  sndExpanded=!sndExpanded;
+  document.getElementById('sndCard').classList.toggle('hidden',!sndExpanded);
+  document.getElementById('sndArrow').textContent=sndExpanded?'▾':'▸';
+  document.getElementById('sndChk').checked=soundOn;
+}
 let hiddenExpanded=false;
 function toggleHidden(){
   hiddenExpanded=!hiddenExpanded;
@@ -5083,6 +5146,125 @@ function refreshHideBtn(){
   b.style.background=hideAmounts?'var(--brand)':'';
   b.style.color=hideAmounts?'#04211d':'';
   b.title=hideAmounts?'Суми сховані — показати':'Сховати суми';
+}
+/* ===== 📄 ВИПИСКА ПО РАХУНКУ =====
+   Призначення не «красивий звіт», а ПОШУК ПОМИЛКИ: залишок після кожної операції
+   дозволяє йти згори вниз і побачити, де саме число зламалось. Тому колонка залишку
+   тут головна, а не декоративна, і рахується вона тим самим способом, що й accBalance —
+   інакше виписка розходилась би з карткою рахунку. */
+function repDelta(t,id){
+  const amt=Number(t.amount)||0;
+  if(t.type==='income'  && t.account===id) return  amt;
+  if(t.type==='expense' && t.account===id) return -amt;
+  if(t.type==='adjust'  && t.account===id) return  amt;
+  if(t.type==='transfer'){
+    if(t.account===id) return -amt;
+    if(t.to===id) return Number(t.amountTo??t.amount)||0;
+  }
+  return 0;
+}
+function openReport(accId){
+  const sel=document.getElementById('repAcc');
+  const list=accounts.filter(a=>!a.archived);
+  if(!list.length){ alert('Спершу додай хоча б один рахунок.'); return; }
+  sel.innerHTML=list.map(a=>`<option value="${a.id}">${a.icon||'💳'} ${a.name} (${a.currency})</option>`).join('');
+  if(accId&&list.some(a=>a.id===accId)) sel.value=accId;
+  if(!document.getElementById('repFrom').value) repPreset('m');
+  go('report');
+}
+function repPreset(k){
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth();
+  let from,to;
+  if(k==='m'){ from=new Date(y,m,1); to=new Date(y,m+1,0); }
+  else if(k==='pm'){ from=new Date(y,m-1,1); to=new Date(y,m,0); }
+  else if(k==='3m'){ from=new Date(y,m-2,1); to=new Date(y,m+1,0); }
+  else { const ds=txs.map(t=>t.date).filter(Boolean).sort();
+    from=ds.length?new Date(ds[0]):new Date(y,m,1); to=new Date(y,m+1,0); }
+  document.getElementById('repFrom').value=ymd(from);
+  document.getElementById('repTo').value=ymd(to);
+  renderReport();
+}
+const repTypeName={income:'дохід',expense:'витрата',transfer:'переказ',adjust:'коригування'};
+function renderReport(){
+  const box=document.getElementById('repOut'); if(!box) return;
+  const acc=accById(document.getElementById('repAcc').value); if(!acc){ box.innerHTML=''; return; }
+  const from=document.getElementById('repFrom').value, to=document.getElementById('repTo').value;
+  if(!from||!to){ box.innerHTML=''; return; }
+  // ВСІ операції рахунку в хронологічному порядку — залишок має накопичуватись із самого початку
+  const all=txs.filter(t=>t.account===acc.id||t.to===acc.id)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))||((a.createdAt||0)-(b.createdAt||0)));
+  let bal=Number(acc.balance||0), opening=bal;
+  const rows=[]; let inSum=0, outSum=0;
+  for(const t of all){
+    const d=repDelta(t,acc.id);
+    if(String(t.date)<from){ bal+=d; opening=bal; continue; }   // до періоду — лише рухаємо залишок
+    if(String(t.date)>to) continue;
+    bal+=d; rows.push({t,d,bal});
+    if(d>=0) inSum+=d; else outSum+=-d;
+  }
+  const closing=rows.length?rows[rows.length-1].bal:opening;
+  const dt=t=>{ const c=t.createdAt?new Date(t.createdAt):null;
+    return t.date+(c?' '+String(c.getHours()).padStart(2,'0')+':'+String(c.getMinutes()).padStart(2,'0')+':'+String(c.getSeconds()).padStart(2,'0'):''); };
+  const what=t=>{
+    if(t.type==='transfer') return (t.account===acc.id?'→ ':'← ')+(accById(t.account===acc.id?t.to:t.account)?.name||'?');
+    if(t.type==='adjust') return t.note||'коригування';
+    return catFullName(t.category)||'—';
+  };
+  const warn = hideAmounts ? `<div class="card noprint" style="border-left:4px solid var(--red)"><b>Суми сховані.</b> <span class="muted" style="font-size:13px">Увімкнено режим «сховати суми», тож і у виписці, і в друку будуть •••. Вимкни оком у шапці.</span></div>` : '';
+  box.innerHTML = warn + `<div class="card">
+    <div style="font-weight:700;font-size:15px">${acc.icon||'💳'} ${acc.name}</div>
+    <div class="muted" style="font-size:12px;margin-top:2px">Період ${from} — ${to} · валюта ${acc.currency}</div>
+    <div class="row" style="margin-top:10px;font-size:13px"><span class="muted">Залишок на початок</span><div class="spacer"></div><b>${fmt(opening,acc.currency)}</b></div>
+    <div class="row" style="font-size:13px"><span class="muted">Надійшло</span><div class="spacer"></div><span style="color:var(--green)">+${fmt(inSum,acc.currency)}</span></div>
+    <div class="row" style="font-size:13px"><span class="muted">Списано</span><div class="spacer"></div><span style="color:var(--red)">−${fmt(outSum,acc.currency)}</span></div>
+    <div class="row" style="font-size:13px;margin-top:4px;padding-top:6px;border-top:1px solid var(--line)"><span>Залишок на кінець</span><div class="spacer"></div><b>${fmt(closing,acc.currency)}</b></div>
+    <div class="muted" style="font-size:11px;margin-top:6px">Операцій за період: ${rows.length}</div>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    ${rows.length?`<table id="repTable" style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left">Дата й час</th><th style="text-align:left">Тип</th>
+        <th style="text-align:left">Категорія</th><th style="text-align:right">Сума</th>
+        <th style="text-align:right">Залишок</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td style="white-space:nowrap">${dt(r.t)}</td>
+        <td>${repTypeName[r.t.type]||r.t.type}</td>
+        <td>${what(r.t)}${r.t.note&&r.t.type!=='adjust'?' <span class="muted">· '+r.t.note+'</span>':''}</td>
+        <td style="text-align:right;white-space:nowrap;color:${r.d>=0?'var(--green)':'var(--red)'}">${r.d>=0?'+':'−'}${fmt(Math.abs(r.d),acc.currency)}</td>
+        <td style="text-align:right;white-space:nowrap">${fmt(r.bal,acc.currency)}</td></tr>`).join('')}</tbody>
+    </table>`:'<div class="muted" style="font-size:13px">За цей період операцій нема.</div>'}
+  </div>`;
+}
+function printReport(){ window.print(); }
+
+/* ===== Звукове підтвердження =====
+   Синтезуємо тон через Web Audio — жодних звукових файлів, принцип «один файл» цілий.
+   Контекст створюємо ЛІНИВО і лише в межах натискання кнопки: iOS не дає програвати
+   звук без жесту користувача. Тому сигнал є там, де людина щось натиснула, і його
+   свідомо НЕМА на фонових подіях (автобекап, тихе підтягування родини). */
+let soundOn=true, _actx=null;
+function beep(ok=true){
+  if(!soundOn) return;
+  try{
+    _actx=_actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(_actx.state==='suspended') _actx.resume();
+    const t0=_actx.currentTime;
+    const notes = ok ? [[880,0],[1320,.09]] : [[300,0],[220,.12]];   // вгору = вийшло, вниз = ні
+    for(const [hz,at] of notes){
+      const o=_actx.createOscillator(), g=_actx.createGain();
+      o.type='sine'; o.frequency.value=hz;
+      g.gain.setValueAtTime(0,t0+at);
+      g.gain.linearRampToValueAtTime(.18,t0+at+.01);
+      g.gain.exponentialRampToValueAtTime(.0001,t0+at+.16);
+      o.connect(g); g.connect(_actx.destination);
+      o.start(t0+at); o.stop(t0+at+.18);
+    }
+  }catch(_){ /* звук — приємність, а не функція: не працює — мовчимо */ }
+}
+async function setSound(on){
+  soundOn=!!on; await setMeta('soundOn',soundOn);
+  if(soundOn) beep(true);                      // одразу чути, на що погодився
+  toast(soundOn?'🔔 Звук увімкнено':'🔕 Звук вимкнено');
 }
 /* ========================= MODAL HELPERS ========================= */
 function openModal(id){document.getElementById(id).classList.add('open');}
