@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.31</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.32</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.31</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.32</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -385,14 +385,14 @@ svg .bar{transition:opacity .2s}
     <div class="card noprint">
       <div><label>Рахунок</label><select id="repAcc" onchange="renderReport()"></select></div>
       <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
-        <button class="btn ghost sm" onclick="repPreset('m')">Цей місяць</button>
-        <button class="btn ghost sm" onclick="repPreset('pm')">Минулий</button>
-        <button class="btn ghost sm" onclick="repPreset('3m')">3 місяці</button>
-        <button class="btn ghost sm" onclick="repPreset('all')">Весь час</button>
+        <button class="btn ghost sm repP" data-k="m" onclick="repPreset('m')">Цей місяць</button>
+        <button class="btn ghost sm repP" data-k="pm" onclick="repPreset('pm')">Минулий</button>
+        <button class="btn ghost sm repP" data-k="3m" onclick="repPreset('3m')">3 місяці</button>
+        <button class="btn ghost sm repP" data-k="all" onclick="repPreset('all')">Весь час</button>
       </div>
       <div class="grid cols2" style="margin-top:10px">
-        <div><label>Від</label><input id="repFrom" type="date" onchange="renderReport()"></div>
-        <div><label>До</label><input id="repTo" type="date" onchange="renderReport()"></div>
+        <div><label>Від</label><input id="repFrom" type="date" onchange="repMarkPreset('');renderReport()"></div>
+        <div><label>До</label><input id="repTo" type="date" onchange="repMarkPreset('');renderReport()"></div>
       </div>
       <button class="btn" style="width:100%;margin-top:12px" onclick="printReport()">🖨 Друк / зберегти PDF</button>
       <div class="muted" style="font-size:11px;margin-top:6px">На айфоні: кнопка друку → «Поділитися» → зберегти у Файли. На комп'ютері у вікні друку обери «Зберегти як PDF».</div>
@@ -5176,20 +5176,32 @@ function openReport(accId){
   if(!list.length){ alert('Спершу додай хоча б один рахунок.'); return; }
   sel.innerHTML=list.map(a=>`<option value="${a.id}">${a.icon||'💳'} ${a.name} (${a.currency})</option>`).join('');
   if(accId&&list.some(a=>a.id===accId)) sel.value=accId;
-  if(!document.getElementById('repFrom').value) repPreset('m');
+  if(!document.getElementById('repFrom').value) repPreset('m'); else repSyncPreset();
   go('report');
 }
-function repPreset(k){
+// підсвітка обраного періоду; ручна правка дат знімає її — бо тоді період уже «свій»
+function repMarkPreset(k){
+  document.querySelectorAll('#view-report .repP').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+}
+function repRange(k){
   const now=new Date(), y=now.getFullYear(), m=now.getMonth();
-  let from,to;
-  if(k==='m'){ from=new Date(y,m,1); to=new Date(y,m+1,0); }
-  else if(k==='pm'){ from=new Date(y,m-1,1); to=new Date(y,m,0); }
-  else if(k==='3m'){ from=new Date(y,m-2,1); to=new Date(y,m+1,0); }
-  else { const ds=txs.map(t=>t.date).filter(Boolean).sort();
-    from=ds.length?new Date(ds[0]):new Date(y,m,1); to=new Date(y,m+1,0); }
+  if(k==='m')  return [new Date(y,m,1),   new Date(y,m+1,0)];
+  if(k==='pm') return [new Date(y,m-1,1), new Date(y,m,0)];
+  if(k==='3m') return [new Date(y,m-2,1), new Date(y,m+1,0)];
+  const ds=txs.map(t=>t.date).filter(Boolean).sort();
+  return [ds.length?new Date(ds[0]):new Date(y,m,1), new Date(y,m+1,0)];
+}
+function repPreset(k){
+  const [from,to]=repRange(k);
   document.getElementById('repFrom').value=ymd(from);
   document.getElementById('repTo').value=ymd(to);
-  renderReport();
+  repMarkPreset(k); renderReport();
+}
+// повернувся на екран із раніше обраними датами — підсвічуємо ту кнопку, якій вони відповідають
+function repSyncPreset(){
+  const f=document.getElementById('repFrom').value, t=document.getElementById('repTo').value;
+  const k=['m','pm','3m','all'].find(x=>{const [a,b]=repRange(x); return ymd(a)===f&&ymd(b)===t;});
+  repMarkPreset(k||'');
 }
 const repTypeName={income:'дохід',expense:'витрата',transfer:'переказ',adjust:'коригування'};
 function renderReport(){
