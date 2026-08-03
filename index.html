@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.29</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.31</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.29</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.31</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -468,7 +468,9 @@ svg .bar{transition:opacity .2s}
         <button id="catTabExp" class="on" onclick="switchCatTab('expense')">Витрати</button>
         <button id="catTabInc" onclick="switchCatTab('income')">Доходи</button>
       </div>
-      <div id="catList"></div>
+      <!-- висота обмежена: у детальному обліку категорій багато, і без цього решта секцій
+           «Ще» їхала далеко вниз щоразу, коли сюди заглядаєш -->
+      <div id="catList" style="max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px"></div>
       <button class="btn sm" style="margin-top:12px" onclick="openCat()">＋ Додати категорію</button>
       <p class="muted" style="font-size:12px;margin-bottom:0">Підказка: щоб розділити пальне для авто й мото — створи категорії «Авто» і «Мотоцикл», а всередині додай підкатегорії з батьківською категорією.</p>
     </div>
@@ -481,28 +483,6 @@ svg .bar{transition:opacity .2s}
         <button class="btn sm" onclick="openRule()">＋ Правило</button>
         <div class="spacer"></div>
         <button class="btn ghost sm" onclick="applyRulesToExisting()">↻ До наявних</button>
-      </div>
-    </div>
-
-    <h2 style="cursor:pointer;user-select:none" onclick="toggleInvSort()">Розібрати вкладення <span id="invSortArrow" style="font-size:20px;color:var(--muted)">▸</span></h2>
-    <div class="card hidden" id="invSortCard">
-      <p class="muted" style="margin-top:0">Якщо колись поповнення інвестицій записувались як звичайні витрати (напр. після переносу з іншого застосунку) — тут їх можна позначити гуртом. Позначена операція <b>зникає з витрат</b>, але з рахунку списується як завжди: залишки не зміняться.</p>
-      <div><label>Категорія</label><select id="invSortCat" onchange="invSortPick()"></select></div>
-      <div class="muted hidden" id="invSortCatWarn" style="font-size:11px;margin-top:6px;color:var(--red)"></div>
-      <div class="row" style="margin-top:10px;gap:8px">
-        <input id="invSortMin" type="number" step="1" placeholder="напр. 1000" style="max-width:130px">
-        <button class="btn sm" onclick="invSortMarkFrom()">Позначити від суми</button>
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Зручно, коли поповнення великі, а комісії дрібні: вкажи межу — і все, що вище, позначиться одним тапом.</div>
-      <div class="row" style="margin-top:10px;gap:8px">
-        <button class="btn ghost sm" onclick="invSortAll(true)">Позначити все</button>
-        <button class="btn ghost sm" onclick="invSortAll(false)">Зняти все</button>
-      </div>
-      <div id="invSortList" style="margin-top:10px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-left:4px"></div>
-      <div class="row" style="margin-top:12px;align-items:center">
-        <span class="muted" style="font-size:12px" id="invSortSum"></span>
-        <div class="spacer"></div>
-        <button class="btn" onclick="invSortSave()">Зберегти</button>
       </div>
     </div>
 
@@ -630,6 +610,28 @@ svg .bar{transition:opacity .2s}
         <input type="file" id="ffFile" accept=".json,application/json" class="hidden" onchange="onFreedomFile(event)">
       </div>
       <div class="muted" style="font-size:11px;margin-top:4px">Банк упізнається сам: <b>Монобанк</b> — CSV картки з застосунку; <b>ПриватБанк</b> — XLSX виписка з Приват24 (там є власні категорії — можна зіставити з твоїми); <b>Банк Південний</b> — CSV з інтернет-банкінгу. Валюта береться з виписки. <b>Freedom24</b>: у застосунку замов «Виписку про стан рахунку» на пошту (JSON) — оновляться позиції, ціни й готівка майданчика.</div>
+      <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
+      <div style="cursor:pointer;user-select:none;font-weight:600;font-size:14px" onclick="toggleInvSort()">🧩 Розібрати вкладення <span id="invSortArrow" style="font-size:16px;color:var(--muted)">▸</span></div>
+      <div class="hidden" id="invSortCard" style="margin-top:8px">
+        <p class="muted" style="margin-top:0">Якщо колись поповнення інвестицій записувались як звичайні витрати (напр. після переносу з іншого застосунку) — тут їх можна позначити гуртом. Позначена операція <b>зникає з витрат</b>, але з рахунку списується як завжди: залишки не зміняться.</p>
+        <div><label>Категорія</label><select id="invSortCat" onchange="invSortPick()"></select></div>
+        <div class="muted hidden" id="invSortCatWarn" style="font-size:11px;margin-top:6px;color:var(--red)"></div>
+        <div class="row" style="margin-top:10px;gap:8px">
+          <input id="invSortMin" type="number" step="1" placeholder="напр. 1000" style="max-width:130px">
+          <button class="btn sm" onclick="invSortMarkFrom()">Позначити від суми</button>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Зручно, коли поповнення великі, а комісії дрібні: вкажи межу — і все, що вище, позначиться одним тапом.</div>
+        <div class="row" style="margin-top:10px;gap:8px">
+          <button class="btn ghost sm" onclick="invSortAll(true)">Позначити все</button>
+          <button class="btn ghost sm" onclick="invSortAll(false)">Зняти все</button>
+        </div>
+        <div id="invSortList" style="margin-top:10px;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-left:4px"></div>
+        <div class="row" style="margin-top:12px;align-items:center">
+          <span class="muted" style="font-size:12px" id="invSortSum"></span>
+          <div class="spacer"></div>
+          <button class="btn" onclick="invSortSave()">Зберегти</button>
+        </div>
+      </div>
       <!-- небезпечна кнопка — окремо, під рискою, подалі від експорту/імпорту -->
       <div style="margin:14px 0;border-top:1px solid var(--line)"></div>
       <button class="btn danger sm" style="width:100%" onclick="wipeData()">🗑 Стерти все</button>
@@ -4527,6 +4529,11 @@ async function syncCheck(){
 }
 function showSyncBanner(newest){
   hideSyncBanner();
+  /* Виняток із правила «фонові події мовчать»: ця плашка не повідомляє, а ПИТАЄ —
+     її легко проґавити, а ціна пропуску висока (працюватимеш на застарілій базі).
+     Звук може не пролунати на iOS, якщо від запуску застосунку ще не було жодного
+     дотику: система не дає програвати без жесту. Плашку це не зачіпає — вона видима. */
+  beep(false);
   const when=newest.at?new Date(newest.at).toLocaleString('uk-UA',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
   const dirty=lastChangeAt>lastBackupAt;   // тут є зміни, яких ще немає в хмарі
   const b=document.createElement('div'); b.id='syncBanner';
@@ -5203,8 +5210,10 @@ function renderReport(){
     if(d>=0) inSum+=d; else outSum+=-d;
   }
   const closing=rows.length?rows[rows.length-1].bal:opening;
+  // час ОКРЕМИМ рядком під датою: у стовпчик влазить і на телефоні, і на папері
   const dt=t=>{ const c=t.createdAt?new Date(t.createdAt):null;
-    return t.date+(c?' '+String(c.getHours()).padStart(2,'0')+':'+String(c.getMinutes()).padStart(2,'0')+':'+String(c.getSeconds()).padStart(2,'0'):''); };
+    const hh=c?String(c.getHours()).padStart(2,'0')+':'+String(c.getMinutes()).padStart(2,'0')+':'+String(c.getSeconds()).padStart(2,'0'):'';
+    return t.date+(hh?`<div class="muted" style="font-size:11px;line-height:1.2">${hh}</div>`:''); };
   const what=t=>{
     if(t.type==='transfer') return (t.account===acc.id?'→ ':'← ')+(accById(t.account===acc.id?t.to:t.account)?.name||'?');
     if(t.type==='adjust') return t.note||'коригування';
