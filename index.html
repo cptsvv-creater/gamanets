@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.33</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.34</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.33</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.34</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -528,7 +528,13 @@ svg .bar{transition:opacity .2s}
     <div class="card hidden" id="bkCard">
       <p class="muted" style="margin-top:0">Копія даних у хмарі. Шифрується <b>на цьому телефоні</b> — ні Cloudflare, ні автор застосунку не можуть її прочитати. Офлайн усе працює як завжди; копія полетить, щойно з'явиться інтернет.</p>
       <div id="bkOff">
-        <div><label>Пароль шифрування</label><input id="bkPassInput" type="password" placeholder="вигадай пароль"></div>
+        <!-- око: цей пароль вигадують ОДИН раз і без повторного вводу, тож помилку в регістрі
+             чи розкладці інакше не помітиш — а виправити її потім уже неможливо -->
+        <div><label>Пароль шифрування</label>
+          <div class="row" style="gap:8px">
+            <input id="bkPassInput" type="password" placeholder="вигадай пароль">
+            <button class="btn ghost sm" style="min-width:44px" onclick="togglePass('bkPassInput',this)" title="показати пароль">👁</button>
+          </div></div>
         <div class="muted" style="font-size:11px;margin-top:4px">Це все, що треба — <b>ключ відновлення застосунок створить сам</b> і покаже тобі після вмикання.</div>
         <div class="muted" style="font-size:11px;margin-top:4px">⚠️ Забудеш пароль — бекап не відновити <b>ніколи</b>. Це плата за те, що його ніхто не прочитає. Запиши в надійне місце.</div>
         <button class="btn sm" style="margin-top:10px" onclick="bkEnable()">Увімкнути бекап</button>
@@ -555,7 +561,10 @@ svg .bar{transition:opacity .2s}
         <div id="restoreBox" class="hidden" style="margin-top:10px">
           <div class="muted" style="font-size:11px;margin-bottom:8px">Потрібні ключ відновлення й пароль з <b>іншого</b> телефона, де бекап уже увімкнено.</div>
           <input id="bkRestoreId" placeholder="ключ відновлення (32 символи)" style="font-family:monospace;font-size:16px;letter-spacing:.5px">
-          <input id="bkRestorePass" type="password" placeholder="пароль" style="margin-top:8px">
+          <div class="row" style="gap:8px;margin-top:8px">
+            <input id="bkRestorePass" type="password" placeholder="пароль">
+            <button class="btn ghost sm" style="min-width:44px" onclick="togglePass('bkRestorePass',this)" title="показати пароль">👁</button>
+          </div>
           <button class="btn ghost sm" style="margin-top:10px" onclick="bkRestore()">⬇ Відновити</button>
           <div class="muted" style="font-size:11px;margin-top:4px">Замінить усі дані на цьому пристрої даними з хмари.</div>
         </div>
@@ -1828,7 +1837,9 @@ function txRow(t){
   let ic,title,sub,amtHtml;
   if(t.type==='transfer'){
     const to=accById(t.to);
-    ic='🔄'; title='Переказ'; sub=`${acc?.name||'?'} → ${to?.name||'?'}`;
+    // нотатку показуємо й для переказів: раніше вона була видима лише у витрат/доходів,
+    // тож підпис до переказу («Поповнення банки», «На картку доньці») мовчки зникав
+    ic='🔄'; title='Переказ'; sub=`${acc?.name||'?'} → ${to?.name||'?'}${t.note?' · '+t.note:''}`;
     amtHtml=`<span class="amt">${fmt(t.amount,acc?.currency)}</span>`;
   }else if(t.type==='adjust'){
     const pos=t.amount>=0;
@@ -4136,6 +4147,13 @@ function adjToggleSign(){
 }
 /* Перемалювати ЛИШЕ той екран, що зараз видно. На відміну від go() не чіпає видимість
    вкладок і не скидає прокрутку — це важливо, коли поверх відкрита модалка. */
+function togglePass(id,btn){
+  const el=document.getElementById(id); if(!el) return;
+  const show=el.type==='password';
+  el.type=show?'text':'password';
+  btn.textContent=show?'🙈':'👁';
+  btn.title=show?'сховати пароль':'показати пароль';
+}
 function refreshCurrentTab(){
   const t=curTab();
   if(t==='dash') renderDash();
@@ -4887,13 +4905,22 @@ function parseStatement(rows,det){
 /* Чужу назву категорії (банку або партнера) зіставляємо зі СВОЄЮ за змістом назви.
    Спільний механізм: категорії в кожного свої, і нав'язувати чужі не можна. */
 const catNorm=s=>String(s||'').toLowerCase().replace(/[^0-9a-zа-яіїєґ ]/gi,' ').replace(/\s+/g,' ').trim();
+/* Зіставляння чужої назви категорії зі своєю.
+   ПОРІВНЮЄМО ПОСЛІВНО, а не шматками рядка. Стара версія шукала входження підрядка,
+   і коротка назва впізнавалась усередині чужого слова: «ТО» знаходилось у «авТО»,
+   тож «Авто · Штрафи» партнера лягало в «Мотоцикл · ТО». Слово має збігтися цілком. */
 function matchCatByName(name,type){
   const n=catNorm(name); if(!n) return '';
-  const words=n.split(' ').filter(w=>w.length>3);
+  const nw=n.split(' ').filter(Boolean);
   const pool=cats.filter(c=>c.type===type&&kids(c.id).length===0);
-  const hit=pool.find(c=>catNorm(c.name)===n)
-    || pool.find(c=>{const cn=catNorm(c.name); return cn&&(n.includes(cn)||cn.includes(n));})
-    || pool.find(c=>{const cn=catNorm(c.name); return words.some(w=>cn.includes(w));});
+  const wordsOf=s=>catNorm(s).split(' ').filter(Boolean);
+  const hit=
+       pool.find(c=>catNorm(catFullName(c.id))===n)                       // повна назва збіглась
+    || pool.find(c=>catNorm(c.name)===n)                                  // назва листа збіглась
+    || pool.find(c=>{const cw=wordsOf(c.name); return cw.length&&cw.every(w=>nw.includes(w));})
+    || pool.find(c=>{const cw=wordsOf(c.name); return nw.length&&nw.every(w=>cw.includes(w));})
+    || pool.find(c=>{const cw=wordsOf(c.name);                            // спільне довге слово
+         return nw.filter(w=>w.length>3).some(w=>cw.includes(w));});
   return hit?hit.id:'';
 }
 function privatCatMap(rows){
@@ -5803,7 +5830,9 @@ function famPayload(){
   const mine=txs.filter(t=>!t.ext && (ids.has(t.account)||ids.has(t.to)));
   return {v:1,name:family.name,member:family.member,at:new Date().toISOString(),
     accounts:accs,
-    tx:mine.map(t=>({...t, by:t.by||family.name, cat:catFullName(t.category)||''}))};   // категорію везе ТЕКСТОМ
+    // категорію везе ТЕКСТОМ; у переказів її нема — інакше catFullName віддає «—»,
+    // і партнер бачив би «партнер: —» замість нічого
+    tx:mine.map(t=>({...t, by:t.by||family.name, cat:t.category?(catFullName(t.category)||''):''}))};
 }
 async function famPush(){
   if(!family||famBusy) return;
