@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.32</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.33</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.32</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.33</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -4124,7 +4124,7 @@ async function seedToAdjust(){
   if(!confirm(`Перенести стартовий баланс ${fmt(amt,a.currency)} у запис «Коригування» від ${d}?`)) return;
   await put('tx',{id:uid(),type:'adjust',amount:amt,date:d,account:a.id,note:'Стартовий баланс',createdAt:Date.now()});
   a.balance=0; await put('accounts',a);
-  await loadAll(); closeModal('accModal'); renderAccounts();
+  await loadAll(); closeModal('accModal'); refreshCurrentTab();   // та сама вада: перемальовували «Рахунки», хоч видно могли бути «Інвестиції»
   toast('✓ Стартовий баланс тепер у коригуванні від '+d);
 }
 function adjToggleSign(){
@@ -4134,6 +4134,16 @@ function adjToggleSign(){
   if(!isNaN(v)&&v!==0){ el.value=-v; el.focus(); }
   else { toast('Спершу впиши суму, потім тисни ± щоб зробити її від\'ємною'); el.focus(); }
 }
+/* Перемалювати ЛИШЕ той екран, що зараз видно. На відміну від go() не чіпає видимість
+   вкладок і не скидає прокрутку — це важливо, коли поверх відкрита модалка. */
+function refreshCurrentTab(){
+  const t=curTab();
+  if(t==='dash') renderDash();
+  else if(t==='acc') renderAccounts();
+  else if(t==='invest') renderInvest();
+  else if(t==='analytics') renderAnalytics();
+  else if(t==='report') renderReport();
+}
 async function applyAdjust(){
   if(!editingAcc)return;
   const target=parseFloat(document.getElementById('adjTarget').value);
@@ -4141,7 +4151,16 @@ async function applyAdjust(){
   const delta=+(target-accBalance(editingAcc)).toFixed(2);
   if(delta===0){alert('Баланс уже збігається — коригування не потрібне');return;}
   await put('tx',{id:uid(),type:'adjust',amount:delta,date:todayISO(),account:editingAcc.id,note:'Коригування балансу'});
-  await loadAll(); closeModal('accModal'); renderAccounts();
+  await loadAll();
+  /* Картку НЕ закриваємо: людина має побачити результат там само, де натиснула кнопку,
+     і сама вирішити — зберегти решту правок чи скасувати.
+     А оновлюємо ЕКРАН ПІД НЕЮ через go(curTab()): раніше тут стояв renderAccounts(),
+     і при коригуванні майданчика перемальовувались «Рахунки», хоч видно було «Інвестиції» —
+     запис створювався, а на екрані нічого не мінялось. */
+  document.getElementById('adjTarget').value='';
+  document.getElementById('adjHint').textContent=
+    'Зараз за розрахунком: '+fmt(accBalance(editingAcc),editingAcc.currency)+'. Впиши фактичний — створю запис на різницю.';
+  refreshCurrentTab();
   toast('Баланс вирівняно: '+(delta>0?'+':'−')+fmt(Math.abs(delta),editingAcc.currency));
 }
 let sellingAssetId=null;
