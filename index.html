@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.37</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.38</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.37</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.38</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -3836,6 +3836,10 @@ function setConvMode(m){
   convMode=m;
   document.querySelectorAll('#convModeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   convert();
+  // курсів ще нема (перший запуск після оновлення) — тягнемо мовчки й перераховуємо,
+  // щоб людині не доводилось здогадуватись, що спершу треба щось натиснути
+  if(m!=='nbu' && !Object.keys(bankRates).length && navigator.onLine)
+    fetchBankRates().then(()=>{ renderRatesCard(); convert(); });
 }
 function convert(){
   convFrom=document.getElementById('convFrom').value; convTo=document.getElementById('convTo').value;
@@ -3845,10 +3849,16 @@ function convert(){
   // банківський курс існує лише проти гривні й лише для валют зі списку банку
   if(convMode!=='nbu'){
     const pairOk=(convFrom==='UAH'||convTo==='UAH') && convFrom!==convTo;
+    const порожньо=!Object.keys(bankRates).length;
     if(!pairOk){ note='Купівля/продаж бувають лише проти гривні — рахую за НБУ.'; rf=rates[convFrom]; rt=rates[convTo]; }
+    else if(порожньо){
+      // не звинувачуємо банк у тому, чого ми ще не питали
+      note=navigator.onLine?'Завантажую готівкові курси…':'Готівкові курси ще не завантажені — тисни «↻ Оновити», коли буде інтернет. Поки рахую за НБУ.';
+      rf=rates[convFrom]; rt=rates[convTo];
+    }
     else if(rf===null||rt===null){
       const miss=rf===null?convFrom:convTo;
-      note='Банк не дає готівкового курсу для '+miss+' — рахую за НБУ.';
+      note='Банк дає готівковий курс лише для '+Object.keys(bankRates).sort().join(' і ')+' — для '+miss+' рахую за НБУ.';
       rf=rates[convFrom]; rt=rates[convTo];
     }
   }
@@ -6315,6 +6325,9 @@ document.addEventListener('visibilitychange',()=>{
   await pfSnapshot();   // щоденна крапка історії портфеля
   updateNet(); refreshHideBtn(); go('dash');
   // нагадування спливають РАЗ за запуск (лише якщо є що показати) — далі доступні по 🔔
+  // перший запуск після оновлення: готівкових курсів ще нема — беремо тихо, без кнопки
+  if(!Object.keys(bankRates).length && navigator.onLine)
+    fetchBankRates().then(()=>{ if(curTab()==='dash'){ renderRatesCard(); convert(); } });
   if(dueReminders().length) setTimeout(openDueModal,600);
   if(family) setTimeout(()=>famPull(true).then(()=>go(curTab())),1200);   // тихо підтягуємо родину
   // холодний старт: 1) дожимаємо бекап, що не встиг відлетіти минулого разу
