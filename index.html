@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.38</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.40</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.38</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.40</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -303,7 +303,7 @@ svg .bar{transition:opacity .2s}
       <div class="row"><h3 style="margin:0;white-space:nowrap">Курси та конвертер</h3>
         <span onclick="openModal('ratesHelpModal')" title="Звідки курси й на що впливають" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);color:var(--muted);font-size:11px;flex:0 0 auto">?</span>
         <div class="spacer"></div>
-        <button class="btn ghost sm" style="white-space:nowrap" onclick="fetchRates()" title="Оновити курси НБУ і готівкові ПриватБанку">↻ Оновити</button></div>
+        <button class="btn ghost sm" style="white-space:nowrap" onclick="fetchRates()" title="Оновити курси НБУ і курси Монобанку">↻ Оновити</button></div>
       <div id="ratesBox" class="row wrap" style="margin-top:8px"></div>
       <div class="muted" id="ratesDate" style="font-size:12px;margin-bottom:10px"></div>
       <div class="seg" id="convModeSeg" style="margin-bottom:8px">
@@ -1094,13 +1094,13 @@ svg .bar{transition:opacity .2s}
         <div class="muted" style="font-size:11.5px">Один на день, один на валюту. Купівлі й продажу в нього не буває в принципі — це довідкова величина для обліку, а не для обміну.</div>
       </div>
       <div style="padding:10px;background:var(--surface2);border-radius:10px;margin-bottom:12px">
-        <div style="font-weight:700">Купівля і продаж — ПриватБанк, готівка</div>
-        <div class="muted" style="font-size:11.5px">Той курс, за яким міняють у касі. <b style="color:var(--text)">Купівля</b> — банк купує валюту в тебе, <b style="color:var(--text)">продаж</b> — продає тобі. Обидва оновлюються тією ж кнопкою «Оновити курси».</div>
+        <div style="font-weight:700">Купівля і продаж — Монобанк</div>
+        <div class="muted" style="font-size:11.5px">Курс, за яким банк реально обмінює. <b style="color:var(--text)">Купівля</b> — банк купує валюту в тебе, <b style="color:var(--text)">продаж</b> — продає тобі. Обидва оновлюються тією ж кнопкою «Оновити курси».</div>
       </div>
       <p class="muted" style="font-size:11.5px;margin:0 0 10px"><b style="color:var(--text)">Курс банку живе лише в конвертері.</b> Баланси, чистий капітал і вся аналітика рахуються за НБУ — інакше твій капітал стрибав би щоразу від банківського спреду.</p>
       <p class="muted" style="font-size:11.5px;margin:0 0 6px"><b style="color:var(--text)">Якщо режим недоступний</b> — застосунок не мовчить і не підставляє чуже число, а рахує за НБУ й пише чому:</p>
       <div class="muted" style="font-size:11.5px;margin:0 0 4px">• <b style="color:var(--text)">USD → EUR</b> у режимі купівлі: купівля й продаж бувають лише проти гривні;</div>
-      <div class="muted" style="font-size:11.5px;margin:0">• <b style="color:var(--text)">MDL</b> та інші: готівковий курс банк дає лише для USD і EUR.</div>
+      <div class="muted" style="font-size:11.5px;margin:0">• рідкісні валюти: банк дає купівлю/продаж не для всіх — для решти лишається курс НБУ.</div>
     </div>
   </div>
 </div>
@@ -3793,8 +3793,12 @@ function renderRatesCard(){
     `<div style="font-size:14px;margin-bottom:4px">1 USD = <b>${fmtR(rateInBase('USD'))} ${bsym}</b></div>
      <div style="font-size:14px" class="row">1 <select onchange="ratePickCur=this.value;renderRatesCard()" style="width:auto;padding:4px 8px">${pickOpts}</select> = <b>${fmtR(rateInBase(ratePickCur))} ${bsym}</b></div>`
      + (Object.keys(bankRates).length
-        ? `<div class="muted" style="font-size:12px;margin-top:6px">Готівка ПриватБанку · `
-          + Object.keys(bankRates).sort().map(c=>`${c} <b style="color:var(--text)">${fmtR(bankRates[c].buy)}</b>／<b style="color:var(--text)">${fmtR(bankRates[c].sale)}</b>`).join(' · ')
+        ? `<div class="muted" style="font-size:12px;margin-top:6px">Курси Монобанку · `
+          // USD і EUR попереду — це ті, на які дивляться щодня; решта за абеткою
+          + Object.keys(bankRates).sort((a,b)=>{
+              const w=c=>c==='USD'?0:c==='EUR'?1:2;
+              return w(a)-w(b) || a.localeCompare(b);
+            }).map(c=>`${c} <b style="color:var(--text)">${fmtR(bankRates[c].buy)}</b>／<b style="color:var(--text)">${fmtR(bankRates[c].sale)}</b>`).join(' · ')
           + `</div>` : '');
   if(!convFrom||!opts.includes(convFrom)) convFrom=baseCur;
   if(!convTo||!opts.includes(convTo)) convTo=(baseCur==='USD'?'EUR':'USD');
@@ -3805,25 +3809,45 @@ function renderRatesCard(){
 }
 /* ===== Готівкові курси банку (купівля/продаж) =====
    НБУ дає ОДИН довідковий курс — купівлі/продажу в нього не буває в принципі, це курси
-   конкретного банку. Джерело: публічний ендпоінт ПриватБанку, coursid=5 — саме готівковий,
-   той, за яким міняють в касі. Ключа не треба, CORS дозволено, тож ідемо напряму без воркера.
+   конкретного банку. Джерело: публічний API Монобанку. ПриватБанк не годиться — його ендпоінт
+   НЕ віддає CORS-заголовків для звичайних сайтів (працює лише з file://, що й збило мене з пантелику),
+   тож із браузера до нього не достукатись без власного проксі. Моно віддає, ключа не треба.
    ВАЖЛИВО: ці курси працюють ЛИШЕ в конвертері. Баланси, чистий капітал і вся аналітика
    рахуються за НБУ — інакше твій капітал стрибав би від банківського спреду. */
-let bankRates={}, bankRatesAt=0, convMode='nbu';   // nbu | buy | sale
-async function fetchBankRates(){
+let bankRates={}, bankRatesAt=0, convMode='nbu', _bankBusy=false;   // nbu | buy | sale
+/* Монобанк віддає валюти ЧИСЛОВИМИ кодами ISO 4217 — перекладаємо у літерні,
+   бо весь застосунок працює з USD/EUR/…. Тут лише ті, що можуть трапитись у CUR. */
+const ISO_NUM={840:'USD',978:'EUR',980:'UAH',826:'GBP',985:'PLN',756:'CHF',203:'CZK',208:'DKK',
+  348:'HUF',578:'NOK',752:'SEK',124:'CAD',36:'AUD',392:'JPY',156:'CNY',949:'TRY',946:'RON',
+  975:'BGN',498:'MDL',981:'GEL',944:'AZN',398:'KZT',356:'INR',376:'ILS',784:'AED',682:'SAR',
+  818:'EGP',788:'TND',12:'DZD',344:'HKD',702:'SGD',410:'KRW',764:'THB',458:'MYR',360:'IDR',
+  704:'VND',484:'MXN',710:'ZAR',554:'NZD',50:'BDT',422:'LBP',941:'RSD'};
+async function fetchBankRates(force){
+  if(_bankBusy) return;
+  // Монобанк дозволяє ОДИН запит на хвилину з IP — тримаємо 10-хвилинну паузу з запасом,
+  // інакше при кількох тапах поспіль отримаємо 429 і лишимось без курсів узагалі
+  if(!force && bankRatesAt && Date.now()-bankRatesAt < 10*60*1000) return;
+  // і окремо: не гатимо запитами, якщо спроба щойно провалилась (інакше кожен тап = новий 429)
+  if(!force && fetchBankRates._try && Date.now()-fetchBankRates._try < 60*1000) return;
+  fetchBankRates._try=Date.now();
+  _bankBusy=true;
   try{
-    const r=await fetch('https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5');
+    const r=await fetch('https://api.monobank.ua/bank/currency');
+    if(!r.ok) return;                       // 429 «забагато запитів» — тихо лишаємо старі курси
     const d=await r.json();
+    if(!Array.isArray(d)) return;
     const out={};
-    (Array.isArray(d)?d:[]).forEach(x=>{
-      const b=parseFloat(x.buy), s=parseFloat(x.sale);
-      if(x.ccy&&x.base_ccy==='UAH'&&b>0&&s>0) out[x.ccy]={buy:b,sale:s};
+    d.forEach(x=>{
+      if(x.currencyCodeB!==980) return;     // цікавлять лише пари ПРОТИ ГРИВНІ
+      const c=ISO_NUM[x.currencyCodeA];
+      if(c && x.rateBuy>0 && x.rateSell>0) out[c]={buy:x.rateBuy,sale:x.rateSell};
     });
     if(Object.keys(out).length){
       bankRates=out; bankRatesAt=Date.now();
       await setMeta('bankRates',bankRates); await setMeta('bankRatesAt',bankRatesAt);
     }
   }catch(_){ /* нема мережі чи банк не відповів — лишаємось на НБУ, це не помилка */ }
+  finally{ _bankBusy=false; }
 }
 // курс однієї одиниці валюти c у гривні за обраним режимом; null — режим для цієї валюти недоступний
 function convRate(c){
@@ -3853,12 +3877,13 @@ function convert(){
     if(!pairOk){ note='Купівля/продаж бувають лише проти гривні — рахую за НБУ.'; rf=rates[convFrom]; rt=rates[convTo]; }
     else if(порожньо){
       // не звинувачуємо банк у тому, чого ми ще не питали
-      note=navigator.onLine?'Завантажую готівкові курси…':'Готівкові курси ще не завантажені — тисни «↻ Оновити», коли буде інтернет. Поки рахую за НБУ.';
+      note=navigator.onLine?'Завантажую курси банку…':'Курси банку ще не завантажені — тисни «↻ Оновити», коли буде інтернет. Поки рахую за НБУ.';
       rf=rates[convFrom]; rt=rates[convTo];
     }
     else if(rf===null||rt===null){
       const miss=rf===null?convFrom:convTo;
-      note='Банк дає готівковий курс лише для '+Object.keys(bankRates).sort().join(' і ')+' — для '+miss+' рахую за НБУ.';
+      note=miss? ('Банк не дає купівлі/продажу для '+miss+' — рахую за НБУ.')
+               : 'Для цієї валюти банк не дає купівлі/продажу — рахую за НБУ.';
       rf=rates[convFrom]; rt=rates[convTo];
     }
   }
@@ -4443,7 +4468,7 @@ async function fetchRates(){
       }
     }catch(_){}
     document.getElementById('ratesDate').textContent='Оновлено: '+new Date().toLocaleString('uk-UA');
-    await fetchBankRates();          // тим самим натисканням тягнемо й готівкові курси банку
+    await fetchBankRates(true);      // ручне натискання — тягнемо в обхід паузи
     renderAccounts(); renderRatesCard(); beep(true);
   }catch(e){ beep(false); alert('Не вдалося завантажити курси НБУ.');}
 }
