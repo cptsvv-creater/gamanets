@@ -265,7 +265,7 @@ svg .bar{transition:opacity .2s}
 </div>
 
 <aside class="sidebar">
-  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.40</span></div>
+  <div class="brand"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.41</span></div>
   <button class="navi active" data-tab="dash" onclick="go('dash')"><span class="gi">🏠</span>Огляд</button>
   <button class="navi" data-tab="acc" onclick="go('acc')"><span class="gi">💳</span>Рахунки</button>
   <button class="navi" data-tab="invest" onclick="go('invest')"><span class="gi">📈</span>Інвестиції</button>
@@ -276,7 +276,7 @@ svg .bar{transition:opacity .2s}
 </aside>
 <div class="app">
   <header>
-    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.40</span></div>
+    <div class="logo"><b>₴</b> Гаманець <span style="font-size:11px;color:var(--muted);font-weight:400">v1.41</span></div>
     <div class="row">
       <button class="pill" id="hideBtn" onclick="toggleHideAmounts()" title="Сховати суми" style="cursor:pointer;border:none;font-size:14px">👁</button>
       <button class="pill hidden" id="remindBell" onclick="openDueModal()" style="cursor:pointer;border:none;font-size:14px">🔔 <b id="remindBellCount">0</b></button>
@@ -3793,12 +3793,15 @@ function renderRatesCard(){
     `<div style="font-size:14px;margin-bottom:4px">1 USD = <b>${fmtR(rateInBase('USD'))} ${bsym}</b></div>
      <div style="font-size:14px" class="row">1 <select onchange="ratePickCur=this.value;renderRatesCard()" style="width:auto;padding:4px 8px">${pickOpts}</select> = <b>${fmtR(rateInBase(ratePickCur))} ${bsym}</b></div>`
      + (Object.keys(bankRates).length
-        ? `<div class="muted" style="font-size:12px;margin-top:6px">Курси Монобанку · `
+        // підпис ОКРЕМИМ рядком: разом із курсами він переносився посеред числа,
+        // і рядок «USD 44,6／45» рвався навпіл — гірше за зайвий рядок
+        ? `<div class="muted" style="font-size:11px;margin-top:8px">Курси Монобанку</div>`
+          + `<div class="muted" style="font-size:12px;line-height:1.5">`
           // USD і EUR попереду — це ті, на які дивляться щодня; решта за абеткою
           + Object.keys(bankRates).sort((a,b)=>{
               const w=c=>c==='USD'?0:c==='EUR'?1:2;
               return w(a)-w(b) || a.localeCompare(b);
-            }).map(c=>`${c} <b style="color:var(--text)">${fmtR(bankRates[c].buy)}</b>／<b style="color:var(--text)">${fmtR(bankRates[c].sale)}</b>`).join(' · ')
+            }).map(c=>`<span style="white-space:nowrap">${c} <b style="color:var(--text)">${fmtR(bankRates[c].buy)}</b>／<b style="color:var(--text)">${fmtR(bankRates[c].sale)}</b></span>`).join(' · ')
           + `</div>` : '');
   if(!convFrom||!opts.includes(convFrom)) convFrom=baseCur;
   if(!convTo||!opts.includes(convTo)) convTo=(baseCur==='USD'?'EUR':'USD');
